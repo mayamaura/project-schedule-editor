@@ -4,6 +4,8 @@ import { z } from 'zod';
 // 新しいチャネルは必ずここに追加し、Main 側は handle() で実装する（architecture 2）。
 export const ipcSchemas = {
   'app:getVersion': { input: z.undefined(), output: z.string() },
+  /** フォルダ選択ダイアログ → 日程データを読み込む。キャンセルなら null（F-501 の「開く」）。 */
+  'repo:open': { input: z.undefined(), output: z.object({ path: z.string(), files: z.record(z.string(), z.string()) }).nullable() },
 } as const;
 
 export type IpcChannel = keyof typeof ipcSchemas;

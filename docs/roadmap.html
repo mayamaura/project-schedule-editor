@@ -82,6 +82,7 @@
 <tr><td>設計</td><td><strong>DrawList の仕様</strong>（矩形・点・線・ラベルの表現、レイヤ、サブレーンのレイアウト）、スクロール・ズームの状態モデル（<a href="ui-design.html">年月週 / 年月</a>）、ヒットテストの索引、Canvas の運用（dirty + rAF、DPR 対応）。文書（architecture 1.5）に反映</td></tr>
 <tr><td>実装</td><td>S2-1 <code>buildDrawList</code> + <code>draw</code> の最小版（行・バー・マイルストーン）。S2-2 日付ヘッダ（年月週 / 年月）、ズーム・スクロール、今日線・週末・祝日。S2-3 左ペインのツリー（仮想化・展開/折りたたみ）、サブレーン（F-103）、プロジェクトの表示選択（F-401）。S2-4 表示スタイル（F-102）・色・種別、依存線と表示切替（F-302, F-304）。S2-5 ヒットテスト・ホバー・性能（25,000イベント）。<strong>既存フォルダを開いて実データを表示</strong>（F-501 の「開く」）</td></tr>
 <tr><td>テスト</td><td><code>buildDrawList</code>・レイアウト・ヒットテストの単体テスト（DOM 不要）、表示の E2E（<code>window.__timeline</code> から DrawList を取得）、<strong>性能ベンチ（25,000イベント）を CI に記録</strong>（閾値超過は警告）、<strong>実機計測</strong>（画面倍率 125〜200%・複数の PC）、キーボード操作と読み上げ用テキストの基本</td></tr>
+<tr><td><strong>進捗（2026-11-07）</strong></td><td>詳細設計は <a href="architecture.html#phase2">architecture 12</a>。<strong>S2-1〜S2-5 を実装</strong>（日付軸とヘッダ、レイアウトとサブレーン、DrawList、Canvas 描画、ヒットテスト、タイムライン画面、フォルダを開く、サンプル表示）。25,000イベントで、DrawList 生成は通常 約 0.5 ms・最悪ケースでも約 12.5 ms、<strong>実際の Electron のフレーム間隔は 16.7 ms（60fps）</strong>。単体 309 件・E2E 19 件が通過。結果・見つかった問題・未実装は <a href="architecture.html#phase2-result">architecture 12.8</a>。<strong>未完了</strong>: F-401 の UI（表示するプロジェクトの選択）、他の PC・画面倍率での実機計測、実際の利用データでの確認。<strong>見積りの見直し（完了条件）</strong>は下記。</td></tr>
 <tr><td>完了条件</td><td>サンプルと実データが、実機で滑らかに表示・ズーム・スクロールできる（60fps 目標）。<strong>見積りの見直し</strong></td></tr></table>
 
 <h3>Phase 3: 編集（約4週）</h3>

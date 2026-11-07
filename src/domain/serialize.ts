@@ -116,7 +116,9 @@ export function parseSchedule(files: Files, table: MigrationTable = MIGRATIONS, 
       if (v !== undefined) raw[path] = v;
     } // それ以外（views/, templates/ など、このモジュールの対象外のファイル）は無視する
   }
-  if (errors.length > 0) return { status: 'error', errors };
+  // 構文エラーがあっても、現在の版（マイグレーション不要）なら、読めたファイルのスキーマ検証を続けて
+  // 全ての問題を1回で報告する。古い版は、全てのファイルが読めないと移行できないので、構文エラーだけを返す。
+  if (errors.length > 0 && version !== target) return { status: 'error', errors };
 
   let migrated: Record<string, unknown>;
   try {

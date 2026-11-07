@@ -104,6 +104,19 @@ describe('parseSchedule（読み込めないもの・不整合）', () => {
     expect(r2.status).toBe('error');
     if (r2.status === 'error') expect(r2.errors.map((e) => e.path)).toEqual(['dependencies/d1.json', 'projects/A1.json']);
   });
+  it('JSON の構文エラーと、別のファイルのスキーマ違反を、1回で全て報告する（直しては開き直す手間をかけさせない）', () => {
+    const f = good();
+    f['projects/A.json'] = '{ broken'; // 構文エラー
+    f['dependencies/d1.json'] = JSON.stringify({ id: 'd1', type: 'XX' }); // スキーマ違反（別のファイル）
+    f['projects/A1.json'] = JSON.stringify({ id: 'A1', name: '', parentId: 'A', order: 'i', events: {}, milestones: {} }); // スキーマ違反
+    const r = parseSchedule(f);
+    expect(r.status).toBe('error');
+    if (r.status === 'error') expect([...new Set(r.errors.map((e) => e.path))]).toEqual(['dependencies/d1.json', 'projects/A.json', 'projects/A1.json']);
+  });
+  it('構文エラーがあり、かつ古い版（マイグレーションが必要）のときは、構文エラーだけを返す（移行できないため）', () => {
+    const r = parseSchedule({ ...good(), 'schedule.json': '{"schemaVersion":1}', 'projects/A.json': '{ broken' }, {}, 2);
+    expect(r).toMatchObject({ status: 'error', errors: [{ path: 'projects/A.json' }] });
+  });
   it('未知のキー・不正な日付・不正なIDは構造エラー（外部での編集ミスを検出）', () => {
     for (const bad of [
       { id: 'A', name: 'x', parentId: null, order: 'i', events: {}, milestones: {}, extra: 1 },

@@ -2,22 +2,16 @@
 // 起動の smoke と、Electron のセキュリティ設定の確認（NF-007）。
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { launch, root } from './launch';
 
-const root = resolve(__dirname, '../..');
 const version = (JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as { version: string }).version;
 
 let app: ElectronApplication;
 let page: Page;
 
 test.beforeAll(async () => {
-  // VS Code など Electron 製ホストから起動すると ELECTRON_RUN_AS_NODE=1 が引き継がれ、
-  // Electron が Node として動いて起動に失敗する。テストでは引き継がない。
-  const env = { ...process.env } as Record<string, string>;
-  delete env['ELECTRON_RUN_AS_NODE'];
-  app = await electron.launch({ args: ['.'], cwd: root, env });
-  page = await app.firstWindow();
-  await page.waitForSelector('[data-testid="title"]');
+  ({ app, page } = await launch());
 });
 
 test.afterAll(async () => {

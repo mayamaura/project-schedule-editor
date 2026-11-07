@@ -316,5 +316,88 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <li>配布サイズ: 展開後 357MB（Electron 本体が大部分）、<strong>インストーラは約 116MB</strong>。ここに同梱 Git（約45MB）や、AI 機能を含める場合は Copilot ランタイム（圧縮 69MB・展開 181MB）が加わる。Phase 5 で評価する（NF-008）。</li>
 <li><strong>Windows のドライブレターは大文字にそろえる。</strong>子プロセスの cwd が小文字（<code>c:\...</code>）だと、Vitest がテストを読み込めず「Cannot read properties of undefined (reading 'config')」で失敗する（大文字 <code>C:\...</code> では通る。2026-11-07 に再現して特定）。ストップフックは <code>$CLAUDE_PROJECT_DIR</code> 経由のため小文字で起動されることがあり、「フックでだけ失敗する」原因だった。品質ゲートの <code>ROOT</code>（<code>scripts/lib/docs.mjs</code>）で大文字に正規化して解決。開発者が小文字の cwd のシェルから直接 <code>npm test</code> を実行した場合は同じ失敗になりうる（Vitest 側の挙動。未修正）。<strong>初出時に「ビルドとの並行実行が原因」と推測したが誤りだった。</strong></li>
 </ul>
+<h2 id="phase2">12. Phase 2（Canvas 表示）の詳細設計</h2>
+<p>要件: F-101〜F-107, F-302, F-304, F-401, NF-001, NF-010（基本）。実装: <code>src/domain/timeline/</code>（純 TypeScript。DOM 非依存）＋ <code>src/renderer/timeline/</code>（Canvas と入力）。<strong>「仮定」はユーザーの決定事項ではなく Phase 2 での設計判断</strong>（変更があれば <code>/spec-change</code>）。</p>
+<h3>12.1 モジュール構成（<code>src/domain/timeline/</code>）</h3>
+<table><tr><th>モジュール</th><th>役割</th></tr>
+<tr><td><code>axis</code></td><td>日付 ⇔ x 座標（<code>x = (日 − leftDay) × pxPerDay</code>）、ズーム（カーソル位置を固定）、日付ヘッダ（年月週 / 年月）の生成</td></tr>
+<tr><td><code>layout</code></td><td>プロジェクトツリーを表示行に平坦化（展開/折りたたみ・表示選択）、サブレーンの割り当て（F-103）、行の高さと y 座標</td></tr>
+<tr><td><code>drawlist</code></td><td><code>buildDrawList(schedule, layout, options)</code>（<strong>純関数</strong>）: 表示範囲（行 × 日付）だけを描画命令（矩形・線・折れ線・記号・文字）と当たり判定の箱にする</td></tr>
+<tr><td><code>draw</code></td><td><code>draw(ctx, drawList)</code>: 描画命令を Canvas に描く。<strong>DOM の型に依存しない最小のインターフェース（<code>Canvas2D</code>）</strong>だけを使うため、ドメイン層に置け、ビューア（R3）と共有でき、描画命令の記録テストができる</td></tr>
+<tr><td><code>hittest</code></td><td>座標 → 項目（イベント・マイルストーン・端のつまみ）/ 行 / 日付。右クリックの文脈（F-209）の基礎</td></tr></table>
+<h3>12.2 日付ヘッダ（ui-design 1.5 を実装）</h3>
+<ul>
+<li><strong>年月週</strong>: 下段は月曜日の「日」。上段の月は<strong>月曜日が属する月</strong>でまとめ、週の列境界に揃える（11/30(月)の週は 11 月、「12」は 12/7 の列から）。<strong>年月</strong>: 上段のみ。月の境界は実際の月初（月の幅は日数に比例）。</li>
+<li>上段のラベルは、<strong>表示中の最初の列と1月だけ <code>'YY/M</code>、他は <code>M</code></strong>。幅が足りないセルはラベルを省略する（ズームアウト時に文字が潰れない）。</li>
+<li>バー・◆は<strong>実際の日付位置</strong>に描く（連続した日付軸）。ヘッダの切替は目盛りの見せ方だけが変わり、スクロール位置（左端の日付）とズームは維持される。</li>
+</ul>
+<h3>12.3 ビューポートとズーム（仮定）</h3>
+<table><tr><th>項目</th><th>仮定</th></tr>
+<tr><td>状態</td><td><code>leftDay</code>（左端の日付。小数可）、<code>pxPerDay</code>（1日の幅）、<code>scrollY</code>、表示サイズ。Renderer の ref に持ち、変化したときだけ再描画（dirty + rAF）</td></tr>
+<tr><td>ズーム範囲</td><td><code>pxPerDay</code> = 0.5〜48。0.5 なら 8年 ≒ 1,460px、48 なら1週間 ≒ 336px。ズームは<strong>カーソル下の日付を固定</strong>して拡縮</td></tr>
+<tr><td>操作</td><td>Ctrl+ホイール = ズーム、Shift+ホイール = 横スクロール、ホイール = 縦スクロール、空白のドラッグ = パン、＋/− ボタン、「今日」ボタン、ヘッダ形式のトグル</td></tr>
+<tr><td>初期表示</td><td>データ全体の日付範囲に合わせる（<code>spanOf</code>）。データが無ければ今日の前後</td></tr></table>
+<h3>12.4 レイアウトとサブレーン（F-103。仮定）</h3>
+<ul>
+<li>行はプロジェクト1つ。親子は深さ（インデント）で表し、折りたたんだ親の子孫は出さない。親の日程は独立入力（A3）で、子から集計しない。</li>
+<li><strong>サブレーン</strong>: 1行内で日付が重なるイベント・マイルストーンを、<strong>日付だけで決める</strong>貪欲法（開始日順に、空いている最初のレーンへ）で縦に並べる。<strong>ズームに依存しない</strong>ので、拡縮でバーが上下に飛ばない。終了日を含むため「前の終了日 &lt; 次の開始日」で同じレーンに置ける。マイルストーンは1日分として扱う。</li>
+<li>行の高さ = 余白 × 2 ＋ レーン数 × レーンの高さ（最小高さあり）。結果はプロジェクトの参照でキャッシュ（Phase 1 の構造共有により、編集したプロジェクトだけ再計算）。</li>
+<li>描画する行は、y 座標の二分探索で表示範囲だけを求める（行の仮想化）。</li>
+</ul>
+<h3>12.5 DrawList（仮定）</h3>
+<ul>
+<li>命令: <code>rect</code>（塗り・枠・角丸・透明度・ストライプ）、<code>line</code>、<code>poly</code>（折れ線・矢印）、<code>marker</code>（◆●▲■★旗）、<code>text</code>（位置・色・サイズ・クリップ幅）。<strong>座標はビューポート内のピクセル</strong>（スクロール適用済み）。</li>
+<li>層: ヘッダ → 背景（週末・今日線・行の区切り・列の罫線）→ 項目 → 依存線 → 選択の強調。</li>
+<li>表示スタイル（F-102）: イベント = バー / 角丸バー / 細線＋端点 / 背景帯 / 枠線 / ストライプ。マイルストーン = ◆ ● ▲ ■ ★ 旗 / ラベルのみ。種別マスタの既定を項目の <code>style</code> が上書き。色は種別の色、無ければ種別名から決めた既定のパレット。色だけに依存せず、形・パターン・ラベルでも区別する（NF-010）。</li>
+<li>ラベル: バーに収まれば内側、収まらなければ右の外側。マイルストーンのラベルは 1日 ≥ 3px のとき右に出す。文字幅は推定（全角 = 1em、半角 = 0.55em。描画時は幅でクリップ）。</li>
+<li>依存線（F-302, F-304）: 直交の折れ線＋矢印。種類（FS/SS/FF/SF）ごとに出入りの向きを変え、後続が先行より前にある場合は迂回する。<strong>違反している依存（validate の <code>dependency-violation</code>）は赤</strong>。表示は「全て / 選択項目に関係するものだけ / 非表示」。端点が画面外でも、片方が見えていれば描く。</li>
+<li>背景: 週末は 1日 ≥ 3px のときだけ薄く塗る。今日線。祝日はカレンダー（R2）の実装後。</li>
+<li>ヒットテスト: 描画した項目の箱（表示範囲内のみ）を、後ろから（手前のものを優先）走査。イベントは両端 6px を「つまみ」（開始/終了の変更用。Phase 3）。<strong>索引（格子など）は使わない</strong>（表示範囲の項目数が上限でも走査で足りるか、実測する。足りなければ導入）。</li>
+</ul>
+<h3>12.6 Renderer（<code>src/renderer/timeline/</code>）</h3>
+<ul>
+<li>左ペイン（DOM。仮想化したプロジェクトツリー。展開/折りたたみ・表示のチェック）と、右のタイムライン（Canvas）。<strong>縦スクロールは1つの状態を共有</strong>して同期する。</li>
+<li>Canvas は <code>devicePixelRatio</code> に合わせて実サイズを調整（高解像度でもにじまない）。ResizeObserver でサイズ追従。状態が変わったときだけ rAF で再描画。</li>
+<li>データの入口（F-501 の「開く」）: メニュー/ボタン →（IPC）Main がフォルダ選択ダイアログを開き、<code>fileRepository</code> で読み込む（途中状態があれば復旧）→ Renderer がドメインの <code>parseSchedule</code> で検証して表示。<strong>読み込みエラーは全て表示し、データを黙って捨てない</strong>。開発用に「サンプルを表示」（25,000イベント）。</li>
+<li>Phase 2 は<strong>読み取り専用</strong>（編集は Phase 3）。</li>
+</ul>
+<h3>12.7 テスト計画</h3>
+<table><tr><th>対象</th><th>方法</th></tr>
+<tr><td>axis / ヘッダ</td><td>ui-design の図の例（11/2, 9, 16, 23, 30 → 12/7 …）を期待値に、月跨ぎ・年跨ぎ・ラベル規則・ズームの不動点を単体テスト</td></tr>
+<tr><td>layout</td><td>サブレーン（重なり・同日・連鎖・ズーム非依存）、展開/折りたたみ、表示選択、行の y 座標、キャッシュの共有</td></tr>
+<tr><td>drawlist / hittest / draw</td><td>命令の数と座標、スタイルごとの出力、依存線の経路と違反の色、可視範囲の絞り込み、つまみ・手前優先。<code>draw</code> は記録用の偽の Canvas で命令の呼び出しを検証</td></tr>
+<tr><td>性能</td><td>25,000 イベントで <code>buildDrawList</code> を、全体表示（最悪）と通常表示で計測（閾値つきで CI に記録）。実際の Canvas での描画時間は E2E で計測</td></tr>
+<tr><td>E2E</td><td>実際の Electron で「サンプルを表示」し、Canvas に描画されること（ピクセルの確認）、ズーム・ヘッダ切替・スクロールの操作</td></tr></table>
+<h3 id="phase2-result">12.8 実装状況と実測（Phase 2、2026-11-07）</h3>
+<p><strong>実装済み</strong>: <code>axis</code> / <code>layout</code> / <code>drawlist</code> / <code>draw</code> / <code>hittest</code>（<code>src/domain/timeline/</code>）、Renderer（<code>TimelineView</code>: 左ペイン＋Canvas、ズーム・パン・ホイール、ヘッダ切替、依存線の表示切替、クリック選択・ホバー、折りたたみ）、「フォルダを開く」（IPC <code>repo:open</code>）、「サンプルを表示」（25,000イベント）。<strong>読み取り専用</strong>。</p>
+<table><tr><th>計測（25,000イベント、<code>tests/domain/timeline/perf.test.ts</code>）</th><th>時間</th></tr>
+<tr><td><code>buildLayout</code>（初回: 500行・25,000項目のレーン割り当て込み / キャッシュ済み）</td><td>約 30 ms / 約 1.5 ms</td></tr>
+<tr><td><code>buildDrawList</code>: <strong>最悪ケース</strong>（8年を 0.5px/日で縮小し、全500行・27,500項目・2,000依存が同時に見える）</td><td>約 12.5 ms（最適化前は約 23 ms）</td></tr>
+<tr><td><code>buildDrawList</code>: 通常（5px/日、画面に約9行・約50項目）/ 拡大（40px/日）</td><td>約 0.5 ms / 約 0.4 ms</td></tr>
+<tr><td>当たり判定（27,500件を全走査）</td><td>約 0.04 ms</td></tr>
+<tr><td>1件を編集した直後の <code>buildLayout</code> + <code>buildDrawList</code>（依存の再解析込み）</td><td>約 4.3 ms</td></tr></table>
+<ul>
+<li><strong>最適化</strong>: 描画のたびに日付文字列を4回ずつパースしていたのが最悪ケースの支配的なコストだったため、項目の日付（通算日数）を<strong>プロジェクトの参照でキャッシュ</strong>した（<code>itemDays</code>）。編集していないプロジェクトは再計算しない。23 ms → 12.5 ms。</li>
+<li><strong>当たり判定に索引は不要</strong>: 27,500 件の全走査で 0.04 ms。設計（12.5）で「足りなければ導入」としていたが、導入しない。</li>
+<li><strong>実際の画面で表示される量</strong>: 1行の高さはレーン数で決まり（サンプルで約100px）、画面（900px）に入る行は約9行・項目は約 500 件以内。上の「最悪ケース」（27,500項目が同時に見える）は、行が極端に低い場合の上限で、通常は起きない。</li>
+<li><strong>実際の Electron（E2E）</strong>: ズーム操作を連続して行ったときのフレーム間隔は <strong>16.7 ms（60fps。垂直同期が上限）</strong>。1回の描画は DrawList 生成 約 1 ms ＋ Canvas 描画 約 0.4 ms（表示は約 300 項目）。</li>
+<li>E2E: 起動 → サンプル表示 → ピクセル確認 → 折りたたみ → ヘッダ切替 → ズーム（カーソル下の日付が動かない）→ パン → 縦スクロール同期 → 選択（読み上げ用の通知を含む）→ フレーム時間、および<strong>フォルダを開く</strong>（正常 / 更新の途中だったデータの復旧 / 壊れたデータ / 新しい版 / キャンセル）。全 19 件通過。</li></ul>
+<h4>見つかった問題</h4>
+<ul>
+<li><strong>ドメインの不具合（修正済み）</strong>: <code>parseSchedule</code> は「全ての問題を返す」はずが、JSON の構文エラーが1つでもあると即座に返し、他のファイルのスキーマ違反を報告していなかった（E2E で発見）。現在の版では、構文エラーがあっても読めたファイルの検証を続け、<strong>1回で全て報告</strong>する。古い版は全ファイルが読めないと移行できないため、構文エラーだけを返す。</li>
+<li><strong>テストの作り方（Playwright）</strong>: 状態を引き継いで順に操作するテストは、1つ失敗するとワーカーが作り直されてアプリが初期状態に戻り、以降が連鎖して30秒のタイムアウトで失敗し、原因が分からなくなる。<code>test.describe.configure({ mode: 'serial' })</code> にして、失敗時は残りを実行しない。</li></ul>
+<h4>未実装・後回し（意図的）</h4>
+<table><tr><th>項目</th><th>状況</th></tr>
+<tr><td>F-401 表示するプロジェクトの選択（UI）</td><td>レイアウトは <code>visible</code> オプションに対応済み（単体テストあり）。<strong>チェックボックスの UI は未実装</strong>（Phase 3 の左ペインの作り込みと合わせる）</td></tr>
+<tr><td>祝日の背景</td><td>カレンダー（F-603）の実装後（R2）。週末と今日線は実装済み</td></tr>
+<tr><td>キーボードでの項目の選択（NF-010）</td><td>Canvas にフォーカスは当たり、選択項目は読み上げ用に通知される。<strong>矢印キーで項目を移動する操作は未実装</strong>（F-203 とともに Phase 3 / R5）</td></tr>
+<tr><td>項目のホバーでの詳細表示</td><td>ホバーは強調のみ。詳細は選択時に下部に表示（ツールチップは未実装）</td></tr>
+<tr><td>右クリックメニュー・編集</td><td>Phase 3</td></tr>
+<tr><td>親行の子の集約表示</td><td>任意のオプションとして後回し（A3 の決定: 親の日程は独立入力）</td></tr></table>
+<h4>未検証</h4>
+<ul>
+<li><strong>他の PC・画面倍率（125〜200%）・GPU の弱い環境でのフレーム時間</strong>（今回は開発機の1台のみ）。</li>
+<li><strong>実際の利用データ</strong>での表示（サンプルと、テスト用の小さなフォルダのみ）。</li>
+<li>ダークテーマの見た目（実装済みだが、目視していない）。</li></ul>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>

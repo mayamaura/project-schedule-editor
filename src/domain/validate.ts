@@ -1,7 +1,7 @@
 // @req F-208, F-305, F-704
 // 整合性チェック（ルールベース。AI 不要）。docs/data-model.html 11, requirements F-208 / F-305 / F-704。
 // 依存違反は「警告」のみ（A2: 自動連動しない・編集の自由を優先）。構造が壊れているものは「エラー」。
-import { addDays, daysBetween, isDateStr } from './date';
+import { isDateStr, toDays } from './date';
 import { buildItemIndex, type Dependency, type Id, type ItemRef, type Schedule } from './model';
 
 export type Severity = 'error' | 'warning';
@@ -31,10 +31,14 @@ export interface ValidationIssue {
  *   FF: 後続.終了 ≥ 先行.終了 + ラグ     / SF: 後続.終了 ≥ 先行.開始 + ラグ
  */
 export function dependencyShortfall(type: Dependency['type'], lagDays: number, from: ItemRef, to: ItemRef): number {
-  const required =
-    type === 'FS' ? addDays(from.end, 1 + lagDays) : type === 'SS' ? addDays(from.start, lagDays) : type === 'FF' ? addDays(from.end, lagDays) : addDays(from.start, lagDays);
-  const actual = type === 'FS' || type === 'SS' ? to.start : to.end;
-  const diff = daysBetween(actual, required);
+  return shortfallDays(type, lagDays, toDays(from.start), toDays(from.end), toDays(to.start), toDays(to.end));
+}
+
+/** dependencyShortfall の通算日数版（描画など、大量に判定する場所で使う。判定式はここだけに持つ）。 */
+export function shortfallDays(type: Dependency['type'], lagDays: number, fromStart: number, fromEnd: number, toStart: number, toEnd: number): number {
+  const required = type === 'FS' ? fromEnd + 1 + lagDays : type === 'SS' ? fromStart + lagDays : type === 'FF' ? fromEnd + lagDays : fromStart + lagDays;
+  const actual = type === 'FS' || type === 'SS' ? toStart : toEnd;
+  const diff = required - actual;
   return diff > 0 ? diff : 0;
 }
 

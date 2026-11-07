@@ -31,7 +31,7 @@ export function isDateStr(v: unknown): v is DateStr {
   return typeof v === 'string' && parts(v) !== null;
 }
 
-function daysFromCivil(y0: number, m: number, d: number): number {
+export function daysFromCivil(y0: number, m: number, d: number): number {
   const y = m <= 2 ? y0 - 1 : y0;
   const era = Math.floor(y / 400);
   const yoe = y - era * 400;
@@ -40,7 +40,7 @@ function daysFromCivil(y0: number, m: number, d: number): number {
   return era * 146097 + doe - 719468;
 }
 
-function civilFromDays(z0: number): [number, number, number] {
+export function civilFromDays(z0: number): [number, number, number] {
   const z = z0 + 719468;
   const era = Math.floor(z / 146097);
   const doe = z - era * 146097;
@@ -102,4 +102,19 @@ export function addMonths(s: DateStr, n: number): DateStr {
   const y = Math.floor(total / 12);
   const m = total - y * 12 + 1;
   return `${pad(y, 4)}-${pad(m, 2)}-${pad(Math.min(p[2], daysInMonth(y, m)), 2)}`;
+}
+
+/** 通算日数から曜日（0=日曜 … 6=土曜）。 */
+export function weekdayOfDay(n: number): number {
+  return (((n + 4) % 7) + 7) % 7;
+}
+
+/** n 日以降（n を含む）で最初の月曜日の通算日数。 */
+export function firstMondayOnOrAfter(n: number): number {
+  return n + ((1 - weekdayOfDay(n) + 7) % 7);
+}
+
+/** n 日を含む週の月曜日の通算日数。 */
+export function mondayOfDay(n: number): number {
+  return n - ((weekdayOfDay(n) + 6) % 7);
 }

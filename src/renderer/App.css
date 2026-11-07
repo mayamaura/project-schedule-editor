@@ -1,0 +1,55 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1f2933;
+  --mut: #616e7c;
+  --soft: #f5f7fa;
+  --line: #d9e2ec;
+  --acc: #2364aa;
+  --warn: #fff4d6;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161b22;
+    --fg: #e4e7eb;
+    --mut: #9aa5b1;
+    --soft: #1f252d;
+    --line: #30363d;
+    --acc: #6cb2ff;
+    --warn: #3b3217;
+  }
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.5 "Yu Gothic UI", Meiryo, system-ui, sans-serif; overflow: hidden; }
+.app { display: flex; flex-direction: column; height: 100%; }
+.appbar { display: flex; align-items: center; gap: 12px; padding: 6px 12px; background: var(--soft); border-bottom: 1px solid var(--line); }
+.appbar h1 { font-size: 16px; margin: 0; }
+.version { color: var(--mut); font-size: 12px; }
+.spacer { flex: 1; }
+button, select { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 3px 10px; cursor: pointer; }
+button:hover { border-color: var(--acc); }
+button:focus-visible, select:focus-visible, canvas:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
+button[aria-pressed="true"] { background: var(--acc); color: #fff; border-color: var(--acc); }
+.empty { padding: 32px; color: var(--mut); }
+.notice { background: var(--warn); border-left: 5px solid #e0a800; margin: 8px 12px; padding: 6px 12px; max-height: 30vh; overflow: auto; }
+.notice p { margin: 0; font-weight: bold; }
+.notice ul { margin: 6px 0 0; padding-left: 20px; }
+.infobar { display: flex; gap: 16px; padding: 4px 12px; font-size: 12px; color: var(--mut); border-bottom: 1px solid var(--line); }
+.issues { color: #c0392b; }
+.timeline { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.toolbar { display: flex; align-items: center; gap: 8px; padding: 4px 12px; border-bottom: 1px solid var(--line); }
+.seg { display: inline-flex; }
+.seg button:first-child { border-radius: 4px 0 0 4px; }
+.seg button:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
+.panes { display: flex; flex: 1; min-height: 0; }
+.tree { width: 240px; flex: none; border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+.tree-head { display: flex; align-items: center; padding: 0 8px; background: var(--soft); border-bottom: 1px solid var(--line); font-size: 12px; color: var(--mut); }
+.tree-body { position: relative; overflow: hidden; flex: none; }
+.tree-row { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
+.twisty { width: 18px; height: 18px; flex: none; padding: 0; border: 0; background: none; font-size: 10px; color: var(--mut); }
+.tree-row .name { overflow: hidden; text-overflow: ellipsis; }
+.canvas-area { flex: 1; min-width: 0; position: relative; overflow: hidden; }
+.canvas-area canvas { display: block; position: absolute; left: 0; top: 0; }
+.statusbar { height: 22px; padding: 0 12px; font-size: 12px; color: var(--mut); border-top: 1px solid var(--line); background: var(--soft); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
