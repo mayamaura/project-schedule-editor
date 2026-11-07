@@ -149,5 +149,27 @@
 </div>
 <ul><li>ステータスバーに「自動保存済み HH:MM」を常に表示（書き込み失敗時は赤字で警告し、[保存] を促す）。</li>
 <li>反映の途中で落ちた場合は、起動時に「反映の途中でした。続きから再開 / 最初からやり直し」を表示（F-521）。</li></ul>
+<h2>8. 出力（画像・PDF・HTML）</h2>
+<p>要件: F-601, F-606〜F-609。設計は <a href="architecture.html#export">architecture 10</a>。</p>
+<h3>8.1 出力ダイアログ</h3>
+<div class="mock">
+<div class="row hd"><div>出力</div><div></div></div>
+<div class="row"><div>形式: (●) HTML（閲覧専用）　( ) PDF　( ) SVG　( ) PNG</div><div></div></div>
+<div class="row"><div>範囲: (●) 表示中のビュー　( ) 選択プロジェクト　( ) 全体　　期間: [2026-01] ～ [2027-12]</div><div></div></div>
+<div class="row"><div>□ メモを含める　□ 担当者を含める　☑ 依存線を含める　日付ヘッダ: [年月週 ▼]</div><div></div></div>
+<div class="row"><div>⚠ HTML は暗号化されません。受け取った人は、含めた全てのデータを読めます。</div><div>[プレビュー] [出力…] [キャンセル]</div></div>
+</div>
+<ul><li>PDF / SVG / PNG では、用紙サイズ（A4/A3/任意）・向き・倍率・「1ページに収める / 期間で分割」を追加で指定。</li>
+<li>HTML 出力は既定でメモ・担当者を含めない（決定 J2）。出力前に、含まれる件数（プロジェクト数・イベント数）を表示する。</li></ul>
+<h3>8.2 HTML ビューアの画面（読み取り専用）</h3>
+<div class="mock">
+<div class="row hd"><div>[年月週｜年月]　[＋][－]　[依存線 ▼]　[今日]　[検索]</div><div>閲覧専用　出力: 2026-11-07 10:00　版: 正式版 abc1234</div></div>
+<div class="row hd"><div>プロジェクト</div><div>'26/11　　　　　　　　12　　　　　　　　'27/1</div></div>
+<div class="row"><div>▼ 新製品A</div><div><span class="bar">設計</span><span class="bar">試作</span><span class="ms">◆レビュー</span></div></div>
+<div class="row"><div>　├ 筐体</div><div><span class="bar">金型</span></div></div>
+</div>
+<ul><li>ズーム（Ctrl+ホイール・ピンチ・＋/−・ヘッダ形式の切替）とスクロール（ホイール・ドラッグ・スクロールバー）は、アプリと同じ操作感。左ツリーは縦スクロールと同期し、展開/折りたたみができる。</li>
+<li>項目のホバーで詳細（名称・期間・種別。含めた場合はメモ・担当者）、クリックで選択と依存の強調。<strong>編集の操作は一切ない</strong>（右クリックメニュー・ドラッグ編集・保存・共有なし）。</li>
+<li>下部に出力日時・版（正式版 / 作業版名・コミット）を常に表示する。</li></ul>
 <div class="todo">画面イメージ、既存ツールのスクリーンショット、好みの配色などを追記。</div>
 </main></body></html>

@@ -66,7 +66,7 @@
 <tr><td>F-515</td><td>作業版での編集・保存（F-502）は<strong>自分だけに影響し、他の人からは見えない</strong>（反映やバックアップをするまで）。保存は何度でも繰り返せ、履歴・戻す（F-504）も作業版ごとに使える</td><td class="must">M</td><td></td></tr>
 <tr><td>F-516</td><td>作業版のバックアップ: 作業版をリモート（GitHub）に任意で送って、PC の故障に備えられる。他の人には正式版として扱われない</td><td class="should">S</td><td>決定（G2）: 既定は手動</td></tr>
 <tr><td>F-517</td><td><strong>正式版に反映する</strong>（= main へマージ）: まとまった作業版を、1つの手順（ウィザード）で正式版に反映して共有する。①正式版の最新を取得 ②作業版に取り込み（競合は<strong>作業版側で</strong>解決。F-506）③確認（F-518）④反映して送信。送信時に他の人が先に更新していた場合は、自動で①からやり直して案内する</td><td class="must">M</td><td>正式版に競合を持ち込まない設計。決定（G3）: 作業版の保存履歴をそのまま残す</td></tr>
-<tr><td>F-518</td><td>反映前の確認: 正式版との差分を日程のタイムライン上と変更一覧で表示（F-509 の diffSchedule を再利用）。新たな不整合（F-704）と、競合しそうな項目を事前に知らせる</td><td class="must">M</td><td></td></tr>
+<tr><td>F-518</td><td>反映前の確認: 正式版との差分を日程のタイムライン上と変更一覧で表示（F-509 の diffSchedule を再利用）。新たな不整合（F-704）と、競合しそうな項目を事前に知らせる</td><td class="must">M</td><td>競合予告は <code>git merge-tree --write-tree</code>（作業ツリーを変更せず実行できることを検証済み。architecture 9.2）</td></tr>
 <tr><td>F-519</td><td>作業版の整理: 反映後に「続ける / 整理する」を選べる。不要な作業版は「整理」（一覧から非表示）で片付け、後から復元できる。履歴を即時に消す操作は提供しない</td><td class="should">S</td><td>破壊的操作を出さない原則</td></tr>
 <tr><td>F-520</td><td>正式版の直接編集: 軽微な修正のため、確認ダイアログ付きで正式版を直接編集できる（作業版の利用を促す表示を併記）</td><td class="should">S</td><td>決定（G4）: 確認付きで可能</td></tr>
 <tr><td>F-521</td><td>中断からの再開: 反映や競合解決の途中でアプリが落ちても、再起動後に途中の状態を検出し、「続きから再開」か「最初からやり直し」を選べる</td><td class="should">S</td><td>F-210/211 と対</td></tr>
@@ -75,11 +75,15 @@
 
 <h3>1.6 入出力・その他</h3>
 <table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
-<tr><td>F-601</td><td>画像(PNG/SVG)・PDF出力、印刷（期間・対象を指定）</td><td class="should">S</td><td>報告資料用途で必須になりがち</td></tr>
+<tr><td>F-601</td><td>画像出力: <strong>PNG（高解像度ラスタ）と SVG（ベクタ）</strong>。出力範囲（表示中のビュー / 選択プロジェクト / 全体）、期間、倍率を指定できる</td><td class="should">S</td><td>決定（I4）: ベクタ形式も必要。PNG は Canvas を高解像度で描画、SVG は DrawList から生成（<a href="architecture.html#export">architecture 10</a>）</td></tr>
 <tr><td>F-602</td><td>CSV/Excel の取り込み・書き出し</td><td class="should">S</td><td>既存Excel資産の移行</td></tr>
 <tr><td>F-603</td><td>祝日・稼働日カレンダー設定</td><td class="should">S</td><td>日本の祝日対応</td></tr>
 <tr><td>F-604</td><td>担当者・タグ・状態（未着手/進行中/完了/保留）の管理</td><td class="should">S</td><td>提案</td></tr>
-<tr><td>F-605</td><td>ベースライン（計画値）と現在日程の比較表示</td><td class="could">C</td><td>Git履歴から代替可能か検討</td></tr></table>
+<tr><td>F-605</td><td>ベースライン（計画値）と現在日程の比較表示</td><td class="could">C</td><td>Git履歴から代替可能か検討</td></tr>
+<tr><td>F-606</td><td><strong>PDF 出力（ベクタ）と印刷</strong>: 文字・線がベクタで、文字を選択・検索できる PDF を出力する。用紙サイズ・向き・範囲・倍率を指定でき、印刷もできる</td><td class="should">S</td><td>Chromium の PDF 出力を使用（新しいライブラリ不要）。大きな範囲は「1ページに収める（縮小）」と「期間・行で分割」を選べる（決定 J3）</td></tr>
+<tr><td>F-607</td><td><strong>HTML 出力（閲覧専用ビューア）</strong>: 現在のビュー（または全体）を、<strong>1つの自己完結した HTML ファイル</strong>（外部ファイル・ネット接続不要）として出力する。アプリと同様に<strong>ズーム</strong>（年月週 ⇔ 年月の切替、連続ズーム）と<strong>スクロール</strong>（ホイール・ドラッグ・スクロールバー）ができ、プロジェクトの展開/折りたたみ、依存線の表示切替、項目のホバー/クリックによる詳細表示ができる。<strong>読み取り専用</strong>で、編集・Git・AI の機能は持たない</td><td class="should">S</td><td><strong>出力の中で最優先</strong>（ユーザー要望）。アプリと同じ描画コードを使う。MVP の次段階（決定 J1）。<a href="architecture.html#export">architecture 10</a></td></tr>
+<tr><td>F-608</td><td>HTML 出力のオプションと注意表示: 出力範囲（表示中のビュー / 選択プロジェクト / 全体）と期間、メモ・担当者を含めるか、依存線を含めるか、日付ヘッダの初期表示。出力日時・版（作業版名/コミット）を表記する。<strong>HTML は暗号化されず、受け取った人は含まれる全データを読める</strong>旨を出力前に表示する</td><td class="should">S</td><td>メモ・担当者の既定は「含めない」（決定 J2）</td></tr>
+<tr><td>F-609</td><td>HTML ビューアの補助機能: 名称検索、種別の表示切替、一覧（表）表示、印刷用の表示</td><td class="could">C</td><td>一覧表示はアクセシビリティの代替も兼ねる（NF-010）</td></tr></table>
 <h3>1.7 AI アシスタント（GitHub Copilot SDK）</h3>
 <p>日程の編集依頼・評価・矛盾指摘を AI に依頼する機能。<strong>AI は日程を直接書き換えず、「提案」を生成するだけ</strong>とし、適用は常に人が承認する。詳細は <a href="architecture.html#ai">アーキテクチャ 6</a>。優先度は S（<strong>MVP 後に実装</strong>。決定 E7）。</p>
 <table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
@@ -95,7 +99,7 @@
 <tr><td>F-710</td><td>会話履歴・提案ログはローカルに保存し（Git 管理外）、利用者が削除できる</td><td class="should">S</td><td>決定（E6）: ローカルのみ・利用者が削除可能。共有しない</td></tr>
 <tr><td>F-711</td><td>AI 提案を適用して保存する際、保存メモに「AI提案」と要約を自動付記する</td><td class="could">C</td><td>履歴で AI 由来の変更を判別するため</td></tr>
 <tr><td>F-712</td><td>AI への指示・評価観点をアプリ上で作成・編集・保存でき、依頼時に選択して使える（プリセット＋ユーザー定義。例:「リリース前のリスク確認」「祝日・年末年始の影響を重点的に」）。個人用とチーム共有用を区別する</td><td class="should">S</td><td>決定（E5）。柔軟な AI 活用の中核。基本のシステムプロンプト（安全ルール）はアプリ固定で、利用者の指示では上書きできない（NF-012）。保存先は決定済み（E8）: 個人用=ローカル、共有用=Git の <code>ai-prompts/</code></td></tr>
-<tr><td>F-713</td><td>AI のモデルを利用者が選べる（Copilot で利用可能なモデルから選択。選択は個人設定として保存）</td><td class="should">S</td><td>決定（E4）。SDK でのモデル一覧取得・指定方法は要検証</td></tr></table>
+<tr><td>F-713</td><td>AI のモデルを利用者が選べる（Copilot で利用可能なモデルから選択。選択は個人設定として保存）</td><td class="should">S</td><td>決定（E4）。SDK に <code>listModels()</code> とモデル指定がある（型定義で確認。実動作は未検証）</td></tr></table>
 <h3>1.8 標準日程（テンプレート）</h3>
 <p>よく使う日程のひな形を「標準日程」として複数保存し、プロジェクト追加時に、<strong>標準日程内のあるマイルストーンを起点</strong>に日程を展開する。優先度は S（<strong>MVP の次段階</strong>。決定 F6）。データ形式は <a href="data-model.html">data-model 8</a>。</p>
 <table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
@@ -112,24 +116,25 @@
 
 <h2>2. 非機能要件</h2>
 <table><tr><th>ID</th><th>要件</th><th>目標（案）</th></tr>
-<tr><td>NF-001</td><td>性能（最大規模）</td><td>500プロジェクト × 50イベント（約25,000件）× 8年。スクロール/ズーム 60fps 目標、ドラッグ中の遅延 &lt;16ms、起動時の全データ読込 数秒以内</td></tr>
+<tr><td>NF-001</td><td>性能（最大規模）</td><td>500プロジェクト × 50イベント（約25,000件）× 8年。スクロール/ズーム 60fps 目標、ドラッグ中の遅延 &lt;16ms、起動時の全データ読込 数秒以内（実測: 500ファイルの読込＋JSON.parse は約40ms）。描画の表示要素予算と方式は <a href="architecture.html#spike-results">architecture 9</a></td></tr>
 <tr><td>NF-002</td><td>対応OS</td><td>Windows 10/11。将来 macOS / Linux を追加できるよう、OS依存API・パス区切り・改行(LF固定)・資格情報保管（Electron safeStorage 等）を抽象化</td></tr>
 <tr><td>NF-003</td><td>オフライン</td><td>編集・commit はオフライン可。共有時のみネット必要</td></tr>
 <tr><td>NF-004</td><td>データ安全性</td><td>異常終了時も編集内容を失わない（F-210, F-211, NF-018）。Git 操作は破壊的操作（force push, reset --hard、履歴の書き換え）を提供しない。書き込みは途中で落ちてもファイルが壊れない方式（一時ファイル＋置換）</td></tr>
 <tr><td>NF-005</td><td>マージしやすさ</td><td>共同編集（Git 経由）での競合が最小になるデータ形式（<a href="data-model.html">データモデル</a>）</td></tr>
 <tr><td>NF-006</td><td>スキーマ互換</td><td>スキーマバージョン付き。旧版データの自動マイグレーション。新しいデータを旧アプリが壊さない</td></tr>
 <tr><td>NF-007</td><td>セキュリティ</td><td>Electron: contextIsolation 有効、nodeIntegration 無効、preload 経由のIPCのみ。認証情報は OS 資格情報ストア</td></tr>
-<tr><td>NF-008</td><td>配布</td><td>インストーラ(NSIS等)、コード署名、自動更新（要判断。GitHub Releases 経由を想定）。Git は同梱と外部の両方に対応（F-522）。同梱 Git があるため、Git 未導入の利用者でもインストール不要で動作する</td></tr>
+<tr><td>NF-008</td><td>配布</td><td>インストーラ(NSIS等)、コード署名、自動更新（要判断。GitHub Releases 経由を想定）。Git は同梱と外部の両方に対応（F-522）。同梱 Git があるため、Git 未導入の利用者でもインストール不要で動作する。配布サイズ: 同梱 Git 約45MB、（AI 機能を含める場合）Copilot ランタイムが展開後 約181MB 加わる（<a href="architecture.html#spike-results">architecture 9</a>）</td></tr>
 <tr><td>NF-009</td><td>国際化</td><td>日本語UI優先。文言は外出し（将来の多言語化余地）</td></tr>
-<tr><td>NF-010</td><td>アクセシビリティ</td><td>キーボードのみで主要操作可能。色だけに依存しない表示（形・パターン）</td></tr>
+<tr><td>NF-010</td><td>アクセシビリティ</td><td>キーボードのみで主要操作可能。色だけに依存しない表示（形・パターン）。タイムラインは Canvas のためスクリーンリーダに直接は読まれない。代替として、選択項目の内容を読み上げ用の隠しテキスト（aria-live）で通知し、同じデータを一覧（表）で見られる表示を用意する</td></tr>
 <tr><td>NF-011</td><td>テスト</td><td>ドメインロジック（日付計算・依存検証・差分）は単体テスト必須。E2E は主要フローのみ</td></tr>
 <tr><td>NF-012</td><td>AI のセキュリティ</td><td>AI に公開するツールは「読み取り」と「提案の作成」のみ（書き込み・ファイル・シェル系は公開/許可しない）。プロジェクト名・メモ内の文章に埋め込まれた指示には従わない（プロンプトインジェクション対策）。提案は必ず zod 検証を通す</td></tr>
 <tr><td>NF-013</td><td>AI の応答性</td><td>非同期・ストリーミング表示・キャンセル可能。待機中も他の編集操作を妨げない</td></tr>
-<tr><td>NF-014</td><td>SDK の変更耐性</td><td>Copilot SDK は技術プレビューで破壊的変更の可能性があるため、利用箇所を <code>src/main/ai/</code> に閉じ込め、差し替え可能にする</td></tr>
+<tr><td>NF-014</td><td>SDK の変更耐性</td><td>Copilot SDK は 1.0.x だが一部の API が実験的（<code>@experimental</code>）で変更の可能性があるため、利用箇所を <code>src/main/ai/</code> に閉じ込め、差し替え可能にする</td></tr>
 <tr><td>NF-015</td><td>プライバシー</td><td>AI への送信データは最小限とし、送信先は Copilot（または設定した BYOK 先）のみ。送信内容は利用者が確認できる（F-707）</td></tr>
 <tr><td>NF-016</td><td>ライセンス</td><td><strong>商用ライブラリ（有償・商用ライセンスが必要なもの）は使用しない。</strong>許諾型 OSS（MIT / ISC / BSD / Apache-2.0 等）を使用する。依存追加時にライセンスを確認し、<code>scripts/check-licenses.mjs</code> で検査する。それ以外のライセンス（GPL 系・独自条件等）は個別にユーザーの承認が必要</td></tr>
 <tr><td>NF-017</td><td>編集モデル</td><td>編集は常に1人（ローカルのリポジトリ）で行い、複数人での共同編集は Git のリモート（GitHub）を介した非同期（保存→共有）で行う。Word / Excel のような<strong>リアルタイム同時編集は対象外</strong>。他者の変更とぶつかった場合は競合解決（F-506）で対処する</td></tr>
 <tr><td>NF-018</td><td>自動保存の目標</td><td>編集操作から自動保存の完了まで 約1秒以内（連続操作は束ねる）。異常終了後に失う編集は最後の約1秒分まで。自動保存は操作性（ドラッグ中の描画など）を損なわない（NF-001）。複数ファイルにまたがる操作の途中で落ちても、次回読み込み時の整合性検証で検出・復旧できる</td></tr>
-<tr><td>NF-019</td><td>Git 初心者向けユーザビリティ</td><td>UI に Git 用語（commit / branch / merge / push 等）を出さず、「保存」「作業版」「正式版」「反映」などの業務語を使う。受け入れ基準: <strong>Git 未経験者が説明なしで、作業版の作成 → 編集 → 保存 → 正式版への反映を完遂できる</strong>。常に「今どこにいるか」と「次にできること」を示す</td></tr></table>
+<tr><td>NF-019</td><td>Git 初心者向けユーザビリティ</td><td>UI に Git 用語（commit / branch / merge / push 等）を出さず、「保存」「作業版」「正式版」「反映」などの業務語を使う。受け入れ基準: <strong>Git 未経験者が説明なしで、作業版の作成 → 編集 → 保存 → 正式版への反映を完遂できる</strong>。常に「今どこにいるか」と「次にできること」を示す</td></tr>
+<tr><td>NF-020</td><td>HTML ビューア（F-607）</td><td>①<strong>単一ファイル</strong>・外部通信なし（CDN・Web フォント・外部画像を読まない。CSP で通信を禁止）②主要ブラウザ（Chrome / Edge / Firefox / Safari の最新版）で動作 ③アプリと同じ描画コードで、約25,000イベントでも 60fps に近いスクロール・ズーム ④ファイルサイズの目標: 25,000 イベントで 10MB 以下（超える場合はデータを圧縮して埋め込む）⑤安全: データは JSON として埋め込み（<code>&lt;</code> をエスケープ）、描画は <code>fillText</code> / <code>textContent</code> のみで、データを HTML として解釈しない ⑥日本語は閲覧環境のフォントで表示（フォントのフォールバックを指定）</td></tr></table>
 <div class="todo">非機能要件の追記。</div>
 </main></body></html>

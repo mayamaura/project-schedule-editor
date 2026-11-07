@@ -33,7 +33,8 @@
 ├─ shared/    IPC型・zodスキーマ
 ├─ main/      Electron main: Git(dugite)・FS・IPCハンドラ
 ├─ preload/   contextBridge
-└─ renderer/  React UI: components/ interaction/ store/
+├─ renderer/  React UI: components/ interaction/ store/
+└─ viewer/    閲覧専用ビューア（React 非依存。出力する単一 HTML に埋め込む）
 tests/        src と同じ構成の単体テスト、tests/e2e は Playwright
 spike/        技術検証の使い捨てコード（本体に混ぜない）</pre>
 <table><tr><th>ルール</th><th>内容</th></tr>
@@ -64,6 +65,8 @@ spike/        技術検証の使い捨てコード（本体に混ぜない）</p
 <tr><td>Git 連携</td><td>Vitest + 一時リポジトリ</td><td>実際の git を使い、競合・オフライン・認証失敗を再現</td></tr>
 <tr><td>性能</td><td>ベンチ（500×50×8年のデータ生成）</td><td>描画・イベントに関わる変更で確認。基準は <a href="requirements.html">NF-001</a></td></tr>
 <tr><td>AI 連携</td><td>Vitest + SDK モック</td><td>ツール関数・ChangeSet 検証・権限ハンドラ・不正な提案の拒否を単体テスト。実 LLM 呼び出しは CI に含めない</td></tr>
+<tr><td>タイムライン描画（Canvas）</td><td>Vitest + E2E</td><td>DrawList・レイアウト・ヒットテストは純関数として単体テスト。E2E は <code>window.__timeline</code>（テスト時のみ）から DrawList を取得して操作・検証。見た目はスクリーンショット比較を少数</td></tr>
+<tr><td>HTML 出力（ビューア）</td><td>Playwright（<code>file://</code>）</td><td>出力した HTML を開き、外部通信が0件、ズーム・スクロール・ツリー開閉・ホバー、25,000イベントでのフレーム時間、名称に <code>&lt;/script&gt;</code> 等を含むデータでも壊れないこと（NF-020）</td></tr>
 <tr><td>UI 主要フロー</td><td>Playwright for Electron</td><td>表示→ドラッグ編集→保存→共有→競合解決 など主要経路のみ</td></tr></table>
 <ul>
 <li>バグ修正は<strong>再現テストを先に</strong>書く。</li>
@@ -94,6 +97,6 @@ spike/        技術検証の使い捨てコード（本体に混ぜない）</p
 <tr><td>機能実装・バグ修正</td><td><code>/implement-feature F-201</code></td></tr>
 <tr><td>描画性能・Git認証などの検証</td><td><code>/tech-spike</code></td></tr>
 <tr><td>区切りでの整合性監査</td><td><code>/doc-audit</code></td></tr></table>
-<div class="note">推奨する着手順: ①技術検証（描画 SVG/Canvas、dugite+GitHub認証）→ ②スキャフォールド（electron-vite・TS strict・Vitest・ESLint 境界ルールを導入し、<code>typecheck</code> / <code>lint</code> / <code>test</code> を package.json に定義）→ ③domain 層（テスト先行）→ ④UI → ⑤Git UI。</div>
+<div class="note">推奨する着手順: ①技術検証（実施済み: 描画・Git フロー・自動保存・Copilot SDK の調査。残り: EMU 認証と Copilot 実動作。<a href="architecture.html#spike-results">architecture 9</a>）→ ②スキャフォールド（electron-vite・TS strict・Vitest・ESLint 境界ルールを導入し、<code>typecheck</code> / <code>lint</code> / <code>test</code> を package.json に定義）→ ③domain 層（テスト先行）→ ④UI → ⑤Git UI。</div>
 <div class="todo">ルールの追加・変更希望（コーディング規約、レビュー方針、ブランチ運用など）を追記。</div>
 </main></body></html>

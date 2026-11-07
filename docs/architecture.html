@@ -6,29 +6,39 @@
 <h1>アーキテクチャ・技術選定</h1>
 
 <h2>1. 描画ライブラリ: d3.js への意見</h2>
-<p>結論: <strong>d3.js 全体をレンダラとして使うのは推奨しない。</strong>d3 は「データ→SVG」の低レベル道具で、<em>仮想スクロール・セル選択・ドラッグ編集・Undo・キーボード操作</em>といったエディタ機能を全て自前で作る必要がある。代わりに <strong>d3 の部品（d3-scale / d3-time / d3-array）だけ使い、描画と状態管理は UI フレームワークに任せる</strong>構成を推奨する。</p>
+<p>結論: <strong>d3.js 全体をレンダラとして使うのは推奨しない。</strong>d3 は「データ→SVG」の低レベル道具で、<em>仮想スクロール・セル選択・ドラッグ編集・Undo・キーボード操作</em>といったエディタ機能を全て自前で作る必要がある。代わりに <strong>d3 の部品（d3-scale / d3-time / d3-array / d3-shape 等）だけ使い、UI と状態管理は React に任せる</strong>。描画は、技術検証（9.1）の結果、<strong>タイムライン本体を Canvas、操作用オーバーレイを DOM/SVG</strong>とした（決定）。</p>
 <table><tr><th>選択肢</th><th>柔軟性</th><th>編集機能</th><th>大規模</th><th>評価</th></tr>
-<tr><td><strong>React + 自前 SVG/DOM + d3-scale/time（推奨）</strong></td><td>◎</td><td>自作（イベント処理は React と相性良）</td><td>仮想化で ○</td><td>MVP〜数百行で最適。デバッグしやすい</td></tr>
-<tr><td>React + Canvas 自前描画（+ d3-scale）</td><td>◎</td><td>当たり判定を自作</td><td>◎（数千行・数万要素）</td><td>性能が足りない場合の移行先。まず SVG/DOM で始め、描画層を差替え可能に分離</td></tr>
-<tr><td>d3.js を全面採用</td><td>◎</td><td>全て自作</td><td>SVG は要素数に限界</td><td>React と DOM 所有権が競合しやすい。単独採用は非推奨</td></tr>
+<tr><td>React + 自前 SVG/DOM + d3 の部品</td><td>◎</td><td>自作（イベント処理は React と相性良）</td><td>△（実測: ラベル付きで毎フレーム更新 約2,000件が上限）</td><td>数百行までは最適だが、仕様上限（約25,000イベント）には不足。<strong>操作用オーバーレイには採用</strong></td></tr>
+<tr><td><strong>React + Canvas（本体）+ DOM/SVG オーバーレイ + d3 の部品（採用）</strong></td><td>◎</td><td>当たり判定を自作（DrawList から。純関数）</td><td>◎（実測: 25,000件を毎フレーム全再描画しても 60fps）</td><td>実測に基づく決定（9.1）。実装コストは DrawList の分離とオーバーレイの DOM 化で抑える</td></tr>
+<tr><td>d3.js を全面採用</td><td>◎</td><td>全て自作</td><td>描画先が SVG なら要素数に限界</td><td>React と DOM 所有権が競合しやすい。単独採用は非推奨</td></tr>
 <tr><td>vis-timeline</td><td>○</td><td>ドラッグ編集・グループ(階層)・range/point 内蔵</td><td>○</td><td>1行に複数イベント+マイルストーンは標準対応で近い。ただし依存矢印・Excel風セル操作・独自の見た目が弱く、後で壁に当たりやすい</td></tr>
 <tr><td>Frappe Gantt / dhtmlx / Bryntum / SVAR Gantt 等</td><td>△</td><td>◎</td><td>◎</td><td>「1行1タスク」前提。本件の1行複数イベントと合わない。商用はライセンス費用</td></tr>
 <tr><td>AG Grid / Handsontable + オーバーレイ</td><td>△</td><td>表は強い</td><td>◎</td><td>日付軸のバー描画は結局自作。ライセンス注意</td></tr></table>
-<div class="note"><strong>推奨構成:</strong> React + TypeScript、左ペイン=仮想化ツリーグリッド（自作 or TanStack Virtual）、右ペイン=SVG（後に Canvas 差替え可）。座標計算は d3-scale、日付処理は d3-time ＋ date-fns。<br>
-最初に <strong>技術スパイク</strong>（500行・5,000イベントでスクロール/ドラッグを SVG と Canvas で比較）を行い、描画方式を確定することを推奨。</div>
+<div class="note"><strong>構成（決定）:</strong> React + TypeScript、左ペイン=仮想化ツリーグリッド（DOM。自作 or TanStack Virtual）、右ペインのタイムライン本体と日付ヘッダ=<strong>Canvas</strong>、選択ハンドル・ドラッグ中の仮表示・ツールチップ・インライン編集・メニュー=DOM/SVG オーバーレイ。座標計算は d3-scale、日付処理は d3-time ＋ date-fns。技術スパイクは実施済み（<a href="#spike-results">9</a>）。</div>
 
-<h2>1.5 決定: React + SVG/DOM + d3（確定）</h2>
+<h2>1.5 決定: React + Canvas（タイムライン本体）+ DOM/SVG オーバーレイ + d3（確定）</h2>
+<p>決定（2026-11-07）: 当初の「React + SVG/DOM + d3」を、技術検証（<a href="#spike-results">9.1</a>）の結果を受けて変更した。ラベル付き SVG は毎フレーム更新する要素が約 2,000 件を超えると 60fps を維持できず、仕様上限（約25,000イベント × 8年）には Canvas が必要だったため。</p>
 <table><tr><th>項目</th><th>方針</th></tr>
 <tr><td>DOM の所有者</td><td>React。d3 に DOM を直接操作させない（<code>select().append()</code> は使わない）</td></tr>
-<tr><td>d3 の使い方</td><td>計算用モジュールを必要に応じて自由に採用。当初は d3-scale / d3-time / d3-array。足りなければ追加する</td></tr>
-<tr><td>描画</td><td>SVG（バー・◆・依存線）＋ DOM（左ペインのツリー）。仮想化で表示範囲のみ描画</td></tr>
-<tr><td>将来</td><td>性能不足なら描画層だけ Canvas に差替え（座標計算・イベント層は共通）</td></tr></table>
-<div class="note"><strong>規模の確定（A6）: 最大 約25,000 イベント × 8年。</strong>SVG で全要素を DOM 化すると破綻するため、<strong>表示範囲（行 × 日付）だけを描画する二次元の仮想化は必須</strong>。同時に画面内に出る要素は数百〜千程度に抑える。それでもズームアウト時（8年を縮小表示）は表示要素が増えるため、<strong>Canvas 描画への切替を現実的な選択肢として最初から想定</strong>し、描画層を差替え可能に分離する（コマンド層・座標計算・ヒットテストは共通）。技術検証（25,000要素）の結果で SVG / Canvas を確定する。</div>
+<tr><td>d3 の使い方</td><td>計算用モジュールを必要に応じて自由に採用（d3-scale / d3-time / d3-array / d3-shape / d3-quadtree / d3-hierarchy 等）。足りなければ追加する</td></tr>
+<tr><td>Canvas に描くもの</td><td>タイムライン本体: 背景（週末・祝日・今日線）、日付ヘッダ、バー・マイルストーン（表示スタイル F-102）・ラベル、依存線、差分表示（旧位置の影・色分け）。ヘッダも Canvas にして、横スクロール・ズームと完全に同期させる</td></tr>
+<tr><td>DOM/SVG に置くもの</td><td>左ペイン（仮想化ツリー）、選択ハンドル、ドラッグ中の仮表示（ゴースト）、ツールチップ、インライン編集の入力欄（IME のため DOM の input）、右クリックメニュー、詳細パネル、AI・Git のパネル</td></tr>
+<tr><td>描画の構造</td><td><code>buildDrawList(state, view, viewport)</code>（<strong>純関数</strong>。描画する矩形・点・線・ラベルの一覧 = DrawList を返す）→ <code>draw(ctx, drawList)</code>（Canvas への描画のみ）。レイアウト（行・サブレーン・座標）とヒットテストは DrawList から行う。DrawList は DOM に依存せず単体テストできる</td></tr>
+<tr><td>描画の運用</td><td>状態が変わったときだけ再描画（dirty フラグ + <code>requestAnimationFrame</code>）。<code>devicePixelRatio</code> に合わせて canvas の実サイズを調整（高解像度画面でもにじまない）。表示範囲（行 × 日付）だけを DrawList に含める二次元の仮想化は引き続き行う。静的な背景はキャッシュ</td></tr>
+<tr><td>パフォーマンス目標</td><td>25,000 イベントを毎フレーム全再描画しても 60fps（実測 JS 1.6ms）。ラベル付きでも余裕あり</td></tr></table>
+<div class="note"><strong>Canvas を採用したことによる影響（要件・設計への反映）:</strong>
+<ul>
+<li><strong>入力</strong>: Canvas とオーバーレイのコンテナに Pointer Events を1セット。対象の特定は座標からのヒットテスト（DrawList から）で行う（イベント処理方針）。</li>
+<li><strong>アクセシビリティ（NF-010）</strong>: Canvas はスクリーンリーダに読まれない。代替として、選択項目の内容を読み上げ用の隠しテキスト（<code>aria-live</code>）で通知し、同じデータを一覧（表）で見られる表示を用意する。キーボード操作は状態（選択項目）として自前で持つ。</li>
+<li><strong>テスト</strong>: DrawList・レイアウト・ヒットテストは純関数として単体テスト。E2E は <code>window.__timeline</code>（テスト時のみ）から DrawList を取得して座標を計算し、操作・検証する。見た目の確認はスクリーンショット比較を少数。</li>
+<li><strong>出力（F-601, F-606〜F-609）</strong>: PNG は同じ <code>buildDrawList</code> + <code>draw</code> を大きな Canvas に高解像度で描画。SVG・ベクタ PDF・HTML ビューアは DrawList（と同じ描画コード）から生成する（<a href="#export">10</a>）。</li>
+<li><strong>テキスト</strong>: ラベルはバーの幅でクリップし、収まらなければ外側に表示（UI設計 4）。日本語フォントはシステムフォントを使い、測定値（<code>measureText</code>）をキャッシュする。</li>
+</ul></div>
 <h3>採用候補の d3 モジュール</h3>
 <table><tr><th>モジュール</th><th>用途</th></tr>
 <tr><td>d3-scale / d3-time / d3-time-format</td><td>日付↔x座標、目盛り（日・週・月・四半期）、日本語ラベル</td></tr>
 <tr><td>d3-array</td><td>bisect（表示範囲の二分探索）、集計、グルーピング</td></tr>
-<tr><td>d3-shape</td><td>依存線のパス生成（<code>line</code> + curveStep 系で直交ルーティング）、◆●▲ の symbol</td></tr>
+<tr><td>d3-shape</td><td>依存線のパス生成（<code>line</code> + curveStep 系で直交ルーティング。<code>.context(ctx)</code> で Canvas に直接描画できる）、◆●▲ の symbol（同様に Canvas へ描画）</td></tr>
 <tr><td>d3-quadtree / d3-interval-tree 相当</td><td>多数要素のヒットテスト、範囲選択（投げ縄・矩形）</td></tr>
 <tr><td>d3-zoom / d3-drag</td><td>パン・ズーム・ドラッグを<strong>コンテナ要素に1回だけ</strong>アタッチ（transform は React の状態へ反映）。要素ごとには付けない</td></tr>
 <tr><td>d3-hierarchy</td><td>プロジェクトツリーの走査・平坦化（表示行の算出）</td></tr>
@@ -37,18 +47,18 @@
 <h3>イベント処理方針（イベントが多くなる前提）</h3>
 <p>要素数が数千になると、要素ごとに React のハンドラや d3 のリスナーを付ける方式は、生成コストとメモリが問題になる。次の方針で設計する。</p>
 <ol>
-<li><strong>イベント委譲</strong>: ハンドラは SVG ルート（または専用のイベント層）に1セットだけ置く。各要素は <code>data-kind</code> / <code>data-id</code> を持ち、<code>event.target.closest()</code> で対象を特定する。</li>
+<li><strong>入力はコンテナに1セット</strong>: ハンドラは Canvas（とその上のオーバーレイ層）のコンテナにだけ置く。DOM 要素ごとのリスナーは持たない。対象の特定は、座標からのヒットテスト（下記）で行う。</li>
 <li><strong>Pointer Events に統一</strong>: <code>pointerdown/move/up</code> + <code>setPointerCapture</code>。マウス・ペン・タッチを同じコードで扱い、要素外へ出てもドラッグを継続できる。</li>
 <li><strong>操作をステートマシン化</strong>: idle / 選択 / ドラッグ移動 / 端リサイズ / 依存作成 / 範囲選択 / パン を明示的な状態として定義（XState か自前の reducer）。ハンドラ内に条件分岐を散らさない。</li>
-<li><strong>ドラッグ中は React の再レンダーを避ける</strong>: 移動中は ref とトランスフォームで対象要素（または専用のオーバーレイ）だけを <code>requestAnimationFrame</code> で更新し、<strong>pointerup で1回だけストアにコミット</strong>（= Undo 1単位）。依存線もドラッグ中は仮表示。</li>
-<li><strong>ヒットテストの分離</strong>: 当たり判定は座標からデータを引く純関数（行インデックス＋行内の区間検索）として実装し、DOM に依存しない。Canvas 移行時にもそのまま使える。</li>
+<li><strong>ドラッグ中は React の再レンダーを避ける</strong>: 移動中は React の状態を更新せず、ドラッグ中の仮の位置を ref に持って <code>requestAnimationFrame</code> で Canvas を再描画する（25,000 件でも約 1.6ms）。選択ハンドルとゴーストはオーバーレイを transform で動かす。<strong>pointerup で1回だけストアにコミット</strong>（= Undo 1単位）。依存線もドラッグ中は仮表示。</li>
+<li><strong>ヒットテストの分離</strong>: Canvas では自前で行う。DrawList から、行インデックス＋格子（または d3-quadtree）で座標から対象を引く<strong>純関数</strong>として実装し、DOM に依存させない（単体テスト対象。実測: 25,000 件で約 0.8µs/回）。ホバー・選択・ドラッグ開始・右クリックの文脈（F-209）の全てがこれを使う。</li>
 <li><strong>コマンド層</strong>: 操作の結果は <code>MoveEvent</code>, <code>ResizeEvent</code>, <code>AddDependency</code> などのコマンドとして発行 → ストアが適用・検証 → patch を履歴に積む。UI・キーボード・将来の自動化が同じ経路を通る。</li>
 <li><strong>ホットキー</strong>: 一元管理のキーマップ（コマンド ID に紐付け）。フォーカス位置（グリッド/詳細パネル/ダイアログ）で有効範囲を切替。</li>
 <li><strong>間引き</strong>: 連続イベント（move, wheel, scroll）は rAF に束ね、1フレーム1回だけ処理。スクロール同期は左右ペインで1つのスクロール状態を共有。</li>
 <li><strong>メモ化</strong>: 行コンポーネントは <code>React.memo</code>、props は ID と不変データのみ。選択やホバーは行単位のセレクタで購読し、全体再描画を防ぐ。</li>
 <li><strong>右クリックメニュー</strong>: <code>contextmenu</code> もルートで委譲し、ヒットテスト（座標→日付・行・項目）の結果を文脈として渡す。メニュー項目はコマンドID と対応し、キーマップと同じ定義から生成する。作成系は文脈の日付・行を引数に取る。</li>
 </ol>
-<div class="note">技術検証で確認する項目: ①25,000要素（8年・縮小表示を含む）でのスクロール/ズームのフレームレート ②ドラッグ中の遅延（委譲＋rAF 方式）③依存線 1,000 本の描画 ④d3-zoom と React 状態の同期。</div>
+<div class="note">検証済みの項目は <a href="#spike-results">9</a>。残る確認: ①React を含む実アプリでの再計測（実機 GPU・画面倍率 125〜200%）②ドラッグ中の遅延（rAF 方式）③依存線 1,000 本の Canvas 描画 ④d3-zoom と React 状態の同期。</div>
 
 <h2>2. 全体構成</h2>
 <pre>┌───────────── Electron ─────────────┐
@@ -64,7 +74,7 @@
 │  ├ Domain (純TS: 日付計算, 依存検証, diffSchedule(日程変更検出), マイグレーション) ← 単体テストの中心
 │  ├ Store (Zustand 等 + コマンド適用 + Undo/Redo)
 │  ├ Interaction (イベント委譲 / 操作ステートマシン / ヒットテスト / キーマップ)
-│  ├ TimelineView (SVG, 将来 Canvas)
+│  ├ Timeline (Canvas 本体 + DOM/SVG オーバーレイ。buildDrawList（純関数）+ draw)
 │  ├ TreeGrid
 │  └ GitPanel (保存/共有/履歴/競合)
 └────────────────────────────────────┘</pre>
@@ -83,14 +93,14 @@
 <p>データ量は小さいため性能差は問題にならない。<strong>方針（決定）: 本物の git 実行ファイルを呼び出す方式とし、「同梱 Git（dugite）」と「外部（システム）の Git」の両方を使えるようにする。</strong>認証は Git Credential Manager（GCM）によるブラウザ認証を第一候補とする（3.5）。</p>
 <h3 id="git-exec">3.5 Git 実行ファイルの選択と認証（決定）</h3>
 <table><tr><th>項目</th><th>方針</th></tr>
-<tr><td>実行方法</td><td><code>child_process.execFile(gitPath, args[])</code> に統一。<strong>シェルを経由せず</strong>引数は配列で渡す（コマンドインジェクション防止）。<code>GIT_TERMINAL_PROMPT=0</code> を設定し、入力待ちでハングさせない。タイムアウトとキャンセルに対応。出力は文字コード固定（<code>LC_ALL=C</code> 等）でパース</td></tr>
+<tr><td>実行方法</td><td><code>child_process.execFile(gitPath, args[])</code> に統一。<strong>シェルを経由せず</strong>引数は配列で渡す（コマンドインジェクション防止）。<code>GIT_TERMINAL_PROMPT=0</code> を設定し、入力待ちでハングさせない。バックグラウンド処理（起動時・定期の fetch）では <code>GCM_INTERACTIVE=never</code> も設定し、認証画面を出さずに失敗させる（検証済み: 存在しない/認証が要るリポジトリは約0.7秒で失敗し、ブラウザも開かない）。タイムアウトとキャンセルに対応。出力は文字コード固定（<code>LC_ALL=C</code> 等）でパース</td></tr>
 <tr><td>Git の解決順（設定「自動」）</td><td>①利用者が指定した外部 Git のパス ②PATH 上の <code>git</code>（Windows は Git for Windows の既定場所も探索）③同梱 Git。外部が最低バージョン未満・見つからない場合は同梱にフォールバック（F-522）</td></tr>
-<tr><td>最低バージョン</td><td>使用するコマンド（<code>merge --no-ff</code>、<code>branch.&lt;名&gt;.description</code>、<code>refs/app/*</code> 等）に必要な版を技術検証で確定</td></tr>
+<tr><td>最低バージョン</td><td>使用するコマンド（<code>merge --no-ff</code>、<code>branch.&lt;名&gt;.description</code>、<code>refs/app/*</code> 等）に必要な版: 検証した Git 2.55（Windows）で全て動作。下限は <strong>2.38 以上</strong>（競合予告に使う <code>merge-tree --write-tree</code> の導入版。2.55 でのみ検証）</td></tr>
 <tr><td>認証（第一候補）</td><td><strong>Git Credential Manager（GCM）</strong>: Git の credential helper として動作し、ブラウザで認証（EMU・SAML SSO・2要素に対応）。Git for Windows には標準で同梱。<code>ghe.com</code> など接続先が github.com 以外の場合は、GCM に GitHub プロバイダを明示する設定が必要になる場合がある（要検証）</td></tr>
-<tr><td>認証（代替）</td><td>GCM が使えない場合（同梱 Git に GCM が含まれていない等。要検証）は、アプリが Device Flow（ブラウザ）または PAT でトークンを取得し、<strong>一時的な環境変数／askpass 経由で git に渡す</strong>。トークンを <code>.git/config</code>・コマンドライン引数・ログに残さない。保存は OS 資格情報ストア</td></tr>
+<tr><td>認証（代替）</td><td>GCM が使えない場合（外部 Git が無く、同梱 Git の GCM も動作しない等）は、アプリが Device Flow（ブラウザ）または PAT でトークンを取得し、<strong>一時的な環境変数／askpass 経由で git に渡す</strong>。トークンを <code>.git/config</code>・コマンドライン引数・ログに残さない。保存は OS 資格情報ストア</td></tr>
 <tr><td>診断</td><td>F-523: Git のパスと版、GCM の有無、リモート接続（<code>git ls-remote</code>）、SSO 承認の状態を確認し、原因別の対処を表示</td></tr>
 <tr><td>抽象化</td><td>GitService は上記の解決済み実行ファイルだけを使い、同梱/外部の違いを他の層に漏らさない（実装は1つ）。isomorphic-git は採用しない</td></tr></table>
-<div class="note">技術検証で確認: ①同梱 Git（dugite）に GCM が含まれるか ②外部 Git + GCM で GitHub EMU（<code>github.com</code> / <code>ghe.com</code>）のブラウザ認証が通るか ③外部 Git の版差（Windows の Git for Windows 各版）による挙動差 ④認証待ち中の UI 非ブロック（GCM のブラウザ起動・キャンセル）。</div>
+<div class="note">技術検証（2026-11-07）: ①同梱 Git（dugite 3.3.2 = Git 2.56.0）の Windows 版に <code>git-credential-manager.exe</code> が<strong>含まれることを確認</strong>（動作は未検証）。<strong>残る確認:</strong> ②外部 Git + GCM（および同梱 Git の GCM）で GitHub EMU（<code>github.com</code> / <code>ghe.com</code>）のブラウザ認証が通るか（利用者の環境が必要）③Git for Windows の他版での挙動差 ④認証待ち中の UI 非ブロック（GCM のブラウザ起動・キャンセル）。</div>
 
 <h2>4. その他の選定（案）</h2>
 <table><tr><th>領域</th><th>選定案</th><th>理由</th></tr>
@@ -105,7 +115,7 @@
 
 <h2>5. リスクと対策</h2>
 <table><tr><th>リスク</th><th>対策</th></tr>
-<tr><td>描画性能が不足</td><td>描画層を分離、Canvas 移行を前提にスパイクで検証</td></tr>
+<tr><td>描画性能が不足 / Canvas の実装コスト</td><td>Canvas を本体に採用（実測で 25,000件・ラベル付き10,000件でも 60fps）。DrawList を生成する純関数に分離してテスト可能にし、操作用オーバーレイは DOM/SVG で実装コストを抑える。React を含む実アプリで再計測</td></tr>
 <tr><td>非エンジニアが競合で詰まる</td><td>競合の発生自体を減らすデータ形式＋項目単位の解決UI＋「やり直す」安全弁</td></tr>
 <tr><td>Git 認証設定が難しい</td><td>GCM のブラウザ認証を第一候補にし、診断（F-523）と代替認証（Device Flow / PAT）を用意。ウィザード化</td></tr>
 <tr><td>Excel 風の期待値が高い</td><td>初期に「何を Excel 同様にするか」を明文化済み（「Excel 風」は見た目のみ。<a href="ui-design.html">UI設計 2.5</a>）</td></tr>
@@ -115,12 +125,12 @@
 <p>要件: <a href="requirements.html">F-701〜F-712 / NF-012〜NF-015</a>。日程の編集提案・評価・矛盾指摘を AI に依頼する。</p>
 <h3>6.1 前提・不確定事項（要検証）</h3>
 <table><tr><th>項目</th><th>現時点の把握</th><th>扱い</th></tr>
-<tr><td>提供状況</td><td><code>@github/copilot-sdk</code> は<strong>技術プレビュー</strong>で、破壊的変更の可能性がある</td><td>利用箇所を <code>src/main/ai/</code> に隔離（NF-014）</td></tr>
+<tr><td>提供状況</td><td><code>@github/copilot-sdk</code> <strong>1.0.29（MIT）</strong>。1.x で公開済みだが、一部の API が <code>@experimental</code>（Node.js ^20.19 / &gt;=22.12 が必要）</td><td>利用箇所を <code>src/main/ai/</code> に隔離（NF-014）</td></tr>
 <tr><td>利用条件</td><td>GitHub Copilot の契約が必要（BYOK=自前の API キー利用の場合は GitHub 認証不要とする情報あり）</td><td>全利用者が契約済みの前提（決定 E1）。BYOK は当面不要</td></tr>
-<tr><td>認証</td><td>CLI のログイン済み OAuth、OAuth アプリのユーザートークン、環境変数トークンなど</td><td>GitHub 認証（F-508）との共通化を検証</td></tr>
-<tr><td>Copilot CLI</td><td>SDK が CLI を同梱するのか、別途インストールが必要なのか、情報源により記述が食い違う</td><td><strong>公式 README で確認</strong>。配布方法（NF-008）に影響</td></tr>
-<tr><td>組み込みツール</td><td>CLI 側に shell/ファイル操作等の組み込みツールがある可能性。これらを無効化/拒否できるか</td><td><strong>必須検証</strong>（NF-012）</td></tr></table>
-<div class="note">上記は検索による二次情報に基づく。<strong>公式ドキュメントでの確認と技術検証（<code>/tech-spike</code>）を実装前に行い、結果で本節を更新する。</strong></div>
+<tr><td>認証</td><td><code>gitHubToken</code>（明示トークン。ランタイムに環境変数で渡す）、<code>useLoggedInUser</code>（保存済み OAuth / gh CLI）、環境変数（COPILOT_GITHUB_TOKEN / GH_TOKEN / GITHUB_TOKEN）。認証状態に <code>host</code> が含まれ、<code>GH_ENTERPRISE_TOKEN</code> の記述もあり、GitHub Enterprise を考慮した作り</td><td>GCM で得たトークンを <code>gitHubToken</code> に渡せるか、EMU（ghe.com）で通るかは<strong>実機検証が必要</strong>（F-508 / F-708 の共通化）</td></tr>
+<tr><td>Copilot CLI（ランタイム）</td><td><strong>SDK の npm パッケージ（プラットフォーム別の optionalDependencies）に同梱</strong>され、起動時のダウンロードは不要（README・パッケージ実物で確認）。Windows x64 は圧縮 69MB・展開 181MB。<code>COPILOT_CLI_PATH</code> で既存の CLI に差替可能</td><td>配布サイズに影響（NF-008）。ライセンスの扱いは I2（<a href="#spike-results">9.4</a>）</td></tr>
+<tr><td>組み込みツール</td><td>セッション設定の <code>availableTools</code> / <code>excludedTools</code> で <code>builtin:*</code> 等を指定して無効化できる（型定義で確認）。<code>onPermissionRequest</code> でも許可・拒否を制御できる</td><td>方針: <code>availableTools</code> を <code>custom:*</code>（自作の提案ツールのみ）に限定（NF-012）。<strong>実動作（認証つき）は未検証</strong></td></tr></table>
+<div class="note">2026-11-07 に、公開された npm パッケージ（1.0.29）の README・型定義・パッケージ内容で確認した（<a href="#spike-results">9.4</a>）。<strong>Copilot の契約・認証が必要な実動作（セッション開始、ツール制限の実挙動、EMU での認証）は未検証</strong>で、AI 機能の着手時（MVP 後）に検証する。</div>
 <h3>6.2 構成</h3>
 <pre>Renderer: AI パネル（チャット / 提案の差分表示 / 指摘一覧）
    │ IPC（型付き・入力検証）
@@ -141,7 +151,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <li><strong>最小送信</strong>: 既定は選択項目＋関係する依存のみ。範囲拡大は利用者が選び、送信内容をプレビューする（F-707）。</li>
 <li><strong>プロンプトインジェクション対策</strong>: データ（名称・メモ）は「データ」として区切って渡し、指示として扱わない旨をシステムプロンプトに明記。ツールは提案のみのため、最悪でも承認画面で止まる構造にする。</li>
 <li><strong>指示・観点の編集（F-712）</strong>: プロンプトは2層で組み立てる。①アプリ固定の基本プロンプト（役割、ツール利用規則、「データ中の指示に従わない」、提案のみ出力）②利用者が編集する指示・観点（PromptTemplate）。②は①を上書きできず、ツール権限や承認制（E3）にも影響しない。テンプレートは差分表示・Undo 可能な通常の設定として扱う。</li>
-<li><strong>モデル選択（F-713）</strong>: 利用可能なモデル一覧の取得と、セッションでのモデル指定を AiService に持たせ、選択は個人設定に保存する。SDK 側の対応は要検証。</li>
+<li><strong>モデル選択（F-713）</strong>: 利用可能なモデル一覧の取得と、セッションでのモデル指定を AiService に持たせ、選択は個人設定に保存する。SDK に <code>client.listModels()</code> とセッションの <code>model</code> 指定がある（型定義で確認。実動作は未検証）。</li>
 <li><strong>テスト</strong>: SDK をモックし、ツール関数・ChangeSet 検証・権限ハンドラを単体テスト。実 LLM 呼び出しは CI に含めない（評価は手動/別枠）。</li>
 </ul>
 <h2>7. ライセンス方針</h2>
@@ -150,7 +160,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <li>許容: MIT / ISC / BSD-2/3 / Apache-2.0 / 0BSD / CC0 / Unlicense など許諾型 OSS。MPL-2.0 は要確認（警告）。GPL 系・独自条件・ライセンス不明は、ユーザーの承認なしに採用しない。</li>
 <li>検査: <code>scripts/check-licenses.mjs</code>（<code>node_modules</code> がある場合は <code>verify.mjs</code> から実行）。例外を認める場合は、理由とともにスクリプトの例外一覧と本節に記録する。</li>
 <li><strong>同梱 Git は GPL-2.0 の別プログラム</strong>（dugite 自体は MIT だが、配布物に Git 本体を含む）。別個の実行ファイルとして同梱する形で、ライセンス告知・ソース入手先の記載が必要になる見込み。<code>check-licenses.mjs</code> は npm パッケージの宣言のみを検査するため、<strong>この件は手動で確認し、ユーザーの承認を得る</strong>（NF-016）。同梱は決定済み（H1）: 配布物に含め、GPL-2.0 の告知を同梱する。</li>
-<li>既に想定している d3（ISC/BSD）、React（MIT）、Electron（MIT）、dugite（MIT）、zod（MIT）、Vitest（MIT）は許諾型。<strong>Copilot SDK 自体のライセンスは技術検証で確認する</strong>（Copilot はサービスの利用契約が別途必要。E1 で契約済みの前提）。</li>
+<li>既に想定している d3（ISC/BSD）、React（MIT）、Electron（MIT）、dugite（MIT）、zod（MIT）、Vitest（MIT）は許諾型。<strong>Copilot SDK（1.0.29）とそのランタイムパッケージは、npm 上のライセンス表記が MIT</strong>。ただしランタイムは約 144MB のネイティブバイナリを含み、パッケージに LICENSE ファイルは含まれない。単体の <code>@github/copilot</code>（CLI）は「SEE LICENSE IN LICENSE.md」（独自条件）。出所と条件を確認のうえ、<strong>ユーザーの承認を得る</strong>（I2）。Copilot はサービスの利用契約が別途必要（E1 で契約済みの前提）。</li>
 </ul>
 <h2 id="autosave">8. 作業版のGit運用と自動保存・クラッシュ復旧</h2>
 <p>要件: F-210, F-211, F-513〜F-521, NF-018, NF-019。</p>
@@ -176,6 +186,95 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <ul>
 <li>自動保存: 書き込み途中での強制終了（プロセス kill）を模したテスト（一時ファイルのみ残る / rename 前後）で、読み込みが旧版か新版のどちらかになることを確認。</li>
 <li>Git フロー: 一時リポジトリで、作業版作成 → 保存 → 反映、他者が先に更新（push 拒否 → 再取り込み）、競合、反映の中断と再開、切替時の退避と復元を再現。</li>
+</ul>
+<h2 id="spike-results">9. 技術検証の結果（2026-11-07）</h2>
+<p>実行環境: Windows 11、Node 24.18、Edge 157（Chromium）、Git for Windows 2.55 + GCM 2.8.0。コードは <code>spike/</code>（使い捨て。再現手順は <code>spike/README.md</code>）。</p>
+<h3>9.1 描画: SVG と Canvas（<code>spike/render-bench</code>）</h3>
+<p>条件: 1400×800 の画面内に N 個のバーが<strong>同時に見えている</strong>最悪条件で、毎フレーム全要素を更新（パン相当）。値は1フレームの所要時間（ms。16.7=60fps、小さいほど良い）。素の DOM / Canvas（React のコストは含まない）。</p>
+<table><tr><th>同時表示 N</th><th>SVG（ラベルなし）</th><th>SVG（<strong>ラベル付き</strong>）</th><th>Canvas（ラベルなし）</th><th>Canvas（<strong>ラベル付き</strong>）</th></tr>
+<tr><td>500</td><td>16.7</td><td>16.7</td><td>16.7</td><td>16.7</td></tr>
+<tr><td>2,000</td><td>16.7</td><td>16.7（JS 3.2ms）</td><td>16.7</td><td>16.7</td></tr>
+<tr><td>5,000</td><td>16.7</td><td><strong>41.0（約24fps）</strong></td><td>16.7</td><td>16.7</td></tr>
+<tr><td>10,000</td><td>19.4（p95 33.5）</td><td><strong>85.0（約12fps）</strong></td><td>16.7</td><td>16.7（JS 4.6ms）</td></tr>
+<tr><td>25,000</td><td><strong>54.2（約18fps）</strong></td><td>未測定</td><td>16.7（JS 1.6ms）</td><td>未測定</td></tr></table>
+<ul>
+<li><strong>SVG は、ラベル付きで毎フレーム更新する要素が約 2,000 件を超えると 60fps を維持できない。</strong>要素の生成も、25,000 件で約 70〜106ms（素の DOM。React では数倍になる見込み）。</li>
+<li><strong>Canvas は、25,000 件を毎フレーム全再描画しても 60fps</strong>（JS 1.6ms）。ラベル付きでも 10,000 件で 60fps（JS 4.6ms）。</li>
+<li>SVG でも、グループへの一括 transform によるパン、および1要素だけのドラッグは、25,000 件でも 60fps（ただしラベルなしの測定）。</li>
+<li>ヒットテスト: SVG の <code>elementFromPoint</code> は 25,000 件で約 0.4ms/回、Canvas の格子インデックスは約 0.8µs/回。どちらも実用上問題なし。</li>
+<li>画面内に同時に出る要素数の試算（週表示・30行 ≒ 120 件、全期間表示・30行 ≒ 1,500 件、圧縮表示・100行 ≒ 5,000 件、俯瞰・500行 = 25,000 件）。<strong>通常の操作は SVG の範囲に収まるが、仕様上限の俯瞰表示と、React のコスト・ラベルを含めた余裕を考えると、SVG は限界に近い。</strong></li>
+</ul>
+<div class="note"><strong>決定（I1）:</strong> タイムライン本体（バー・マイルストーン・依存線・今日線・背景）を <strong>Canvas</strong> で描き、選択ハンドル・ドラッグ中の仮表示・ツールチップ・右クリックメニュー・左ペイン・詳細パネルは <strong>React の DOM / SVG のオーバーレイ</strong>にする。d3（scale / time / shape / quadtree）はそのまま使える。ヒットテストは Canvas 側を自前（格子 or quadtree）で行う。SVG と Canvas の両実装は持たない（過剰）。</div>
+<p>限界: ヘッドレス実行（GPU 有効・DPR=1）。実機の GPU・画面倍率（Windows の 125〜200%）では SVG・Canvas とも重くなる。React の描画コストは含まない。電力・メモリは未計測。</p>
+<h3>9.2 Git の作業版フロー（<code>spike/git-flow</code>）</h3>
+<p>一時リポジトリ（bare リモート + 2クローン）で、全 13 項目が PASS。</p>
+<table><tr><th>確認した内容</th><th>結果</th></tr>
+<tr><td>作業版の作成、表示名を <code>branch.&lt;名&gt;.description</code> に保存</td><td>OK</td></tr>
+<tr><td>反映前の競合予告: <code>git merge-tree --write-tree --name-only</code></td><td>OK（作業ツリーを変更せず、競合ファイルを列挙。Git 2.38 以上）→ F-518 に使用</td></tr>
+<tr><td>作業版へ main を取り込み、競合ファイルの検出、base/自分/相手の3版取得（<code>git show :1:/:2:/:3:</code>）</td><td>OK → 項目単位の競合解決UI（F-506）に必要な3版が取れる</td></tr>
+<tr><td>競合解決 → merge コミット → main へ <code>--no-ff</code> で反映 → push</td><td>OK。作業版の履歴が残る（G3）</td></tr>
+<tr><td>fetch 後・push 前に他の人が push → 拒否</td><td>OK。「fetch → <code>reset --keep origin/main</code> → 作業版へ再取り込み → 再反映」で、強制操作なしにやり直せた</td></tr>
+<tr><td>切替時の退避: <code>git add -A</code> → <code>git stash create</code> → <code>refs/app/pending/&lt;名&gt;</code> へ保存 → 別の版へ切替 → 戻って <code>stash apply --index</code></td><td>OK。新規ファイルを含め復元できた</td></tr>
+<tr><td>非対話での認証失敗（<code>GIT_TERMINAL_PROMPT=0</code> + <code>GCM_INTERACTIVE=never</code>）</td><td>OK。約 0.7 秒で失敗し、ブラウザは開かず、ハングしない</td></tr></table>
+<p>規模（500プロジェクト × 50イベント、1ファイル約5KB）:</p>
+<table><tr><th>操作</th><th>時間</th></tr>
+<tr><td>500ファイルを読んで JSON.parse</td><td>約 40 ms</td></tr>
+<tr><td><code>git status</code>（1ファイル変更）/ <code>diff --name-only</code></td><td>14 ms / 22 ms</td></tr>
+<tr><td><code>git commit</code>（1ファイル変更）</td><td>約 56 ms</td></tr>
+<tr><td><code>git show HEAD~1:file</code> / <code>log -n 50 --stat</code></td><td>13 ms / 55 ms</td></tr>
+<tr><td><code>git checkout</code>（50ファイル差）</td><td>約 51 ms</td></tr>
+<tr><td><code>git add -A</code>（初回の500ファイル）</td><td>約 1.2 秒（初回のみ。通常の保存は差分のみ）</td></tr></table>
+<p>→ NF-001（起動時の全読込が数秒以内）と、保存・履歴・差分表示の応答性は問題なし。</p>
+<h3>9.3 自動保存の原子的書き込み（<code>spike/autosave-atomic</code>）</h3>
+<p>書き込み中の子プロセスを強制終了（SIGKILL）して、ファイルを検査（120 回 × 3 方式 × 5 ファイル）。</p>
+<table><tr><th>方式</th><th>壊れたファイル</th><th>複数ファイルの不整合</th></tr>
+<tr><td>素朴な書き込み（比較用）</td><td><strong>39 件</strong>（途中で切れた JSON）</td><td>—</td></tr>
+<tr><td>一時ファイル → fsync → rename</td><td><strong>0 件</strong>（孤児の一時ファイルが残るので起動時に削除）</td><td>—</td></tr>
+<tr><td>複数ファイルのトランザクション（<code>pending.json</code> + 起動時の roll-forward）</td><td><strong>0 件</strong></td><td><strong>0 件</strong>（復旧後は全ファイルが同一版）</td></tr></table>
+<p>書き込み時間（fsync あり）: 6KB の1ファイルが中央値 約 1ms（p95 約 3.9ms）、50ファイルのトランザクションが約 44ms。<strong>NF-018（約1秒以内）に十分収まる。</strong>限界: プロセスの強制終了までの検証で、電源断（OS・ディスクのキャッシュ）は未検証。Windows ではディレクトリの fsync ができない。</p>
+<h3>9.4 Copilot SDK・依存パッケージ（npm の公開情報とパッケージ実物）</h3>
+<ul>
+<li><code>@github/copilot-sdk</code> 1.0.29（MIT）。依存は zod / koffi / vscode-jsonrpc。ランタイム（Copilot CLI）はプラットフォーム別パッケージで同梱（上記 6.1）。<strong>Windows x64 のランタイムは展開 181MB（圧縮 69MB）</strong>で、配布サイズが増える（NF-008）。</li>
+<li>ランタイムパッケージ（<code>@github/copilot-sdk-win32-x64</code>）は npm 上の表記が MIT だが、LICENSE ファイルを含まない。単体の CLI（<code>@github/copilot</code>）は独自条件（「SEE LICENSE IN LICENSE.md」）。NF-016 に基づき、<strong>同梱の可否はユーザーの承認が必要（I2）</strong>。AI は MVP 後なので、決定は着手時でよい。</li>
+<li><code>electron-updater</code> 6.8.11 / <code>electron-builder</code> 26.18.0 / <code>electron-vite</code> 6.0.0 / <code>dugite</code> 3.3.2: すべて MIT。</li>
+</ul>
+<h3>9.5 同梱 Git（dugite）</h3>
+<ul><li>dugite 3.3.2 は Git 2.56.0 を同梱（dugite-native。Windows x64 のアーカイブは約 45MB）。<code>git-credential-manager.exe</code>、<code>git-lfs.exe</code>、GCM のライセンス・NOTICE が含まれる。ダウンロードはインストール時（postinstall）に GitHub から取得する。</li>
+<li>同梱 Git の GCM を既定の credential helper として使えるか（設定済みか）、EMU で通るかは未検証。</li></ul>
+<h3>9.6 未検証・限界</h3>
+<table><tr><th>項目</th><th>理由・次の手順</th></tr>
+<tr><td>EMU（<code>github.com</code> / <code>ghe.com</code>）のブラウザ認証（GCM）</td><td>利用者の EMU 環境が必要。管理者への確認事項は <a href="open-questions.html">H</a>・F-508 の注記</td></tr>
+<tr><td>Copilot SDK の実動作（セッション、ツール制限の実挙動、EMU での認証、<code>gitHubToken</code> 経由）</td><td>Copilot の契約・認証が必要。AI 着手時に検証</td></tr>
+<tr><td>React を含む実描画・実機 GPU・画面倍率</td><td>スキャフォールド後に、実アプリで再計測（NF-001）</td></tr>
+<tr><td>電源断への耐性</td><td>強制終了まで検証。電源断は別途（実機）</td></tr>
+<tr><td>同梱 Git の GCM の動作、Git for Windows の他版での挙動</td><td>実装時に検証</td></tr></table>
+<h2 id="export">10. 出力（画像・PDF・HTML ビューア）</h2>
+<p>要件: F-601, F-606〜F-609, NF-020。決定（I4）: ベクタ形式（SVG・ベクタ PDF）も提供する。最優先は<strong>閲覧専用の単一 HTML</strong>（F-607）。</p>
+<h3>10.1 共通の方針: DrawList を唯一の中間表現にする</h3>
+<table><tr><th>出力</th><th>生成方法</th></tr>
+<tr><td>画面表示（アプリ）</td><td><code>buildDrawList</code> → <code>draw(ctx)</code>（Canvas）</td></tr>
+<tr><td>PNG（F-601）</td><td>同じ <code>draw</code> を出力用の大きな Canvas に高解像度（倍率指定）で描画 → <code>toBlob</code></td></tr>
+<tr><td>SVG（F-601）</td><td>純関数 <code>drawListToSvg(drawList)</code>（矩形・線・パス・<code>&lt;text&gt;</code>）。文字は <code>&lt;text&gt;</code> のままで検索・選択できる。<code>font-family</code> は日本語フォントのフォールバック指定</td></tr>
+<tr><td>PDF（F-606）</td><td>SVG を隠しウィンドウ（<code>BrowserWindow</code>）に読み込み <code>webContents.printToPDF()</code>（Chromium の PDF 出力。<strong>ベクタ・フォント埋め込み</strong>・文字選択可）。用紙サイズ・向き・倍率を指定。新しいライブラリは不要</td></tr>
+<tr><td>HTML ビューア（F-607）</td><td>10.2</td></tr></table>
+<p>同じ <code>buildDrawList</code> から全形式を作るため、<strong>画面と出力の見た目が食い違いにくい</strong>。DrawList は DOM に依存しない純関数なので、出力範囲・期間・倍率の指定も DrawList の生成条件として扱える。</p>
+<h3>10.2 HTML ビューア（F-607）</h3>
+<ul>
+<li><strong>構成</strong>: <code>src/viewer/</code>（React 非依存の素の TypeScript）。<code>src/domain/</code> の <code>buildDrawList</code> / <code>draw</code> / ヒットテスト / 日付スケール / ズーム・ヘッダ形式（年月週⇔年月）を共有する。ビューア固有なのは、左のツリー（素の DOM）、スクロール・ズームの入力処理、ツールチップ（<code>textContent</code>）、ツールバーのみ。</li>
+<li><strong>ビルド</strong>: アプリのビルド時にビューアを1つの JS（IIFE）+ CSS にバンドル（Vite。MIT）し、アプリに同梱する。出力時は Main プロセスが <code>テンプレート HTML + CSS + JS + データ</code> を文字列として結合し、原子的に書き込む（auto-save と同じ手法）。</li>
+<li><strong>データ</strong>: <code>&lt;script type="application/json"&gt;</code> にスナップショット（<a href="data-model.html#export-snapshot">data-model 10</a>）を埋め込む。<code>&lt;</code> を <code>\u003c</code> にエスケープして <code>&lt;/script&gt;</code> による破れを防ぐ。大きい場合は <code>CompressionStream</code>（gzip）+ base64 で圧縮（NF-020 のサイズ目標）。</li>
+<li><strong>操作</strong>: アプリと同じズーム（Ctrl+ホイール、ピンチ、＋/− ボタン、ヘッダ形式の切替）、スクロール（ホイール・ドラッグでパン・スクロールバー）、左ツリーの展開/折りたたみ（縦スクロール同期）、依存線の表示切替（全て / 選択のみ / 非表示）、ホバーで詳細、クリックで選択と依存の強調、今日へ移動、キーボード（矢印・Home/End・+/−）。<strong>編集・Git・AI は含めない</strong>。</li>
+<li><strong>安全性</strong>: <code>&lt;meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:"&gt;</code> で外部通信を禁止。データは <code>fillText</code> / <code>textContent</code> でのみ表示し、HTML として解釈しない。</li>
+<li><strong>プライバシー</strong>: HTML は暗号化されず、含めたデータは全て読める。メモ・担当者は<strong>出力時の選択</strong>（F-608）。出力日時・版を画面下部に表記する。</li>
+<li><strong>印刷</strong>: <code>@media print</code> で現在の表示範囲を1ページに収める（ツールバーは非表示）。</li>
+<li><strong>テスト</strong>: Playwright で出力した HTML を <code>file://</code> で開き、①外部通信が0件 ②ズーム・スクロール・ツリーの開閉 ③ホバー表示 ④25,000イベントでのフレーム時間 を検証。XSS 対策として、名称に <code>&lt;script&gt;</code> や <code>&lt;/script&gt;</code> を含むデータで壊れないことを確認。</li>
+</ul>
+<h3>10.3 注意点</h3>
+<ul>
+<li>HTML・SVG の日本語は<strong>閲覧する PC のフォント</strong>で表示される（見た目が環境でわずかに変わる）。PDF はフォントを埋め込む。</li>
+<li>大きな範囲（8年 × 500行）の PDF/SVG は巨大になる。用紙サイズに「1ページに収める（縮小）」と「期間・行で分割」を選べるようにする（決定 J3）。</li>
+<li>HTML のサイズは、25,000 イベントで非圧縮 JSON 約 3〜4MB の見込み（試算）。実測して NF-020 の目標（10MB 以下）を確認する。</li>
+<li>新しい npm 依存は増やさない想定（ビューアのバンドルは Vite、PDF は Electron の機能）。</li>
 </ul>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>

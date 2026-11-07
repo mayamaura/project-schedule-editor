@@ -21,13 +21,13 @@
 
 <h2>E. AI 連携（GitHub Copilot SDK）</h2>
 <table><tr><th>#</th><th>質問</th><th>選択肢/推奨</th><th>回答</th></tr>
-<tr><td>★E1</td><td>利用者全員が GitHub Copilot の契約（ライセンス）を持っているか。BYOK（自前の API キー）は許容するか</td><td>全員契約あり / 一部のみ（AI は使える人だけ）/ BYOK も許容。※SDK は技術プレビューで提供条件が変わる可能性</td><td><strong>決定:</strong> 全利用者が Copilot 契約済みの前提。BYOK は当面不要</td></tr>
+<tr><td>★E1</td><td>利用者全員が GitHub Copilot の契約（ライセンス）を持っているか。BYOK（自前の API キー）は許容するか</td><td>全員契約あり / 一部のみ（AI は使える人だけ）/ BYOK も許容。※SDK は 1.0.x だが一部 API が実験的</td><td><strong>決定:</strong> 全利用者が Copilot 契約済みの前提。BYOK は当面不要</td></tr>
 <tr><td>★E2</td><td>AI（外部サービス）に送ってよいデータの範囲</td><td>プロジェクト名・日付・メモ・担当者名のうちどこまで。推奨: 既定は選択項目のみ、範囲拡大は利用者が確認</td><td><strong>決定:</strong> メモ・担当者名を含めて送信してよい。ただし送信前に内容を確認できる（F-707）</td></tr>
 <tr><td>★E3</td><td>AI の編集の適用方式</td><td>常に「提案 → 差分確認 → 承認」（推奨）/ 小規模なら自動適用も許す</td><td><strong>決定:</strong> 常に「提案 → 差分確認 → 承認」を必須とする。自動適用は提供しない</td></tr>
 <tr><td>E4</td><td>AI のモデル選択</td><td>Copilot の既定に任せる（推奨）/ 利用者が選べる</td><td><strong>決定:</strong> 利用者が選べるようにする（F-713）</td></tr>
 <tr><td>★E5</td><td>評価したい観点</td><td>期間の妥当性・余裕・並行度・祝日影響・担当者の負荷・リスクなど。<strong>担当・工数・リソースをデータに持つか</strong>で評価の深さが決まる</td><td><strong>決定:</strong> 観点は固定せず、<strong>アプリ上で AI への指示・観点を編集できる</strong>ようにして柔軟な活用を促す（F-712）</td></tr>
 <tr><td>E6</td><td>会話履歴・提案ログの扱い</td><td>ローカルのみ・削除可能（推奨）/ チームで共有（Git 管理）</td><td><strong>決定:</strong> ローカルのみ・利用者が削除可能</td></tr>
-<tr><td>E7</td><td>AI を MVP に含めるか</td><td>MVP 後（推奨。SDK が技術プレビューのため）/ MVP に含める</td><td><strong>決定:</strong> MVP 後に実装する</td></tr>
+<tr><td>E7</td><td>AI を MVP に含めるか</td><td>MVP 後（推奨。SDK の一部 API が実験的なため）/ MVP に含める</td><td><strong>決定:</strong> MVP 後に実装する</td></tr>
 <tr><td>E8</td><td>AI への指示・観点（F-712）の保存先と共有範囲</td><td>個人用=ローカル、チーム共有用=Git の <code>ai-prompts/</code>（推奨）/ 全てローカル / 全て Git</td><td><strong>決定:</strong> 推奨案。個人用=ローカル、チーム共有用=Git の <code>ai-prompts/</code></td></tr></table>
 
 <h2>F. 標準日程・操作</h2>
@@ -54,6 +54,21 @@
 <table><tr><th>#</th><th>質問</th><th>選択肢/推奨</th><th>回答</th></tr>
 <tr><td>H1</td><td>同梱 Git（dugite の配布物。Git 本体は GPL-2.0）を配布物に含めるか</td><td>含める（推奨。Git 未導入の利用者向けのフォールバック。ライセンス告知を同梱）/ 含めず外部 Git のみを必須にする（配布は軽く、GPL の同梱は無くなるが、Git のインストールが前提）</td><td><strong>決定:</strong> 推奨案。同梱 Git を配布物に含める（Git 未導入の利用者向けのフォールバック）。GPL-2.0 のライセンス告知を同梱する。※NF-016 に基づき、ライセンス告知の内容は実装時に確認する</td></tr>
 <tr><td>H2</td><td>既定の Git の選び方</td><td>自動: 外部 Git が使えれば優先、なければ同梱（推奨）/ 同梱を優先 / 常に外部のみ</td><td><strong>決定:</strong> 推奨案。自動（外部 Git が使えれば優先、なければ同梱）</td></tr></table>
+
+<h2>I. 技術検証を受けた判断</h2>
+<p>詳細は <a href="architecture.html#spike-results">architecture 9</a>。</p>
+<table><tr><th>#</th><th>質問</th><th>選択肢/推奨</th><th>回答</th></tr>
+<tr><td>★I1</td><td><strong>描画方式の再判断。</strong>既存の決定（React + SVG/DOM + d3）に対し、実測では、ラベル付き SVG は毎フレーム更新する要素が約2,000件を超えると 60fps を維持できず、仕様上限（約25,000イベント）には Canvas が必要だった</td><td>(a) タイムライン本体を Canvas、操作用オーバーレイ（ハンドル・ドラッグ中の仮表示・メニュー・左ペイン・詳細）を React の DOM/SVG（<strong>推奨</strong>。d3 はそのまま使える）/ (b) SVG を継続し、表示要素数の上限と集約表示（LOD）で対応 / (c) 両方を実装（過剰）</td><td><strong>決定:</strong> (a) 採用。タイムライン本体を Canvas、操作用オーバーレイを React の DOM/SVG とする（architecture 1.5）。d3 はそのまま使う</td></tr>
+<tr><td>I2</td><td>Copilot ランタイム（Windows x64 で展開約181MB、npm 上の表記は MIT だが LICENSE ファイルなし）を配布物に含めるか（NF-016 の承認）</td><td>AI 着手時（MVP 後）に判断する（推奨。それまで保留）/ 今決める: 含める / 含めず利用者のインストール済み CLI を使う（<code>COPILOT_CLI_PATH</code>）</td><td></td></tr>
+<tr><td>I3</td><td>検証コード（<code>spike/</code>）の扱い</td><td>残す（再現用。<code>spike/README.md</code> 付き）（推奨）/ 削除</td><td><strong>決定:</strong> 残す（<code>spike/README.md</code> に再現手順）</td></tr>
+<tr><td>I4</td><td>画像・PDF 出力（F-601）の形式</td><td>PNG と、高解像度のラスタ画像を埋め込んだ PDF（推奨。Canvas から高解像度で描画）/ ベクタ形式（SVG・ベクタ PDF）も必要（DrawList から変換する実装が追加で要る）</td><td><strong>決定:</strong> <strong>ベクタ形式も必要</strong>（SVG・ベクタ PDF を DrawList から生成）。さらに、<strong>閲覧専用の単一 HTML 出力（ズーム・スクロール可）を最優先</strong>で追加（F-607）</td></tr></table>
+
+<h2>J. 出力（HTML・PDF・SVG・PNG）</h2>
+<p>回答済み（2026-11-07）。</p>
+<table><tr><th>#</th><th>質問</th><th>選択肢/推奨</th><th>回答</th></tr>
+<tr><td>J1</td><td>出力機能（特に HTML 出力）を MVP に含めるか</td><td>MVP の次段階で、出力の中では HTML を最優先（推奨。F-607 は DrawList とビューアの共有が前提のため、描画の土台ができれば小さく作れる）/ MVP に含める</td><td><strong>決定:</strong> 推奨案。MVP の次段階。出力の中では HTML を最優先</td></tr>
+<tr><td>J2</td><td>HTML 出力で、メモ・担当者を含める既定</td><td>既定は含めない（出力時に選択して含める）（推奨。HTML は暗号化されず転送されやすいため）/ 既定で含める</td><td><strong>決定:</strong> 推奨案。既定は含めない（出力時に選択して含める）</td></tr>
+<tr><td>J3</td><td>PDF・SVG で大きな範囲（例: 8年 × 500行）を出力するとき</td><td>用紙サイズを選び「1ページに収める（縮小）」と「期間・行で分割して複数ページ」を選べる（推奨）/ 縮小のみ</td><td><strong>決定:</strong> 推奨案。「1ページに収める（縮小）」と「期間・行で分割」を選べる</td></tr></table>
 
 <h2>B. 見落としやすい要件（提案）</h2>
 <table><tr><th>領域</th><th>検討事項</th></tr>

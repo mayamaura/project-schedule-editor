@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>render-bench</title>
+<style>body{margin:0;background:#fff}#host{width:1400px;height:800px;position:relative;overflow:hidden}</style></head>
+<body><div id="host"></div>
+<script>
+// 技術検証: SVG vs Canvas。画面内に N 個の要素（イベント）が同時に見えている最悪条件で計測する。
+// 要素 = 長方形（バー）。実アプリの React 描画コストは含まない（DOM/描画エンジン自体の限界を見る）。
+const W = 1400, H = 800, COLORS = ['#2364aa', '#c0392b', '#2d7d46'];
+const host = document.getElementById('host');
+
+function gen(N) {
+  const per = 50, rows = Math.ceil(N / per), rh = H / rows;
+  let seed = 1; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const ev = [];
+  for (let i = 0; i < N; i++) ev.push({ x: rnd() * (W + 400) - 200, w: 10 + rnd() * 30, y: Math.floor(i / per) * rh, h: Math.max(1, rh - 0.6), c: i % 3 });
+  return ev;
+}
+const raf = () => new Promise((r) => requestAnimationFrame(r));
+function runFrames(fn, n = 90) {
+  return new Promise((res) => {
+    const iv = [], js = []; let last = performance.now(), i = 0;
+    function f(now) {
+      iv.push(now - last); last = now;
+      const t0 = performance.now(); fn(i); js.push(performance.now() - t0);
+      if (++i < n) requestAnimationFrame(f); else res({ iv: iv.slice(5), js: js.slice(5) });
+    }
+    requestAnimationFrame(f);
+  });
+}
+const stat = (a) => { const s = [...a].sort((x, y) => x - y); return { avg: +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(2), p95: +s[Math.floor(s.length * 0.95)].toFixed(2), max: +s[s.length - 1].toFixed(2) }; };
+const NS = 'http://www.w3.org/2000/svg';
+
+function buildSvg(ev) {
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('width', W); svg.setAttribute('height', H);
+  const g = document.createElementNS(NS, 'g'); svg.appendChild(g);
+  const rects = ev.map((e) => {
+    const r = document.createElementNS(NS, 'rect');
+    r.setAttribute('x', e.x); r.setAttribute('y', e.y); r.setAttribute('width', e.w); r.setAttribute('height', e.h); r.setAttribute('fill', COLORS[e.c]);
+    g.appendChild(r); return r;
+  });
+  host.appendChild(svg); return { svg, g, rects };
+}
+function drawCanvas(ctx, ev, dx) {
+  ctx.clearRect(0, 0, W, H);
+  for (let c = 0; c < 3; c++) { ctx.fillStyle = COLORS[c]; for (const e of ev) if (e.c === c) ctx.fillRect(e.x + dx, e.y, e.w, e.h); }
+}
+
+async function scenario(kind, N) {
+  const ev = gen(N); host.innerHTML = ''; await raf(); await raf();
+  const t0 = performance.now(); let frames, init, hit;
+  if (kind === 'svg-transform-pan') {            // 一括 transform でパン（再レイアウトなし、再描画のみ）
+    const s = buildSvg(ev); await raf(); init = performance.now() - t0;
+    frames = await runFrames((i) => s.g.setAttribute('transform', `translate(${-i * 3},0)`));
+    const p0 = performance.now(); for (let k = 0; k < 500; k++) document.elementFromPoint((k * 37) % W, (k * 53) % H); hit = (performance.now() - p0) / 500 * 1000;
+  } else if (kind === 'svg-update-all') {        // 全要素の属性を毎フレーム更新（素朴な再描画に相当）
+    const s = buildSvg(ev); await raf(); init = performance.now() - t0;
+    frames = await runFrames((i) => { for (let k = 0; k < N; k++) s.rects[k].setAttribute('x', ev[k].x - i * 3); });
+    hit = NaN;
+  } else if (kind === 'svg-drag-one') {          // 1要素だけドラッグ（実際のドラッグ操作に近い）
+    const s = buildSvg(ev); await raf(); init = performance.now() - t0;
+    frames = await runFrames((i) => s.rects[0].setAttribute('x', 100 + i * 3));
+    hit = NaN;
+  } else if (kind === 'canvas-redraw-all') {     // 毎フレーム全要素を描き直す
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; host.appendChild(cv); const ctx = cv.getContext('2d');
+    drawCanvas(ctx, ev, 0); await raf(); init = performance.now() - t0;
+    frames = await runFrames((i) => drawCanvas(ctx, ev, -i * 3));
+    // ヒットテスト: 格子インデックスを引く
+    const CELL = 20, grid = new Map(); ev.forEach((e, idx) => { for (let gx = Math.floor(e.x / CELL); gx <= Math.floor((e.x + e.w) / CELL); gx++) for (let gy = Math.floor(e.y / CELL); gy <= Math.floor((e.y + e.h) / CELL); gy++) { const key = gx + ',' + gy; (grid.get(key) ?? grid.set(key, []).get(key)).push(idx); } });
+    const p0 = performance.now(); let found = 0;
+    for (let k = 0; k < 500; k++) { const x = (k * 37) % W, y = (k * 53) % H; for (const idx of grid.get(Math.floor(x / CELL) + ',' + Math.floor(y / CELL)) ?? []) { const e = ev[idx]; if (x >= e.x && x <= e.x + e.w && y >= e.y && y <= e.y + e.h) found++; } }
+    hit = (performance.now() - p0) / 500 * 1000;
+  } else if (kind === 'svg-update-all-text') {   // ラベル付き: 各バーに <text>（実アプリではほぼ全バーにラベルがある）
+    const s = buildSvg(ev); const texts = ev.map((e, k) => { const t = document.createElementNS(NS, 'text'); t.setAttribute('x', e.x + 2); t.setAttribute('y', e.y + Math.max(8, e.h - 2)); t.setAttribute('font-size', 9); t.setAttribute('fill', '#fff'); t.textContent = '設計' + (k % 10); s.g.appendChild(t); return t; });
+    await raf(); init = performance.now() - t0;
+    frames = await runFrames((i) => { for (let k = 0; k < N; k++) { s.rects[k].setAttribute('x', ev[k].x - i * 3); texts[k].setAttribute('x', ev[k].x + 2 - i * 3); } });
+    hit = NaN;
+  } else if (kind === 'canvas-redraw-all-text') {
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; host.appendChild(cv); const ctx = cv.getContext('2d'); ctx.font = '9px sans-serif';
+    const draw = (dx) => { drawCanvas(ctx, ev, dx); ctx.fillStyle = '#fff'; for (let k = 0; k < ev.length; k++) ctx.fillText('設計' + (k % 10), ev[k].x + dx + 2, ev[k].y + Math.max(8, ev[k].h - 2)); };
+    draw(0); await raf(); init = performance.now() - t0;
+    frames = await runFrames((i) => draw(-i * 3));
+    hit = NaN;
+  } else if (kind === 'canvas-bitmap-pan') {     // 先に1枚に描いておき、パンはビットマップ移動のみ
+    const off = document.createElement('canvas'); off.width = W + 800; off.height = H; const octx = off.getContext('2d');
+    drawCanvas(octx, ev, 400);
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; host.appendChild(cv); const ctx = cv.getContext('2d');
+    ctx.drawImage(off, -400, 0); await raf(); init = performance.now() - t0;
+    frames = await runFrames((i) => { ctx.clearRect(0, 0, W, H); ctx.drawImage(off, -400 - i * 3, 0); });
+    hit = NaN;
+  }
+  return { kind, N, initMs: +init.toFixed(1), frameInterval: stat(frames.iv), jsPerFrame: stat(frames.js), hitUs: Number.isNaN(hit) ? null : +hit.toFixed(2), heapMB: performance.memory ? +(performance.memory.usedJSHeapSize / 1048576).toFixed(1) : null };
+}
+
+window.runAll = async function (mode) {
+  const out = [];
+  if (mode === 'text') { for (const N of [500, 2000, 5000, 10000]) for (const kind of ['svg-update-all-text', 'canvas-redraw-all-text']) out.push(await scenario(kind, N)); return { ua: navigator.userAgent, dpr: devicePixelRatio, results: out }; }
+  for (const N of [500, 2000, 5000, 10000, 25000])
+    for (const kind of ['svg-transform-pan', 'svg-update-all', 'svg-drag-one', 'canvas-redraw-all', 'canvas-bitmap-pan'])
+      out.push(await scenario(kind, N));
+  return { ua: navigator.userAgent, dpr: devicePixelRatio, results: out };
+};
+</script></body></html>

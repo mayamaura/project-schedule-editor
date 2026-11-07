@@ -189,5 +189,22 @@
 <li>自動保存はこれらのファイルを直接更新する（Git の作業ツリーの変更 = 未保存の変更）。アプリ専用の領域 <code>.autosave/</code>（<code>running</code>・<code>pending.json</code>・<code>flow.json</code>）は <strong>Git 管理外</strong>（データリポジトリ作成時にアプリが <code>.gitignore</code> へ登録）。</li>
 <li>起動時にスキーマ検証と参照整合の検証を行い、不整合は修復案とともに提示する（データを黙って削除しない）。詳細は <a href="architecture.html#autosave">architecture 8</a>。</li>
 </ul>
+<h2 id="export-snapshot">10. 出力用スナップショット（HTML ビューア）</h2>
+<p>HTML 出力（F-607）に埋め込むデータ。アプリのデータの<strong>読み取り専用のコピー</strong>で、Git には保存しない（出力ファイルにのみ存在する）。</p>
+<pre>{
+  "snapshotVersion": 1,
+  "generatedAt": "2026-11-07T10:00:00+09:00",
+  "source": { "branch": "main", "commit": "abc1234", "label": "正式版" },
+  "options": { "includeNotes": false, "includeAssignee": false, "dependencies": true, "headerMode": "weekMonth" },
+  "range": { "from": "2026-01-01", "to": "2033-12-31" },
+  "types": { "phase": { "name": "フェーズ", "color": "#2364aa", "eventStyle": "bar" } },
+  "calendar": { "holidays": ["2027-01-01"] },
+  "projects": [ { "id": "p1", "name": "新製品A", "parentId": null, "order": "a0",
+                  "events": { "e1": { "name": "設計", "start": "2026-11-01", "end": "2026-12-15", "type": "phase" } },
+                  "milestones": {} } ],
+  "dependencies": { "d1": { "from": { "kind": "event", "id": "e1" }, "to": { "kind": "event", "id": "e2" }, "type": "FS" } }
+}</pre>
+<ul><li>オプションで除外された項目（メモ・担当者など）は<strong>スナップショットに含めない</strong>（HTML 上で非表示にするだけでなく、データ自体を出力しない）。</li>
+<li>表示に不要な内部情報（作者・メール・コミット履歴・AI の指示や会話）は含めない。<code>source</code> は版の表記用。</li></ul>
 <div class="todo">属性の追加（予算・工数・進捗率など）、データ形式の希望を追記。</div>
 </main></body></html>

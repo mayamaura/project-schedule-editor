@@ -27,15 +27,15 @@ Electron 製デスクトップアプリ。縦=プロジェクト、横=日付の
 
 ## アーキテクチャ制約（要点）
 - `src/domain/`: 純 TypeScript。`electron` / `node:*` / `react` / DOM を import しない。日付計算・依存検証・`diffSchedule`・マイグレーション・コマンド適用はここ。
-- `src/main/`（Git・FS・IPC）、`src/preload/`、`src/renderer/`（React UI）、`src/shared/`（IPC型・zodスキーマ）。renderer は main を import しない。FS/Git は main のみ、renderer は preload の IPC 経由。
+- `src/main/`（Git・FS・IPC）、`src/preload/`、`src/renderer/`（React UI）、`src/shared/`（IPC型・zodスキーマ）、`src/viewer/`（出力する単一 HTML に埋め込む閲覧専用ビューア。React 非依存で、`src/domain/` の描画コードを共有。外部通信・編集機能は持たない。docs/architecture.html 10）。renderer は main を import しない。FS/Git は main のみ、renderer は preload の IPC 経由。
 - Electron: `contextIsolation: true`、`nodeIntegration: false`、IPC は型付き・入力検証あり。
 - 日付は文字列 `YYYY-MM-DD`（Date 型・タイムゾーンを持ち込まない）。
 - データ JSON は出力規則（キー昇順・インデント2・LF・ID キーのオブジェクト）を厳守。書式を変える変更は schemaVersion とマイグレーションを伴う。
 - ドラッグ等の連続操作は ref + rAF で処理し、確定時に 1 コマンドとしてストアへ（Undo 1 単位）。
 - UI 文言に Git 用語（commit / branch / merge / push 等）を出さない。「保存」「作業版」「正式版」「反映」などの業務語を使う（docs/git-ux.html）。ファイル書き込みは必ず一時ファイル＋rename の原子的置換（自動保存、docs/architecture.html 8）。
-- Git: 実行ファイルは同梱（dugite）と外部（システム）の両方に対応し、`execFile` に引数配列で渡す（シェル経由禁止）。`GIT_TERMINAL_PROMPT=0`。認証は GCM のブラウザ認証が第一候補。認証情報を設定・`.git/config`・引数・ログに残さない（docs/architecture.html 3.5）。
-- AI（GitHub Copilot SDK）: `src/main/ai/` に隔離。AI に公開するツールは読み取りと提案作成のみ、**AI に日程を直接書き換えさせない**（提案→差分確認→承認）。SDK は技術プレビューなので、仕様は公式ドキュメントで確認してから実装する。テストは SDK をモックする。
-- 目標規模: 500プロジェクト × 50イベント × 8年（約25,000イベント）。描画は仮想化必須。
+- Git: 実行ファイルは同梱（dugite）と外部（システム）の両方に対応し、`execFile` に引数配列で渡す（シェル経由禁止）。`GIT_TERMINAL_PROMPT=0`（バックグラウンド処理では `GCM_INTERACTIVE=never` も）。認証は GCM のブラウザ認証が第一候補。認証情報を設定・`.git/config`・引数・ログに残さない（docs/architecture.html 3.5）。
+- AI（GitHub Copilot SDK）: `src/main/ai/` に隔離。AI に公開するツールは読み取りと提案作成のみ、**AI に日程を直接書き換えさせない**（提案→差分確認→承認）。SDK は 1.0.x だが一部 API が実験的なので、型定義・README で確認してから実装する（docs/architecture.html 6.1, 9.4）。テストは SDK をモックする。
+- 目標規模: 500プロジェクト × 50イベント × 8年（約25,000イベント）。タイムライン本体は **Canvas**（SVG は実測で限界: docs/architecture.html 9.1）。描画は `buildDrawList`（純関数）+ `draw(ctx, drawList)` に分け、ヒットテストも DrawList から行う。左ペインと操作オーバーレイ（ハンドル・メニュー・入力欄）は React の DOM/SVG。表示範囲だけを描く仮想化は必須。
 
 ## テスト
 - `src/domain/` は **テスト先行**（失敗するテスト → 実装）。Vitest。カバレッジ目標 90%+。
