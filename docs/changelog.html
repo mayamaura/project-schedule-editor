@@ -6,6 +6,7 @@
 <h1>仕様変更履歴</h1>
 <p>仕様文書（requirements / data-model / architecture / ui-design / git-ux / open-questions）を変更したら、この表の<strong>先頭</strong>に追記する（pre-commit が検査）。</p>
 <table><tr><th>日付</th><th>変更内容</th><th>影響文書</th><th>要件ID</th></tr>
+<tr><td>2026-11-07</td><td>標準日程の「基準マイルストーン」「開始日」の表現を廃止し、<strong>起点（0ヶ月/0週）</strong>に統一（起点の前=負・後=正。起点はマイルストーンに限らない。展開時は「マイルストーンを選ぶ」か「起点の日付を直接指定」）。編集モデルを明確化: 編集は1人、共同編集は Git リモート経由の非同期で、リアルタイム同時編集は対象外（NF-017 追加、「同時編集」の表現を修正）。年月週ヘッダの月見出しを確定。index の依存関係の端点の古い記述を修正</td><td>requirements, data-model, ui-design, git-ux, open-questions, index</td><td>F-801, F-802, NF-005, NF-017</td></tr>
 <tr><td>2026-11-07</td><td>F7 を決定: ヶ月オフセットで存在しない日は月末に丸める（既定）。月末に揃えるオプションは当面なし</td><td>open-questions, requirements, data-model</td><td>F-809</td></tr>
 <tr><td>2026-11-07</td><td>標準日程のオフセットを「基準マイルストーンからの前後の ヶ月・週・日」で定義できるように変更（起点より前・後の項目を設定可能）。月の計算規則(暦月・月末丸め)を追加。月末の扱いを F7 として新規質問</td><td>requirements, data-model, ui-design, open-questions</td><td>F-801, F-802, F-809</td></tr>
 <tr><td>2026-11-07</td><td>F1〜F6 を決定: 日数の数え方は選択式(既定は暦日)、展開後は独立、標準日程は Git 共有、起点は「任意のマイルストーン」または「起点の日付」から選択、作成は右クリックメニューのみ(変更の可能性あり)、標準日程は MVP の次段階</td><td>open-questions, requirements, ui-design, data-model</td><td>F-201, F-202, F-802, F-804, F-807</td></tr>
