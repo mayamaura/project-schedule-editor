@@ -11,9 +11,9 @@
 <table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
 <tr><td>F-101</td><td>左に プロジェクトツリー（名称・列）、右に 日付軸のタイムラインを持つ Excel ライクな2ペイン表示</td><td class="must">M</td><td>縦横スクロール同期、ヘッダ固定</td></tr>
 <tr><td>F-102</td><td>1行に複数のイベント（バー）とマイルストーン（◆）を表示</td><td class="must">M</td><td>同一行で重なる場合の扱い（F-103）</td></tr>
-<tr><td>F-103</td><td>同一行でイベントが重なった場合、サブレーン展開（行高が自動で増える）または重ね表示を選べる</td><td class="should">S</td><td>要判断: 既定の挙動</td></tr>
-<tr><td>F-104</td><td>ズーム切替（日/週/月/四半期/年）、今日線、週末・祝日の背景表示</td><td class="must">M</td><td></td></tr>
-<tr><td>F-105</td><td>プロジェクト階層の展開/折りたたみ。折りたたみ時、親行に子の期間を集約表示（サマリーバー）</td><td class="must">M</td><td>集約は自動計算か手動か要判断</td></tr>
+<tr><td>F-103</td><td>同一行でイベントが重なった場合、サブレーンに自動で縦展開（行高が自動で増える）</td><td class="must">M</td><td>決定（A10）。重ね表示は対象外</td></tr>
+<tr><td>F-104</td><td>日付ヘッダの切替: 「年月週」（週=月曜日の日付）⇔「年月」。今日線、週末・祝日の背景表示</td><td class="must">M</td><td>仕様は <a href="ui-design.html">UI設計 1.5</a>。日/四半期/年のズームは S</td></tr>
+<tr><td>F-105</td><td>プロジェクト階層の展開/折りたたみ。親の日程は独立入力（子から自動計算しない）</td><td class="must">M</td><td>決定（A3）。子の集約サマリー表示は任意の表示オプションとし、将来の仕様変更に備え表示層の純関数に分離</td></tr>
 <tr><td>F-106</td><td>イベント/マイルストーンに 色・ラベル・種別（フェーズ、リリース等）を設定</td><td class="must">M</td><td>種別マスタは設定で編集可能</td></tr>
 <tr><td>F-107</td><td>多数行（500行程度）・数年範囲でも滑らかにスクロール</td><td class="must">M</td><td>仮想化必須（NF-001）</td></tr></table>
 
@@ -30,11 +30,11 @@
 
 <h3>1.3 階層・依存関係</h3>
 <table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
-<tr><td>F-301</td><td>プロジェクトは任意深さの親子構造を持つ</td><td class="must">M</td><td>深さ上限の目安を決める</td></tr>
-<tr><td>F-302</td><td>依存関係を 矢印線で表示。端点はプロジェクト/イベント/マイルストーンのいずれか（要判断）</td><td class="must">M</td><td>端点粒度は設計に大きく影響 → <a href="open-questions.html">未決事項</a></td></tr>
+<tr><td>F-301</td><td>プロジェクトは単一親・任意深さの木構造</td><td class="must">M</td><td>決定（A8）。深さ上限の目安は未定</td></tr>
+<tr><td>F-302</td><td>依存関係を 矢印線で表示。端点はイベント/マイルストーン（プロジェクト間依存はそれらの端点で表現）</td><td class="must">M</td><td>決定（A1）</td></tr>
 <tr><td>F-303</td><td>依存タイプ: FS / SS / FF / SF とラグ(日数)</td><td class="should">S</td><td>MVP は FS のみでも可</td></tr>
 <tr><td>F-304</td><td>依存線の表示切替: 全表示 / 選択項目に関係するもののみ / 非表示 / 種別・階層で絞込</td><td class="must">M</td><td>依頼の要件</td></tr>
-<tr><td>F-305</td><td>依存違反（後続が先行より前）の警告表示</td><td class="should">S</td><td>自動再スケジュールするかは要判断</td></tr>
+<tr><td>F-305</td><td>依存違反（後続が先行より前）の警告表示</td><td class="must">M</td><td>自動再スケジュールはしない（A2）</td></tr>
 <tr><td>F-306</td><td>選択項目の上流/下流（影響範囲）をハイライト</td><td class="should">S</td><td>影響調査に有用</td></tr></table>
 
 <h3>1.4 ビュー・フィルタ</h3>
@@ -57,7 +57,7 @@
 <tr><td>F-512</td><td>変更による依存違反の新規発生を警告として表示</td><td class="should">S</td><td>F-305 と連動</td></tr>
 <tr><td>F-506</td><td>競合解決UI（項目単位で「自分の/相手の」を選ぶ）</td><td class="must">M</td><td>最大のUX課題</td></tr>
 <tr><td>F-507</td><td>ブランチ相当の「シナリオ（案）」機能: 別案を作って比較・採用</td><td class="could">C</td><td>用語は「案」。後回し可</td></tr>
-<tr><td>F-508</td><td>リモート認証（HTTPS トークン / SSH）設定の支援</td><td class="must">M</td><td>OS資格情報ストア利用</td></tr></table>
+<tr><td>F-508</td><td>GitHub 認証の設定支援（Device Flow / PAT）</td><td class="must">M</td><td>リモートは GitHub（A5）。トークンは OS 資格情報ストアに保存</td></tr></table>
 
 <h3>1.6 入出力・その他</h3>
 <table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
@@ -70,8 +70,8 @@
 
 <h2>2. 非機能要件</h2>
 <table><tr><th>ID</th><th>要件</th><th>目標（案）</th></tr>
-<tr><td>NF-001</td><td>性能</td><td>500行×5年・イベント5,000件で 60fps に近いスクロール、ドラッグ中の遅延 &lt;16ms 目標</td></tr>
-<tr><td>NF-002</td><td>対応OS</td><td>Windows 10/11 必須、macOS 任意（要判断）</td></tr>
+<tr><td>NF-001</td><td>性能（最大規模）</td><td>500プロジェクト × 50イベント（約25,000件）× 8年。スクロール/ズーム 60fps 目標、ドラッグ中の遅延 &lt;16ms、起動時の全データ読込 数秒以内</td></tr>
+<tr><td>NF-002</td><td>対応OS</td><td>Windows 10/11。将来 macOS / Linux を追加できるよう、OS依存API・パス区切り・改行(LF固定)・資格情報保管（Electron safeStorage 等）を抽象化</td></tr>
 <tr><td>NF-003</td><td>オフライン</td><td>編集・commit はオフライン可。共有時のみネット必要</td></tr>
 <tr><td>NF-004</td><td>データ安全性</td><td>クラッシュ時も未保存編集を復元（自動一時保存）。Git操作は破壊的操作（force push, reset --hard）を提供しない</td></tr>
 <tr><td>NF-005</td><td>マージしやすさ</td><td>同時編集の衝突が最小になるデータ形式（<a href="data-model.html">データモデル</a>）</td></tr>

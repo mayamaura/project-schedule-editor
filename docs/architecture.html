@@ -17,6 +17,38 @@
 <div class="note"><strong>推奨構成:</strong> React + TypeScript、左ペイン=仮想化ツリーグリッド（自作 or TanStack Virtual）、右ペイン=SVG（後に Canvas 差替え可）。座標計算は d3-scale、日付処理は d3-time ＋ date-fns。<br>
 最初に <strong>技術スパイク</strong>（500行・5,000イベントでスクロール/ドラッグを SVG と Canvas で比較）を行い、描画方式を確定することを推奨。</div>
 
+<h2>1.5 決定: React + SVG/DOM + d3（確定）</h2>
+<table><tr><th>項目</th><th>方針</th></tr>
+<tr><td>DOM の所有者</td><td>React。d3 に DOM を直接操作させない（<code>select().append()</code> は使わない）</td></tr>
+<tr><td>d3 の使い方</td><td>計算用モジュールを必要に応じて自由に採用。当初は d3-scale / d3-time / d3-array。足りなければ追加する</td></tr>
+<tr><td>描画</td><td>SVG（バー・◆・依存線）＋ DOM（左ペインのツリー）。仮想化で表示範囲のみ描画</td></tr>
+<tr><td>将来</td><td>性能不足なら描画層だけ Canvas に差替え（座標計算・イベント層は共通）</td></tr></table>
+<div class="note"><strong>規模の確定（A6）: 最大 約25,000 イベント × 8年。</strong>SVG で全要素を DOM 化すると破綻するため、<strong>表示範囲（行 × 日付）だけを描画する二次元の仮想化は必須</strong>。同時に画面内に出る要素は数百〜千程度に抑える。それでもズームアウト時（8年を縮小表示）は表示要素が増えるため、<strong>Canvas 描画への切替を現実的な選択肢として最初から想定</strong>し、描画層を差替え可能に分離する（コマンド層・座標計算・ヒットテストは共通）。技術検証（25,000要素）の結果で SVG / Canvas を確定する。</div>
+<h3>採用候補の d3 モジュール</h3>
+<table><tr><th>モジュール</th><th>用途</th></tr>
+<tr><td>d3-scale / d3-time / d3-time-format</td><td>日付↔x座標、目盛り（日・週・月・四半期）、日本語ラベル</td></tr>
+<tr><td>d3-array</td><td>bisect（表示範囲の二分探索）、集計、グルーピング</td></tr>
+<tr><td>d3-shape</td><td>依存線のパス生成（<code>line</code> + curveStep 系で直交ルーティング）、◆●▲ の symbol</td></tr>
+<tr><td>d3-quadtree / d3-interval-tree 相当</td><td>多数要素のヒットテスト、範囲選択（投げ縄・矩形）</td></tr>
+<tr><td>d3-zoom / d3-drag</td><td>パン・ズーム・ドラッグを<strong>コンテナ要素に1回だけ</strong>アタッチ（transform は React の状態へ反映）。要素ごとには付けない</td></tr>
+<tr><td>d3-hierarchy</td><td>プロジェクトツリーの走査・平坦化（表示行の算出）</td></tr>
+<tr><td>d3-scale-chromatic 等</td><td>種別カラーの補助（任意）</td></tr></table>
+
+<h3>イベント処理方針（イベントが多くなる前提）</h3>
+<p>要素数が数千になると、要素ごとに React のハンドラや d3 のリスナーを付ける方式は、生成コストとメモリが問題になる。次の方針で設計する。</p>
+<ol>
+<li><strong>イベント委譲</strong>: ハンドラは SVG ルート（または専用のイベント層）に1セットだけ置く。各要素は <code>data-kind</code> / <code>data-id</code> を持ち、<code>event.target.closest()</code> で対象を特定する。</li>
+<li><strong>Pointer Events に統一</strong>: <code>pointerdown/move/up</code> + <code>setPointerCapture</code>。マウス・ペン・タッチを同じコードで扱い、要素外へ出てもドラッグを継続できる。</li>
+<li><strong>操作をステートマシン化</strong>: idle / 選択 / ドラッグ移動 / 端リサイズ / 依存作成 / 範囲選択 / パン を明示的な状態として定義（XState か自前の reducer）。ハンドラ内に条件分岐を散らさない。</li>
+<li><strong>ドラッグ中は React の再レンダーを避ける</strong>: 移動中は ref とトランスフォームで対象要素（または専用のオーバーレイ）だけを <code>requestAnimationFrame</code> で更新し、<strong>pointerup で1回だけストアにコミット</strong>（= Undo 1単位）。依存線もドラッグ中は仮表示。</li>
+<li><strong>ヒットテストの分離</strong>: 当たり判定は座標からデータを引く純関数（行インデックス＋行内の区間検索）として実装し、DOM に依存しない。Canvas 移行時にもそのまま使える。</li>
+<li><strong>コマンド層</strong>: 操作の結果は <code>MoveEvent</code>, <code>ResizeEvent</code>, <code>AddDependency</code> などのコマンドとして発行 → ストアが適用・検証 → patch を履歴に積む。UI・キーボード・将来の自動化が同じ経路を通る。</li>
+<li><strong>ホットキー</strong>: 一元管理のキーマップ（コマンド ID に紐付け）。フォーカス位置（グリッド/詳細パネル/ダイアログ）で有効範囲を切替。</li>
+<li><strong>間引き</strong>: 連続イベント（move, wheel, scroll）は rAF に束ね、1フレーム1回だけ処理。スクロール同期は左右ペインで1つのスクロール状態を共有。</li>
+<li><strong>メモ化</strong>: 行コンポーネントは <code>React.memo</code>、props は ID と不変データのみ。選択やホバーは行単位のセレクタで購読し、全体再描画を防ぐ。</li>
+</ol>
+<div class="note">技術検証で確認する項目: ①25,000要素（8年・縮小表示を含む）でのスクロール/ズームのフレームレート ②ドラッグ中の遅延（委譲＋rAF 方式）③依存線 1,000 本の描画 ④d3-zoom と React 状態の同期。</div>
+
 <h2>2. 全体構成</h2>
 <pre>┌───────────── Electron ─────────────┐
 │ Main process (Node)                 │
@@ -27,8 +59,9 @@
 │            ▲ contextBridge / preload
 │ Renderer (React + TS)               │
 │  ├ Domain (純TS: 日付計算, 依存検証, diffSchedule(日程変更検出), マイグレーション) ← 単体テストの中心
-│  ├ Store (Zustand 等 + Undo/Redo)
-│  ├ TimelineView (SVG/Canvas)
+│  ├ Store (Zustand 等 + コマンド適用 + Undo/Redo)
+│  ├ Interaction (イベント委譲 / 操作ステートマシン / ヒットテスト / キーマップ)
+│  ├ TimelineView (SVG, 将来 Canvas)
 │  ├ TreeGrid
 │  └ GitPanel (保存/共有/履歴/競合)
 └────────────────────────────────────┘</pre>

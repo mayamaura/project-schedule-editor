@@ -4,20 +4,20 @@
 <nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a class="cur" href="open-questions.html">未決事項・追加定義</a></nav>
 <main>
 <h1>未決事項・追加で定義すべき要件</h1>
-<p>設計への影響が大きい順。★は「実装前に必ず決めたい」項目。回答は各行の右欄に追記してください。</p>
+<p>設計への影響が大きい順。★は「実装前に必ず決めたい」項目。回答済み（2026-11-07）。回答欄の内容は各文書に反映済み。</p>
 
 <h2>A. 設計を左右する重要事項</h2>
 <table><tr><th>#</th><th>質問</th><th>選択肢/推奨</th><th>回答</th></tr>
-<tr><td>★A1</td><td>依存関係の端点は何か</td><td>プロジェクト間のみ / イベント・マイルストーン間（推奨: 後者。前者も内包できる）</td><td></td></tr>
-<tr><td>★A2</td><td>日程の自動連動（スケジューリング）をするか。先行を動かすと後続が自動で動くか</td><td>しない・違反を警告のみ（推奨・MVP）/ 手動で「連動移動」/ 常時自動</td><td></td></tr>
-<tr><td>★A3</td><td>親の期間は子から自動集計か、独立した値か</td><td>自動集計表示（推奨）/ 独立入力 / 両方</td><td></td></tr>
-<tr><td>★A4</td><td>同時編集者の人数と運用</td><td>1人 / 数人 / 十数人以上。→ <a href="git-ux.html">運用モデル</a>の選択に直結</td><td></td></tr>
-<tr><td>★A5</td><td>リモートリポジトリの種類</td><td>GitHub / GitLab / Azure DevOps / 社内サーバ / 共有フォルダ（bare repo）/ ローカルのみ</td><td></td></tr>
-<tr><td>★A6</td><td>想定規模</td><td>プロジェクト数・イベント数・期間（例: 200行/3,000イベント/5年）→ 描画方式の判断材料</td><td></td></tr>
-<tr><td>★A7</td><td>対象OS</td><td>Windows のみ / Windows+macOS(+Linux)</td><td></td></tr>
-<tr><td>A8</td><td>プロジェクトの親子は単一親（木）か、複数親（DAG）か</td><td>単一親（推奨）</td><td></td></tr>
-<tr><td>A9</td><td>日付の粒度</td><td>日単位のみ（推奨）/ 時刻あり / 半日</td><td></td></tr>
-<tr><td>A10</td><td>1行内でイベントが重なる場合の表示</td><td>行を自動で縦に展開（推奨）/ 重ね表示 / 禁止</td><td></td></tr></table>
+<tr><td>★A1</td><td>依存関係の端点は何か</td><td>プロジェクト間のみ / イベント・マイルストーン間（推奨: 後者。前者も内包できる）</td><td><strong>決定:</strong> イベント・マイルストーン間（プロジェクト間の依存もこの端点指定で表現）</td></tr>
+<tr><td>★A2</td><td>日程の自動連動（スケジューリング）をするか。先行を動かすと後続が自動で動くか</td><td>しない・違反を警告のみ（推奨・MVP）/ 手動で「連動移動」/ 常時自動</td><td><strong>決定:</strong> 自動連動しない。依存違反は警告のみ（手動の「連動移動」は将来検討）</td></tr>
+<tr><td>★A3</td><td>親の期間は子から自動集計か、独立した値か</td><td>自動集計表示（推奨）/ 独立入力 / 両方</td><td><strong>決定:</strong> 独立入力。将来の変更可能性あり → 子からの集計は表示層の純関数に分離し、データには持たせない</td></tr>
+<tr><td>★A4</td><td>同時編集者の人数と運用</td><td>1人 / 数人 / 十数人以上。→ <a href="git-ux.html">運用モデル</a>の選択に直結</td><td><strong>決定:</strong> 数人。基本は Git 経由で共有 → 運用モデルA（main 単一ブランチ）。※「Git 経由での編集」が外部 Git クライアントでの直接編集も含むかは要確認</td></tr>
+<tr><td>★A5</td><td>リモートリポジトリの種類</td><td>GitHub / GitLab / Azure DevOps / 社内サーバ / 共有フォルダ（bare repo）/ ローカルのみ</td><td><strong>決定:</strong> GitHub。認証は GitHub の Device Flow（OAuth）または PAT を想定</td></tr>
+<tr><td>★A6</td><td>想定規模</td><td>プロジェクト数・イベント数・期間（例: 200行/3,000イベント/5年）→ 描画方式の判断材料</td><td><strong>決定:</strong> 最大 500プロジェクト × 50イベント = 約 25,000 イベント、期間 約8年。→ 描画方式への影響大（<a href="architecture.html">アーキテクチャ</a>）</td></tr>
+<tr><td>★A7</td><td>対象OS</td><td>Windows のみ / Windows+macOS(+Linux)</td><td><strong>決定:</strong> Windows のみ（将来 macOS / Linux 追加の可能性大）→ OS依存を作らない設計</td></tr>
+<tr><td>A8</td><td>プロジェクトの親子は単一親（木）か、複数親（DAG）か</td><td>単一親（推奨）</td><td><strong>決定:</strong> 単一親（木構造）</td></tr>
+<tr><td>A9</td><td>日付の粒度</td><td>日単位のみ（推奨）/ 時刻あり / 半日</td><td><strong>決定:</strong> 日単位のみ。表示は<a href="ui-design.html">UI設計 1.5</a>の年月/年月週ヘッダ</td></tr>
+<tr><td>A10</td><td>1行内でイベントが重なる場合の表示</td><td>行を自動で縦に展開（推奨）/ 重ね表示 / 禁止</td><td><strong>決定:</strong> 行を自動で縦に展開（サブレーン）</td></tr></table>
 
 <h2>B. 見落としやすい要件（提案）</h2>
 <table><tr><th>領域</th><th>検討事項</th></tr>
