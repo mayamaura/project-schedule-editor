@@ -51,12 +51,12 @@ for (const f of files) {
 // 5. 決定事項の参照（Ax）が open-questions.html に存在
 const oq = read('open-questions.html');
 for (const f of files) {
-  for (const [, n] of read(f).matchAll(/（A(\d+)）/g)) {
-    if (!new RegExp(`<td>★?A${n}</td>`).test(oq)) errors.push(`${f}: 存在しない質問番号 A${n}`);
+  for (const [, n] of read(f).matchAll(/（([A-Z]\d+)）/g)) {
+    if (!new RegExp(`<td>★?${n}</td>`).test(oq)) errors.push(`${f}: 存在しない質問番号 ${n}`);
   }
 }
-for (const [, row] of oq.matchAll(/<tr>(<td>★A\d+<\/td>.*?)<\/tr>/g)) {
-  if (!row.includes('決定:')) warns.push(`open-questions.html: 未決の★項目 ${row.match(/A\d+/)[0]}`);
+for (const [, row] of oq.matchAll(/<tr>(<td>★[A-Z]\d+<\/td>.*?)<\/tr>/g)) {
+  if (!row.includes('決定:')) warns.push(`open-questions.html: 未決の★項目 ${row.match(/[A-Z]\d+/)[0]}`);
 }
 
 // 6. 仕様文書を変更したら changelog.html も更新する

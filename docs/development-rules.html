@@ -39,6 +39,7 @@ spike/        技術検証の使い捨てコード（本体に混ぜない）</p
 <table><tr><th>ルール</th><th>内容</th></tr>
 <tr><td>依存方向</td><td>domain ← shared ← main / renderer。domain は electron・node:*・react・DOM を import しない。renderer は main を import しない</td></tr>
 <tr><td>強制</td><td>スキャフォールド時に ESLint の import 制限（レイヤ境界）を設定し、lint を品質ゲートに含める</td></tr>
+<tr><td>AI 連携</td><td>Copilot SDK の利用は <code>src/main/ai/</code> に隔離。AI に公開するツールは読み取りと提案作成のみ。AI は日程を直接書き換えない（<a href="architecture.html#ai">architecture 6</a>）</td></tr>
 <tr><td>Electron セキュリティ</td><td>contextIsolation 有効、nodeIntegration 無効、IPC は型付き＋入力検証、FS/Git は main のみ</td></tr>
 <tr><td>依存追加</td><td>理由を architecture.html に記録。d3 のモジュール追加は自由</td></tr>
 <tr><td>設計変更</td><td>方針を変える場合は先に文書（architecture.html）を更新・合意してから実装</td></tr></table>
@@ -60,6 +61,7 @@ spike/        技術検証の使い捨てコード（本体に混ぜない）</p
 <tr><td>diffSchedule / マイグレーション</td><td>Vitest</td><td>変更種類ごとの入出力例（スナップショットでなく明示的な期待値）。旧スキーマ→新スキーマの往復</td></tr>
 <tr><td>Git 連携</td><td>Vitest + 一時リポジトリ</td><td>実際の git を使い、競合・オフライン・認証失敗を再現</td></tr>
 <tr><td>性能</td><td>ベンチ（500×50×8年のデータ生成）</td><td>描画・イベントに関わる変更で確認。基準は <a href="requirements.html">NF-001</a></td></tr>
+<tr><td>AI 連携</td><td>Vitest + SDK モック</td><td>ツール関数・ChangeSet 検証・権限ハンドラ・不正な提案の拒否を単体テスト。実 LLM 呼び出しは CI に含めない</td></tr>
 <tr><td>UI 主要フロー</td><td>Playwright for Electron</td><td>表示→ドラッグ編集→保存→共有→競合解決 など主要経路のみ</td></tr></table>
 <ul>
 <li>バグ修正は<strong>再現テストを先に</strong>書く。</li>

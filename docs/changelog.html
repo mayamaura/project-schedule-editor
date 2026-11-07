@@ -6,6 +6,7 @@
 <h1>仕様変更履歴</h1>
 <p>仕様文書（requirements / data-model / architecture / ui-design / git-ux / open-questions）を変更したら、この表の<strong>先頭</strong>に追記する（pre-commit が検査）。</p>
 <table><tr><th>日付</th><th>変更内容</th><th>影響文書</th><th>要件ID</th></tr>
+<tr><td>2026-11-07</td><td>AI アシスタント（GitHub Copilot SDK）の要件を追加: 編集提案・評価・矛盾指摘、ルールベース整合性チェック。AI は提案のみで適用は承認制。SDK の提供条件は要検証</td><td>requirements, architecture, data-model, ui-design, git-ux, open-questions, development-rules, index, CLAUDE.md</td><td>F-701〜F-712, NF-012〜NF-015</td></tr>
 <tr><td>2026-11-07</td><td>開発ハーネスを追加（開発ルール、整合性チェック、要件ID追跡、フック、スキル、レビュア）</td><td>development-rules, index</td><td>—</td></tr>
 <tr><td>2026-11-07</td><td>A1〜A10 を決定（端点=イベント/マイルストーン、連動なし、親は独立入力、数人・GitHub、約25,000イベント×8年、Windows のみ→将来 mac/Linux、単一親、日単位、縦展開）。日付ヘッダ（年月週/年月）を確定</td><td>open-questions, requirements, ui-design, architecture, git-ux</td><td>F-103, F-104, F-105, F-301, F-302, F-305, F-508, NF-001, NF-002</td></tr>
 <tr><td>2026-11-07</td><td>描画方式を React + SVG/DOM + d3 に決定、イベント処理方針を追加</td><td>architecture</td><td>—</td></tr>

@@ -19,6 +19,16 @@
 <tr><td>A9</td><td>日付の粒度</td><td>日単位のみ（推奨）/ 時刻あり / 半日</td><td><strong>決定:</strong> 日単位のみ。表示は<a href="ui-design.html">UI設計 1.5</a>の年月/年月週ヘッダ</td></tr>
 <tr><td>A10</td><td>1行内でイベントが重なる場合の表示</td><td>行を自動で縦に展開（推奨）/ 重ね表示 / 禁止</td><td><strong>決定:</strong> 行を自動で縦に展開（サブレーン）</td></tr></table>
 
+<h2>E. AI 連携（GitHub Copilot SDK）</h2>
+<table><tr><th>#</th><th>質問</th><th>選択肢/推奨</th><th>回答</th></tr>
+<tr><td>★E1</td><td>利用者全員が GitHub Copilot の契約（ライセンス）を持っているか。BYOK（自前の API キー）は許容するか</td><td>全員契約あり / 一部のみ（AI は使える人だけ）/ BYOK も許容。※SDK は技術プレビューで提供条件が変わる可能性</td><td></td></tr>
+<tr><td>★E2</td><td>AI（外部サービス）に送ってよいデータの範囲</td><td>プロジェクト名・日付・メモ・担当者名のうちどこまで。推奨: 既定は選択項目のみ、範囲拡大は利用者が確認</td><td></td></tr>
+<tr><td>★E3</td><td>AI の編集の適用方式</td><td>常に「提案 → 差分確認 → 承認」（推奨）/ 小規模なら自動適用も許す</td><td></td></tr>
+<tr><td>E4</td><td>AI のモデル選択</td><td>Copilot の既定に任せる（推奨）/ 利用者が選べる</td><td></td></tr>
+<tr><td>★E5</td><td>評価したい観点</td><td>期間の妥当性・余裕・並行度・祝日影響・担当者の負荷・リスクなど。<strong>担当・工数・リソースをデータに持つか</strong>で評価の深さが決まる</td><td></td></tr>
+<tr><td>E6</td><td>会話履歴・提案ログの扱い</td><td>ローカルのみ・削除可能（推奨）/ チームで共有（Git 管理）</td><td></td></tr>
+<tr><td>E7</td><td>AI を MVP に含めるか</td><td>MVP 後（推奨。SDK が技術プレビューのため）/ MVP に含める</td><td></td></tr></table>
+
 <h2>B. 見落としやすい要件（提案）</h2>
 <table><tr><th>領域</th><th>検討事項</th></tr>
 <tr><td>業務属性</td><td>担当者/チーム、状態、進捗率、予算・工数、リンク（チケット・文書URL）、コメント/メモ、タグ</td></tr>

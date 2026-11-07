@@ -106,5 +106,21 @@
 <h2>5. スキーマ進化</h2>
 <ul><li><code>schemaVersion</code> を保持。起動時に古ければマイグレーションし、「データ形式を更新しました」を1コミットとして記録。</li>
 <li>新しいバージョンのデータを古いアプリが開いた場合は読み取り専用で警告。</li></ul>
+<h2>6. AI 提案（ChangeSet）</h2>
+<p>AI が返す日程変更案の形式。<strong>ドメインのコマンド列</strong>であり、UI の編集操作と同じ経路で適用される。<strong>Git には保存しない</strong>（ローカルのアプリデータ領域、F-710）。承認・適用された結果だけが通常のデータ変更として保存・commit される。</p>
+<pre>{
+  "id": "cs-20261107-001",
+  "createdAt": "2026-11-07T10:00:00+09:00",
+  "summary": "設計フェーズを2週間延長し、後続の試作を後ろ倒し",
+  "rationale": "レビュー日程が設計完了に依存しているため",
+  "changes": [
+    { "op": "updateEvent", "projectId": "3f9a1c", "eventId": "e1", "end": "2026-12-29" },
+    { "op": "updateEvent", "projectId": "3f9a1c", "eventId": "e2", "start": "2027-01-19", "end": "2027-04-14" },
+    { "op": "updateMilestone", "projectId": "3f9a1c", "milestoneId": "m1", "date": "2026-12-30" }
+  ]
+}</pre>
+<ul><li><code>op</code> は domain のコマンド名（add/update/delete × Event/Milestone/Project/Dependency など）。未知の op・存在しない ID・不正な日付は zod/検証で拒否。</li>
+<li>適用前に <code>diffSchedule</code> でプレビュー、適用後は <code>validateSchedule</code> で新たな不整合が出ていないか確認して併せて表示する。</li>
+<li>問題一覧（<code>ValidationIssue</code>）: <code>{ rule, severity, target:{kind,id}, message }</code>。ルールベース（F-704）と AI の指摘（F-705、<code>rule:"ai"</code>）を同じ形式で扱う。</li></ul>
 <div class="todo">属性の追加（予算・工数・進捗率など）、データ形式の希望を追記。</div>
 </main></body></html>

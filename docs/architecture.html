@@ -54,6 +54,7 @@
 │ Main process (Node)                 │
 │  ├ GitService  ← dugite / isomorphic-git
 │  ├ FileRepository (JSON 読み書き・検証)
+│  ├ AiService  ← GitHub Copilot SDK（提案の生成のみ。main/ai/ に隔離）
 │  ├ Settings / 資格情報(OS keychain)
 │  └ IPC ハンドラ（型付き）
 │            ▲ contextBridge / preload
@@ -95,6 +96,39 @@
 <tr><td>描画性能が不足</td><td>描画層を分離、Canvas 移行を前提にスパイクで検証</td></tr>
 <tr><td>非エンジニアが競合で詰まる</td><td>競合の発生自体を減らすデータ形式＋項目単位の解決UI＋「やり直す」安全弁</td></tr>
 <tr><td>Git 認証設定が難しい</td><td>ウィザード化。まずは HTTPS+トークンに絞る案</td></tr>
-<tr><td>Excel 風の期待値が高い</td><td>初期に「何を Excel 同様にするか」を明文化（<a href="ui-design.html">UI設計</a>）</td></tr></table>
+<tr><td>Excel 風の期待値が高い</td><td>初期に「何を Excel 同様にするか」を明文化（<a href="ui-design.html">UI設計</a>）</td></tr>
+<tr><td>Copilot SDK の仕様変更・提供条件</td><td>main/ai/ に隔離。初期に技術検証。BYOK など代替も視野に</td></tr>
+<tr><td>AI が誤った/危険な提案をする</td><td>書き込み権限を与えず、提案→差分確認→承認の構造に固定。大量変更は警告</td></tr></table>
+<h2 id="ai">6. AI 連携（GitHub Copilot SDK）</h2>
+<p>要件: <a href="requirements.html">F-701〜F-712 / NF-012〜NF-015</a>。日程の編集提案・評価・矛盾指摘を AI に依頼する。</p>
+<h3>6.1 前提・不確定事項（要検証）</h3>
+<table><tr><th>項目</th><th>現時点の把握</th><th>扱い</th></tr>
+<tr><td>提供状況</td><td><code>@github/copilot-sdk</code> は<strong>技術プレビュー</strong>で、破壊的変更の可能性がある</td><td>利用箇所を <code>src/main/ai/</code> に隔離（NF-014）</td></tr>
+<tr><td>利用条件</td><td>GitHub Copilot の契約が必要（BYOK=自前の API キー利用の場合は GitHub 認証不要とする情報あり）</td><td>契約状況を確認（E1）</td></tr>
+<tr><td>認証</td><td>CLI のログイン済み OAuth、OAuth アプリのユーザートークン、環境変数トークンなど</td><td>GitHub 認証（F-508）との共通化を検証</td></tr>
+<tr><td>Copilot CLI</td><td>SDK が CLI を同梱するのか、別途インストールが必要なのか、情報源により記述が食い違う</td><td><strong>公式 README で確認</strong>。配布方法（NF-008）に影響</td></tr>
+<tr><td>組み込みツール</td><td>CLI 側に shell/ファイル操作等の組み込みツールがある可能性。これらを無効化/拒否できるか</td><td><strong>必須検証</strong>（NF-012）</td></tr></table>
+<div class="note">上記は検索による二次情報に基づく。<strong>公式ドキュメントでの確認と技術検証（<code>/tech-spike</code>）を実装前に行い、結果で本節を更新する。</strong></div>
+<h3>6.2 構成</h3>
+<pre>Renderer: AI パネル（チャット / 提案の差分表示 / 指摘一覧）
+   │ IPC（型付き・入力検証）
+Main: AiService
+   ├ Copilot SDK セッション（Node.js, main プロセスのみ）
+   ├ ツール定義（defineTool）
+   │    get_schedule(scope)        読み取り: 範囲を絞った日程データ
+   │    get_validation_issues()    読み取り: validateSchedule の結果
+   │    get_calendar()             読み取り: 祝日・稼働日
+   │    propose_changes(changeSet) 提案作成のみ（書き込みはしない）
+   └ permission handler: 上記ツールのみ許可。それ以外は全て拒否
+Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）</pre>
+<h3>6.3 方針</h3>
+<ul>
+<li><strong>AI は書き込まない。</strong>編集は <code>propose_changes</code> で<a href="data-model.html">ChangeSet</a>（ドメインのコマンド列）を返すだけ。Main が zod で検証し、不正なら理由を AI に返して再提案させる。適用は利用者の承認後に Renderer のストアが通常のコマンドとして実行する（Undo 1単位）。</li>
+<li><strong>決定的な検査はルールベース</strong>（<code>validateSchedule</code>）で行い、AI は「解釈・助言・意味的な矛盾」に使う。AI の出力は確定判定でなく「指摘・疑い」として表示する。</li>
+<li><strong>差分表示を再利用</strong>: 提案のプレビューは <code>diffSchedule(現在, 提案適用後)</code> を使い、F-509 の表示と同一にする。</li>
+<li><strong>最小送信</strong>: 既定は選択項目＋関係する依存のみ。範囲拡大は利用者が選び、送信内容をプレビューする（F-707）。</li>
+<li><strong>プロンプトインジェクション対策</strong>: データ（名称・メモ）は「データ」として区切って渡し、指示として扱わない旨をシステムプロンプトに明記。ツールは提案のみのため、最悪でも承認画面で止まる構造にする。</li>
+<li><strong>テスト</strong>: SDK をモックし、ツール関数・ChangeSet 検証・権限ハンドラを単体テスト。実 LLM 呼び出しは CI に含めない（評価は手動/別枠）。</li>
+</ul>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>
