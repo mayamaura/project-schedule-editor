@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseSchedule, serializeSchedule } from '../../src/domain/serialize';
-import { loadFiles, recover, saveFiles, writeAtomic, writeTransaction } from '../../src/main/fileRepository';
+import { beginSession, endSession, loadFiles, recover, saveFiles, writeAtomic, writeTransaction } from '../../src/main/fileRepository';
 import { basic } from '../domain/fixtures';
 
 let root: string;
@@ -164,5 +164,35 @@ describe('saveFiles / loadFiles（ドメインとの結合）', () => {
   });
   it('空のディレクトリからの読み込み', () => {
     expect(loadFiles(root)).toEqual({});
+  });
+});
+
+describe('セッション（異常終了の検出。F-210/F-211）', () => {
+  const put = (name: string, text: string): void => {
+    writeFileSync(join(root, name), text);
+  };
+  it('正常な開始 → 終了では crashed にならず、開いた時点の内容を基準に保存する', () => {
+    put('schedule.json', '{"schemaVersion":1}\n');
+    expect(beginSession(root)).toEqual({ crashed: false, base: null });
+    expect(existsSync(join(root, '.autosave', 'running'))).toBe(true);
+    endSession(root);
+    expect(existsSync(join(root, '.autosave', 'running'))).toBe(false);
+    expect(beginSession(root).crashed).toBe(false);
+  });
+  it('終了せずに再度開くと crashed。基準は最後の正常な開始時点のまま', () => {
+    put('schedule.json', '{"schemaVersion":1}\n');
+    beginSession(root);
+    saveFiles(root, { 'schedule.json': '{"schemaVersion":2}\n' }); // 編集が自動保存された
+    const r = beginSession(root); // 強制終了後の起動
+    expect(r.crashed).toBe(true);
+    expect(r.base).toEqual({ 'schedule.json': '{"schemaVersion":1}\n' });
+    // 連続して落ちても基準は更新されない
+    expect(beginSession(root).base).toEqual(r.base);
+  });
+  it('基準が壊れていても落ちない（base は null）', () => {
+    put('schedule.json', '{}\n');
+    beginSession(root);
+    writeFileSync(join(root, '.autosave', 'base.json'), '{broken');
+    expect(beginSession(root)).toEqual({ crashed: true, base: null });
   });
 });

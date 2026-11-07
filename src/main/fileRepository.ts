@@ -173,3 +173,44 @@ export function saveFiles(root: string, files: Files): SaveResult {
   writeTransaction(root, changed, removed);
   return { written: Object.keys(changed).sort(), removed };
 }
+
+const RUNNING = 'running';
+const BASE = 'base.json';
+
+export interface SessionStart {
+  /** 前回が正常終了しなかった（running が残っていた）。 */
+  readonly crashed: boolean;
+  /** crashed のとき、前回の正常な開始時点のファイル内容（復元時の変更一覧・破棄の基準）。 */
+  readonly base: Files | null;
+}
+
+/**
+ * 編集の開始。running を作り、前回の異常終了を検出する（F-210/F-211）。
+ * 正常に始まるたびに、その時点の内容を基準（.autosave/base.json）として残す。異常終了後は基準を更新しない。
+ * ponytail: 基準は Git が使えるまでの代用（Phase 4 で HEAD に置き換える）。
+ */
+export function beginSession(root: string): SessionStart {
+  const dir = join(root, AUTOSAVE_DIR);
+  const crashed = existsSync(join(dir, RUNNING));
+  let base: Files | null = null;
+  if (crashed) {
+    try {
+      base = JSON.parse(readFileSync(join(dir, BASE), 'utf8')) as Files;
+    } catch {
+      base = null;
+    }
+  } else {
+    writeAtomic(join(dir, BASE), JSON.stringify(loadFiles(root)));
+  }
+  writeAtomic(join(dir, RUNNING), String(Date.now()));
+  return { crashed, base };
+}
+
+/** 正常終了の印（running の削除）。 */
+export function endSession(root: string): void {
+  try {
+    unlinkSync(join(root, AUTOSAVE_DIR, RUNNING));
+  } catch {
+    /* 無ければ何もしない */
+  }
+}

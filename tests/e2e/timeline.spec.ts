@@ -42,7 +42,6 @@ test('起動直後は空の案内。サンプルを表示すると Canvas に描
   await expect(page.getByTestId('info')).toContainText('イベント 25000');
   expect(await num('rows')).toBeGreaterThan(0);
   expect(await num('items')).toBeGreaterThan(0);
-  await expect(page.getByTestId('info')).toContainText('閲覧専用');
 });
 
 test('Canvas に実際にピクセルが描かれている（空白ではない・複数の色がある）', async () => {

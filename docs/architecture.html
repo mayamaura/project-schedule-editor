@@ -399,5 +399,39 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <li><strong>他の PC・画面倍率（125〜200%）・GPU の弱い環境でのフレーム時間</strong>（今回は開発機の1台のみ）。</li>
 <li><strong>実際の利用データ</strong>での表示（サンプルと、テスト用の小さなフォルダのみ）。</li>
 <li>ダークテーマの見た目（実装済みだが、目視していない）。</li></ul>
+<h2 id="phase3">13. Phase 3（編集）の詳細設計と実装状況（2026-11-08）</h2>
+<p>要件: F-201 F-202 F-204 F-205 F-206 F-208 F-209 F-210 F-211 F-305 NF-018。<strong>「仮定」</strong>は未決のまま実装時に置いた前提で、パイロットや Phase 4 で見直す。</p>
+<h3>13.1 編集の流れ</h3>
+<ul>
+<li>状態の変更は全て <code>Command</code> → <code>History.execute</code>（<code>src/domain/history.ts</code>）。UI は <code>commit(コマンド)</code> を呼び、成功なら <code>null</code>、拒否なら理由の文字列を受け取る。拒否の理由は画面上部に表示し（F-208）、詳細パネルの入力欄は元の値に戻す。</li>
+<li>UI の操作から<strong>コマンドを作る処理は純関数としてドメイン層に置く</strong>: <code>dragCommand</code>（ドラッグ量 → 移動・リサイズ。<code>timeline/edit.ts</code>）、<code>addEventCommand</code> / <code>addMilestoneCommand</code> / <code>addProjectCommand</code> / <code>placeProjectCommand</code> / <code>addDependencyCommand</code> / <code>newId</code>（<code>edit.ts</code>）、<code>summarizeChange</code>（<code>summary.ts</code>。変更の日本語1行）。</li>
+<li>バー・◆のドラッグは ref + rAF でプレビューし（<code>applyCommand</code> の結果を描画にだけ使う）、離したときに <strong>1 コマンド</strong>を確定する（Undo 1 回で戻る）。開始＞終了になるリサイズは反対側の日付で止める（拒否しない）。</li>
+<li>新規 ID は 8 文字の小文字英数字の乱数（<code>newId</code>。使用中なら引き直す）。並行編集で被りにくく、Git のマージでも衝突しにくい。</li></ul>
+<h3>13.2 画面</h3>
+<table><tr><th>機能</th><th>実装</th></tr>
+<tr><td>右クリックメニュー（F-209）</td><td>自前の <code>ContextMenu</code>（↑↓・Enter・Esc）。空白=イベント/マイルストーンを作成（クリックした日・行が初期値）、項目=詳細を編集/依存を追加/削除、日付ヘッダ=今日へ移動/表示方法の切替、プロジェクト行=詳細を編集/子を追加/同じ階層に追加/削除。メニューキー・Shift+F10 で選択項目のメニュー、Delete で削除</td></tr>
+<tr><td>詳細パネル（F-204）</td><td>右側の <code>DetailPanel</code>。イベント=名称・開始/終了日・種別・メモ、◆=名称・日付・種別・メモ、プロジェクト=名称・状態・担当・メモ。項目に関わる依存は一覧で、種類（FS/SS/FF/SF）・ラグの編集と削除ができる</td></tr>
+<tr><td>プロジェクト操作（F-205）</td><td>左ペインの行を HTML5 のドラッグ&amp;ドロップ: 行の上端 1/4=その前、下端 1/4=その後、中央=子にする。並び順は fractional index（<code>placeProjectCommand</code>）。子孫の下へは拒否（<code>parent-cycle</code>）。追加は「＋」と右クリック</td></tr>
+<tr><td>依存の作成と警告（F-305, F-208）</td><td>項目のメニュー「依存を追加」→ 依存先の項目をクリック（FS・ラグ0で作成。Esc で中止）。循環・重複・自己依存は拒否され理由が出る。依存違反は Phase 2 の描画（赤）に加え、下部の「指摘 N 件」から一覧（クリックで該当項目を選択）</td></tr></table>
+<h3>13.3 自動保存と復元（F-210, F-211, NF-018）</h3>
+<ul>
+<li><strong>書き込み</strong>: Renderer が編集のたびに 約 0.3 秒の遅延で束ね、<code>serializeSchedule</code> の結果を IPC <code>repo:save</code> で Main に送る。Main は<strong>開いているフォルダ（Main が保持。Renderer からパスは受け取らない）</strong>へ、内容が変わったファイルだけを <code>saveFiles</code>（pending.json によるトランザクション＋原子的置換）で書く。ウィンドウを閉じる直前（<code>pagehide</code>）は即時に書く。保存の状態（保存中 / 自動保存済み / 失敗）は画面に常に出す。サンプル（フォルダ未指定）は保存しない。</li>
+<li><strong>異常終了の検出</strong>: フォルダを開くと <code>.autosave/running</code> を作り、正常終了（<code>before-quit</code>・別フォルダを開く）で消す。起動時に残っていれば前回は異常終了。</li>
+<li><strong>復元の基準（仮定）</strong>: 8.1 は「Git の HEAD との差分」を基準とするが、Git 連携は Phase 4 なので、<strong>正常に開いた時点の内容を <code>.autosave/base.json</code> に残して代用</strong>する（異常終了後は更新しない）。異常終了後に開くと、基準との <code>diffSchedule</code> を日本語（<code>summarizeChange</code>）で一覧し、「前回の編集内容を復元しました（○件の変更）」と知らせる。「このまま続ける」または、確認のうえ「破棄」（基準の内容に書き戻す）。Phase 4 で基準を HEAD に置き換える。<code>.autosave/</code> は Git の管理対象から外す（Phase 4 で除外設定）。</li>
+<li><strong>8.1 からの差分（仮定）</strong>: ①束ね処理は Main の AutosaveService ではなく Renderer 側（実装が小さい）。ウィンドウを閉じる瞬間の約 0.3 秒分は、IPC が届く前にプロセスが終わると失われうる（要件の「最後の約1秒」の範囲内）。Main に移すのは、Renderer の異常終了で失われる分が問題になったとき。②Undo 履歴は復元しない（努力目標のまま）。</li></ul>
+<h3 id="phase3-result">13.4 実測と検証</h3>
+<table><tr><th>項目</th><th>結果</th></tr>
+<tr><td>自動保存の所要時間</td><td>25,000 イベントで1プロジェクトを編集 → シリアライズ＋書き込み <strong>約 134 ms</strong>（変更ファイル 1 つ）。目標 約1秒以内（NF-018）を満たす（<code>tests/main/autosavePerf.test.ts</code>）</td></tr>
+<tr><td>ドラッグ中のフレーム間隔</td><td>25,000 イベントのサンプルで <strong>平均 16.7 ms・最大 17.2 ms</strong>（実際の Electron。<code>tests/e2e/drag.spec.ts</code>）。確定は 1 コマンド（Undo 1 回で戻る）も確認</td></tr>
+<tr><td>強制終了 → 復元</td><td>E2E（<code>tests/e2e/editing.spec.ts</code>）: 編集 → 自動保存済みを確認 → プロセスを SIGKILL → 再起動して開く → 復元の案内と一覧 → 破棄で基準に戻る。単体: <code>beginSession</code> / <code>endSession</code>（連続して落ちても基準が更新されない・基準が壊れていても落ちない）</td></tr></table>
+<h3>13.5 未実装・制約</h3>
+<table><tr><th>項目</th><th>状況</th></tr>
+<tr><td>依存のハンドルからのドラッグ作成</td><td>ui-design 2 の「ハンドルから別項目へドラッグ」は未実装。メニュー＋クリックで代替（キーボード操作でも可能）。ハンドルは R5 / パイロットの声で判断</td></tr>
+<tr><td>依存線の右クリック</td><td>依存線のヒットテストが無いため、依存の編集・削除は詳細パネルで行う</td></tr>
+<tr><td>別プロジェクト行への項目の移動</td><td>決定 F5 により対象外（<code>moveEvent</code> / <code>moveMilestone</code> コマンドはあるが UI なし）</td></tr>
+<tr><td>複製・切り取り・コピー・貼り付け、Shift で子も移動、Alt でスナップ無効、矢印キーでの項目の移動</td><td>未実装（F-203 / F-207 とともに R5）</td></tr>
+<tr><td>標準日程の展開・色・表示方法のメニュー項目</td><td>R2 以降（F-805, F-102 の編集 UI）</td></tr>
+<tr><td>複数選択</td><td>未実装（単一選択のみ）</td></tr>
+<tr><td>プロジェクトの削除</td><td>確認なしで即時（Undo で戻る）。パイロットで事故が出たら確認を追加</td></tr></table>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>

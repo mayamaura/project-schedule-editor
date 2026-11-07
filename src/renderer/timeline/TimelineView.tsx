@@ -1,10 +1,15 @@
-// @req F-101, F-104, F-105, F-107, F-201, F-304
-// タイムライン画面: 左ペイン（プロジェクトツリー。DOM）と右のタイムライン（Canvas）。docs/architecture.html 12.6。
+// @req F-101, F-104, F-105, F-107, F-201, F-202, F-204, F-205, F-208, F-209, F-304, F-305
+// タイムライン画面: 左ペイン（プロジェクトツリー。DOM）・右のタイムライン（Canvas）・詳細パネル。docs/architecture.html 12.6。
 // 状態（左端の日付・ズーム・縦スクロール）は ref に持ち、変化したときだけ rAF で再描画する（React の再レンダーを避ける）。
-// 編集: バー/◆のドラッグは ref + rAF でプレビューし、確定時に 1 コマンドを onCommit する（Undo 1 単位）。
+// 編集: バー/◆のドラッグは ref + rAF でプレビューし、確定時に 1 コマンドを commit する（Undo 1 単位）。
+// 全ての変更は commit(コマンド) 経由。commit は成功なら null、拒否されたら理由（文字列）を返す。
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   HEADER_HEIGHT,
+  addDependencyCommand,
+  addEventCommand,
+  addMilestoneCommand,
+  addProjectCommand,
   applyCommand,
   buildDrawList,
   buildLayout,
@@ -15,20 +20,26 @@ import {
   fromDays,
   hitTest,
   lightTheme,
+  newId,
   panX,
+  placeProjectCommand,
   spanOf,
   toDays,
+  validateSchedule,
   visibleRowRange,
   zoomAt,
   type Canvas2D,
   type Command,
   type DrawList,
+  type Hit,
   type HeaderMode,
   type Id,
   type Schedule,
   type TimelineViewport,
 } from '@domain/index';
 import { t } from '../i18n';
+import { ContextMenu, type MenuItem } from './ContextMenu';
+import { DetailPanel, type Sel } from './DetailPanel';
 
 type DepMode = 'all' | 'selected' | 'none';
 
@@ -48,23 +59,49 @@ function usePrefersDark(): boolean {
   return dark;
 }
 
-interface Selected {
-  readonly id: Id;
-  readonly label: string;
-}
-
 const DRAG_THRESHOLD_PX = 4;
 
-export function TimelineView({ schedule, docKey, onCommit }: { schedule: Schedule; docKey: unknown; onCommit: (c: Command) => void }) {
+type DropHint = { readonly id: Id; readonly where: 'before' | 'after' | 'inside' };
+type MenuState = { readonly x: number; readonly y: number; readonly items: readonly MenuItem[] };
+
+/** 選択の表示用の文言（スクリーンリーダにも通知する。NF-010）。実体が無ければ null。 */
+function describeSelection(s: Schedule, sel: Sel | null): string | null {
+  if (!sel) return null;
+  if (sel.kind === 'project') {
+    const p = s.projects[sel.id];
+    return p ? t('timeline.selectedProject', { name: p.name }) : null;
+  }
+  for (const p of Object.values(s.projects)) {
+    const item = sel.kind === 'event' ? p.events[sel.id] : p.milestones[sel.id];
+    if (item) {
+      const from = 'start' in item ? item.start : item.date;
+      const to = 'end' in item ? item.end : item.date;
+      return t('timeline.selected', { kind: t(sel.kind === 'event' ? 'timeline.kindEvent' : 'timeline.kindMilestone'), name: item.name, from, to });
+    }
+  }
+  return null;
+}
+
+export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule; docKey: unknown; commit: (c: Command) => string | null }) {
   const dark = usePrefersDark();
   const theme = dark ? darkTheme : lightTheme;
   const [headerMode, setHeaderMode] = useState<HeaderMode>('weekMonth');
   const [deps, setDeps] = useState<DepMode>('all');
   const [collapsed, setCollapsed] = useState<ReadonlySet<Id>>(new Set());
-  const [selected, setSelected] = useState<Selected | null>(null);
+  const [rawSel, setSelected] = useState<Sel | null>(null);
   const [scrollY, setScrollY] = useState(0);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [linkFrom, setLinkFrom] = useState<Id | null>(null);
+  const [dropHint, setDropHint] = useState<DropHint | null>(null);
+  const [showIssues, setShowIssues] = useState(false);
+
+  // 削除などで実体が無くなった選択は無いものとして扱う
+  const selLabel = describeSelection(schedule, rawSel);
+  const selected = selLabel ? rawSel : null;
 
   const layout = useMemo(() => buildLayout(schedule, { collapsed }), [schedule, collapsed]);
+  const issues = useMemo(() => validateSchedule(schedule), [schedule]);
+  const errorCount = issues.filter((i) => i.severity === 'error').length;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
@@ -156,7 +193,9 @@ export function TimelineView({ schedule, docKey, onCommit }: { schedule: Schedul
       view.current = { ...v, leftDay: toDays(todayString()) - 30, pxPerDay: 8, scrollY: 0 };
     }
     setSelected(null);
+    setLinkFrom(null);
     request();
+    // schedule は文書の初期状態としてだけ使う（編集のたびに表示位置を戻さない）
   }, [docKey, request]);
 
   // 表示サイズへの追従
@@ -192,19 +231,74 @@ export function TimelineView({ schedule, docKey, onCommit }: { schedule: Schedul
     return () => canvas.removeEventListener('wheel', onWheel);
   }, [request]);
 
-  // ドラッグでパン / クリックで選択 / ホバー
+  // ---- 作成・削除などの操作（全てコマンド経由） ----
+  const createAt = (kind: 'event' | 'milestone', projectId: Id, day: number): void => {
+    const id = newId(schedule);
+    const a = { projectId, id, day, name: t(kind === 'event' ? 'edit.newEvent' : 'edit.newMilestone') };
+    const cmd = kind === 'event' ? addEventCommand(schedule, a) : addMilestoneCommand(schedule, a);
+    if (commit(cmd) === null) setSelected({ kind, id });
+  };
+  const createProject = (parentId: Id | null): void => {
+    const id = newId(schedule);
+    if (commit(addProjectCommand(schedule, { id, name: t('edit.newProject'), parentId })) === null) {
+      setSelected({ kind: 'project', id });
+      if (parentId) setCollapsed((prev) => new Set([...prev].filter((x) => x !== parentId)));
+    }
+  };
+  const deleteSel = (s: Sel): void => {
+    commit(s.kind === 'event' ? { type: 'deleteEvent', id: s.id } : s.kind === 'milestone' ? { type: 'deleteMilestone', id: s.id } : { type: 'deleteProject', id: s.id });
+  };
+  const toggleHeader = (): void => setHeaderMode((m) => (m === 'weekMonth' ? 'month' : 'weekMonth'));
+  const goToday = (): void => {
+    const v = view.current;
+    view.current = { ...v, leftDay: toDays(todayString()) - v.width / 2 / v.pxPerDay + 0.5 };
+    request();
+  };
+
+  const menuFor = (h: Hit): MenuItem[] => {
+    if (h.kind === 'event' || h.kind === 'milestone') {
+      const s: Sel = { kind: h.kind, id: h.id };
+      return [
+        { label: t('menu.edit'), run: () => setSelected(s) },
+        { label: t('menu.addDependency'), run: () => { setSelected(s); setLinkFrom(h.id); } },
+        { label: t('menu.delete'), run: () => deleteSel(s) },
+      ];
+    }
+    if (h.kind === 'row') {
+      return [
+        { label: t('menu.createEvent'), run: () => createAt('event', h.projectId, h.day) },
+        { label: t('menu.createMilestone'), run: () => createAt('milestone', h.projectId, h.day) },
+      ];
+    }
+    if (h.kind === 'header') {
+      return [
+        { label: t('menu.goToday'), run: goToday },
+        { label: t('menu.toggleHeader'), run: toggleHeader },
+      ];
+    }
+    return [];
+  };
+  const openMenu = (x: number, y: number, items: MenuItem[]): void => {
+    if (items.length > 0) setMenu({ x, y, items });
+  };
+  const closeMenu = useCallback(() => {
+    setMenu(null);
+    canvasRef.current?.focus(); // メニューの後もキー操作（Esc・Delete）を続けられるように
+  }, []);
+
+  // ---- ポインタ: ドラッグで編集 / 空白のドラッグでパン / クリックで選択 / ホバー ----
   const drag = useRef<{ x: number; y: number; moved: boolean; edit?: { id: Id; part: 'body' | 'start' | 'end'; x0: number; cmd: Command | null } } | null>(null);
   const pointer = (e: React.PointerEvent): { x: number; y: number } => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
-  const hitAt = (x: number, y: number) => (dl.current ? hitTest(dl.current, latest.current.layout, view.current, x, y) : null);
+  const hitAt = (x: number, y: number): Hit | null => (dl.current ? hitTest(dl.current, latest.current.layout, view.current, x, y) : null);
 
   const onPointerDown = (e: React.PointerEvent): void => {
     if (e.button !== 0) return;
     const p = pointer(e);
     const h = hitAt(p.x, p.y);
-    const edit = h && (h.kind === 'event' || h.kind === 'milestone') ? { id: h.id, part: h.kind === 'event' ? h.part : 'body' as const, x0: p.x, cmd: null } : undefined;
+    const edit = !linkFrom && h && (h.kind === 'event' || h.kind === 'milestone') ? { id: h.id, part: h.kind === 'event' ? h.part : ('body' as const), x0: p.x, cmd: null } : undefined;
     drag.current = { x: p.x, y: p.y, moved: false, edit };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -233,7 +327,7 @@ export function TimelineView({ schedule, docKey, onCommit }: { schedule: Schedul
     const id = h && (h.kind === 'event' || h.kind === 'milestone') ? h.id : null;
     if (id !== hover.current) {
       hover.current = id;
-      (e.currentTarget as HTMLElement).style.cursor = id ? 'pointer' : 'grab';
+      (e.currentTarget as HTMLElement).style.cursor = linkFrom ? 'crosshair' : id ? 'pointer' : 'grab';
       request();
     }
   };
@@ -242,24 +336,25 @@ export function TimelineView({ schedule, docKey, onCommit }: { schedule: Schedul
     drag.current = null;
     if (d?.edit && d.moved) {
       preview.current = null;
-      if (d.edit.cmd) onCommit(d.edit.cmd);
+      const cmd = d.edit.cmd;
+      if (cmd) commit(cmd);
       else request();
       return;
     }
     if (!d || d.moved) return;
     const p = pointer(e);
     const h = hitAt(p.x, p.y);
-    if (h && (h.kind === 'event' || h.kind === 'milestone')) {
-      const proj = schedule.projects[h.projectId];
-      const item = h.kind === 'event' ? proj?.events[h.id] : proj?.milestones[h.id];
-      if (item) {
-        const from = 'start' in item ? item.start : item.date;
-        const to = 'end' in item ? item.end : item.date;
-        setSelected({ id: h.id, label: t('timeline.selected', { kind: t(h.kind === 'event' ? 'timeline.kindEvent' : 'timeline.kindMilestone'), name: item.name, from, to }) });
-        return;
+    const isItem = h && (h.kind === 'event' || h.kind === 'milestone');
+    if (linkFrom) {
+      // 依存先の指定（F-305）。拒否（循環・重複など）の理由は commit が画面に出す
+      if (isItem) {
+        const cmd = addDependencyCommand(schedule, { id: newId(schedule), from: linkFrom, to: h.id });
+        if (cmd) commit(cmd);
+        setLinkFrom(null);
       }
+      return;
     }
-    setSelected(null);
+    setSelected(isItem ? { kind: h.kind as 'event' | 'milestone', id: h.id } : null);
   };
   const onPointerLeave = (): void => {
     if (hover.current !== null) {
@@ -267,16 +362,30 @@ export function TimelineView({ schedule, docKey, onCommit }: { schedule: Schedul
       request();
     }
   };
+  const onContextMenu = (e: React.MouseEvent): void => {
+    e.preventDefault();
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const h = hitAt(e.clientX - r.left, e.clientY - r.top);
+    if (!h) return;
+    if (h.kind === 'event' || h.kind === 'milestone') setSelected({ kind: h.kind, id: h.id });
+    openMenu(e.clientX, e.clientY, menuFor(h));
+  };
+  // キーボード: メニューキー / Shift+F10 で選択項目のメニュー、Delete で削除、Esc で依存の指定を中止（F-209）
+  const onKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.key === 'Escape') setLinkFrom(null);
+    else if (e.key === 'Delete' && selected) deleteSel(selected);
+    else if ((e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) && selected && selected.kind !== 'project') {
+      const box = dl.current?.hitBoxes.find((b) => b.id === selected.id);
+      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      if (box) openMenu(r.left + box.x, r.top + HEADER_HEIGHT + box.y + box.h, menuFor({ kind: selected.kind, id: selected.id, projectId: box.projectId, part: 'body' }));
+    } else return;
+    e.preventDefault();
+  };
 
   // ツールバー
   const zoomBy = (factor: number): void => {
     const v = view.current;
     view.current = { ...v, ...zoomAt(v, factor, v.width / 2) };
-    request();
-  };
-  const goToday = (): void => {
-    const v = view.current;
-    view.current = { ...v, leftDay: toDays(todayString()) - v.width / 2 / v.pxPerDay + 0.5 };
     request();
   };
   const toggle = (id: Id): void => {
@@ -288,8 +397,30 @@ export function TimelineView({ schedule, docKey, onCommit }: { schedule: Schedul
     });
   };
 
+  // ---- 左ペインのドラッグ&ドロップ（並べ替え・親子付け替え。F-205）----
+  const dragging = useRef<Id | null>(null);
+  const zoneOf = (e: React.DragEvent): DropHint['where'] => {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const f = (e.clientY - r.top) / r.height;
+    return f < 0.25 ? 'before' : f > 0.75 ? 'after' : 'inside';
+  };
+  const treeMenu = (projectId: Id): MenuItem[] => [
+    { label: t('menu.edit'), run: () => setSelected({ kind: 'project', id: projectId }) },
+    { label: t('menu.addChild'), run: () => createProject(projectId) },
+    { label: t('menu.addSibling'), run: () => createProject(schedule.projects[projectId]?.parentId ?? null) },
+    { label: t('menu.delete'), run: () => deleteSel({ kind: 'project', id: projectId }) },
+  ];
+
   const [first, last] = visibleRowRange(layout, scrollY, view.current.height);
   const rows = layout.rows.slice(first, last);
+  const nameOf = (id: Id): string => {
+    for (const p of Object.values(schedule.projects)) {
+      const x = p.events[id] ?? p.milestones[id];
+      if (x) return x.name;
+    }
+    return id;
+  };
+  const statusText = linkFrom ? t('link.hint', { name: nameOf(linkFrom) }) : (selLabel ?? '');
 
   return (
     <div className="timeline">
@@ -323,13 +454,66 @@ export function TimelineView({ schedule, docKey, onCommit }: { schedule: Schedul
       <div className="panes">
         <div className="tree" role="tree" aria-label={t('timeline.projects')}>
           <div className="tree-head" style={{ height: HEADER_HEIGHT }}>
-            {t('timeline.projects')}
+            <span>{t('timeline.projects')}</span>
+            <span className="spacer" />
+            <button type="button" data-testid="add-project" aria-label={t('tree.addLabel')} title={t('tree.addLabel')} onClick={() => createProject(null)}>
+              ＋
+            </button>
           </div>
           <div className="tree-body" style={{ height: view.current.height }}>
             {rows.map((r) => (
-              <div key={r.projectId} role="treeitem" aria-level={r.depth + 1} aria-expanded={r.hasChildren ? !r.collapsed : undefined} className="tree-row" style={{ top: r.y - scrollY, height: r.height, paddingLeft: 6 + r.depth * 14 }} data-project={r.projectId}>
+              <div
+                key={r.projectId}
+                role="treeitem"
+                aria-level={r.depth + 1}
+                aria-expanded={r.hasChildren ? !r.collapsed : undefined}
+                aria-selected={selected?.kind === 'project' && selected.id === r.projectId}
+                draggable
+                className={`tree-row${selected?.kind === 'project' && selected.id === r.projectId ? ' sel' : ''}${dropHint?.id === r.projectId ? ` drop-${dropHint.where}` : ''}`}
+                style={{ top: r.y - scrollY, height: r.height, paddingLeft: 6 + r.depth * 14 }}
+                data-project={r.projectId}
+                onClick={() => setSelected({ kind: 'project', id: r.projectId })}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setSelected({ kind: 'project', id: r.projectId });
+                  openMenu(e.clientX, e.clientY, treeMenu(r.projectId));
+                }}
+                onDragStart={(e) => {
+                  dragging.current = r.projectId;
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', r.projectId);
+                }}
+                onDragOver={(e) => {
+                  if (!dragging.current || dragging.current === r.projectId) return;
+                  e.preventDefault();
+                  const where = zoneOf(e);
+                  setDropHint((h) => (h?.id === r.projectId && h.where === where ? h : { id: r.projectId, where }));
+                }}
+                onDragLeave={() => setDropHint((h) => (h?.id === r.projectId ? null : h))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const id = dragging.current;
+                  const where = zoneOf(e);
+                  dragging.current = null;
+                  setDropHint(null);
+                  const cmd = id ? placeProjectCommand(schedule, id, r.projectId, where) : null;
+                  if (cmd) commit(cmd);
+                }}
+                onDragEnd={() => {
+                  dragging.current = null;
+                  setDropHint(null);
+                }}
+              >
                 {r.hasChildren ? (
-                  <button type="button" className="twisty" aria-label={t(r.collapsed ? 'timeline.expand' : 'timeline.collapse', { name: r.name })} onClick={() => toggle(r.projectId)}>
+                  <button
+                    type="button"
+                    className="twisty"
+                    aria-label={t(r.collapsed ? 'timeline.expand' : 'timeline.collapse', { name: r.name })}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggle(r.projectId);
+                    }}
+                  >
                     {r.collapsed ? '▶' : '▼'}
                   </button>
                 ) : (
@@ -348,20 +532,44 @@ export function TimelineView({ schedule, docKey, onCommit }: { schedule: Schedul
             data-testid="timeline-canvas"
             tabIndex={0}
             aria-label="タイムライン"
-            style={{ cursor: 'grab', touchAction: 'none' }}
+            style={{ cursor: linkFrom ? 'crosshair' : 'grab', touchAction: 'none' }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerLeave={onPointerLeave}
+            onContextMenu={onContextMenu}
+            onKeyDown={onKeyDown}
           />
         </div>
+        <DetailPanel schedule={schedule} sel={selected} commit={commit} />
       </div>
+      {showIssues ? (
+        <ul className="issuelist" data-testid="issue-list">
+          {issues.length === 0 ? <li>{t('issues.none')}</li> : null}
+          {issues.map((i, n) => (
+            <li key={`${i.rule}-${i.target.id}-${n}`}>
+              <button
+                type="button"
+                className={i.severity}
+                onClick={() => i.target.kind !== 'dependency' && setSelected({ kind: i.target.kind, id: i.target.id })}
+              >
+                {i.message}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {menu ? <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={closeMenu} /> : null}
       {/* Canvas はスクリーンリーダに読まれないため、選択項目を読み上げ用に通知する（NF-010） */}
       <div className="sr-only" aria-live="polite" data-testid="selection-live">
-        {selected?.label ?? ''}
+        {selLabel ?? ''}
       </div>
       <div className="statusbar" data-testid="selection-status">
-        {selected?.label ?? ''}
+        <span>{statusText}</span>
+        <span className="spacer" />
+        <button type="button" className={`issuebtn${errorCount > 0 ? ' err' : ''}`} data-testid="issues" aria-expanded={showIssues} onClick={() => setShowIssues((v) => !v)}>
+          {t('issues.summary', { errors: String(errorCount), warnings: String(issues.length - errorCount) })}
+        </button>
       </div>
     </div>
   );

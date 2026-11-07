@@ -5,7 +5,21 @@ import { z } from 'zod';
 export const ipcSchemas = {
   'app:getVersion': { input: z.undefined(), output: z.string() },
   /** フォルダ選択ダイアログ → 日程データを読み込む。キャンセルなら null（F-501 の「開く」）。 */
-  'repo:open': { input: z.undefined(), output: z.object({ path: z.string(), files: z.record(z.string(), z.string()) }).nullable() },
+  'repo:open': {
+    input: z.undefined(),
+    output: z
+      .object({
+        path: z.string(),
+        files: z.record(z.string(), z.string()),
+        /** 前回が正常終了しなかった（F-211）。 */
+        crashed: z.boolean(),
+        /** crashed のとき、前回の正常な開始時点の内容（変更一覧・破棄の基準）。 */
+        base: z.record(z.string(), z.string()).nullable(),
+      })
+      .nullable(),
+  },
+  /** 開いているフォルダへ自動保存する（F-210）。パスは Main が保持するものを使い、Renderer からは受け取らない。 */
+  'repo:save': { input: z.object({ files: z.record(z.string(), z.string()) }), output: z.object({ written: z.number() }) },
 } as const;
 
 export type IpcChannel = keyof typeof ipcSchemas;

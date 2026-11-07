@@ -1,6 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { ipcSchemas, type IpcChannel, type IpcInput, type IpcOutput } from '@shared/ipc';
-import { loadFiles, recover } from './fileRepository';
+import { beginSession, endSession, loadFiles, recover, saveFiles } from './fileRepository';
+
+// 開いているフォルダ（Renderer からパスは受け取らない。NF-007）
+let currentRoot: string | null = null;
 
 // アプリ自身の画面（packaged は file://、開発時は dev サーバ）からの呼び出しだけを受け付ける。
 function isTrustedSender(event: IpcMainInvokeEvent): boolean {
@@ -33,7 +36,17 @@ export function registerIpc(): void {
     const r = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
     const root = r.filePaths[0];
     if (r.canceled || !root) return null;
+    if (currentRoot) endSession(currentRoot);
     recover(root); // 更新の途中で終わっていたら完了させる（F-211 の基礎）
-    return { path: root, files: loadFiles(root) };
+    const session = beginSession(root);
+    currentRoot = root;
+    return { path: root, files: loadFiles(root), ...session };
+  });
+  handle('repo:save', ({ files }) => {
+    if (!currentRoot) throw new Error('フォルダが開かれていない');
+    return { written: saveFiles(currentRoot, files).written.length };
+  });
+  app.on('before-quit', () => {
+    if (currentRoot) endSession(currentRoot);
   });
 }
