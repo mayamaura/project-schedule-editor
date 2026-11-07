@@ -81,6 +81,11 @@
 <tr><td>K6</td><td>プロジェクト階層の深さの上限（F-301）</td><td>設計上は上限なし。UI は 10 階層まで想定（推奨）/ 上限を設ける（例: 5）</td><td><strong>決定:</strong> 推奨案。設計上は上限なし。UI は10階層まで想定</td></tr>
 <tr><td>K7</td><td>配布（NF-008）: アプリのリポジトリの公開/非公開、コード署名の可否、更新の適用タイミング</td><td>GitHub Releases + 利用者の GitHub トークンで取得（非公開でも可）。署名は可能なら実施。更新は「再起動して更新」を案内（推奨）。Phase 4 の途中までに決定</td><td><strong>決定:</strong> 推奨案。GitHub Releases + 利用者の GitHub トークンで取得（非公開でも可）。署名は可能なら実施。更新は「再起動して更新」を案内</td></tr></table>
 
+<h2>L. Phase 0 で出た確認事項</h2>
+<table><tr><th>#</th><th>質問</th><th>選択肢/推奨</th><th>回答</th></tr>
+<tr><td>L1</td><td>ビルド時ツール <code>lightningcss</code>（Vite 8 が使用。MPL-2.0。配布物には含まれない）の許容</td><td>許容する（推奨。ビルド時のみで、ファイル単位のコピーレフトのため配布物に影響しない。<code>check-licenses.mjs</code> の警告は残す）/ 許容しない（Vite の CSS 処理の設定変更や別のバンドラが必要）</td><td><strong>決定:</strong> 推奨案。<code>lightningcss</code>（MPL-2.0、ビルド時のみ）を許容する。警告は残す</td></tr>
+<tr><td>★L2</td><td><strong>EMU 認証の確認の実施</strong>（S0-4）: <code>spike/emu-auth/README.md</code> の手順を、利用予定のリポジトリで実行し、結果（報告用 JSON）を共有してもらえるか。あわせて管理者への確認項目（接続先ホスト、SSO、OAuth App の登録権限、Copilot のポリシー）</td><td>実施する（推奨。Phase 4 の認証設計に直結。結果次第で代替認証を優先する）</td><td><strong>一部確認済み（2026-11-07）:</strong> <code>github.com</code> で <code>ls-remote</code> が成功（Git 2.55 / GCM 2.8.0、約1秒、ブランチ0件）。<strong>未確認:</strong> EMU 本番ホスト（<code>ghe.com</code> の場合）、ブラウザ認証が実際に走ったか（資格情報が既存の可能性）、push の可否、SSO、OAuth App の登録権限、Copilot のポリシー</td></tr></table>
+
 <h2>B. 見落としやすい要件（提案）</h2>
 <table><tr><th>領域</th><th>検討事項</th></tr>
 <tr><td>業務属性</td><td>担当者/チーム、状態、進捗率、予算・工数、リンク（チケット・文書URL）、コメント/メモ、タグ</td></tr>

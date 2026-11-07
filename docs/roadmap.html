@@ -64,7 +64,8 @@
 <tr><td>実装</td><td>S0-1 electron-vite + TypeScript strict のスキャフォールド（<code>package.json</code> に <code>typecheck</code> / <code>lint</code> / <code>test</code> を定義）。S0-2 ESLint のレイヤ境界ルール（<code>src/domain</code> は electron / node / react / DOM を import しない、renderer は main を import しない）、Vitest、GitHub Actions（verify）。S0-3 electron-builder で署名なしビルド、Playwright for Electron の smoke E2E、Electron のセキュリティ設定（contextIsolation 有効・nodeIntegration 無効・CSP）。S0-4（並行）EMU のブラウザ認証（GCM、<code>github.com</code> / <code>ghe.com</code>）をユーザー環境で確認</td></tr>
 <tr><td>テスト</td><td>smoke E2E（ウィンドウが起動する）、ライセンス検査の有効化、レイヤ違反を意図的に混ぜて lint が落ちることの確認</td></tr>
 <tr><td>完了条件</td><td>空のアプリが CI でビルド・lint・テスト・E2E smoke を通る。EMU 認証の可否が分かる（NG なら代替認証への切替を決める）</td></tr>
-<tr><td>ブロッカー</td><td>EMU の接続先ホスト名、OAuth/GitHub App の登録権限（管理者に確認）</td></tr></table>
+<tr><td>ブロッカー</td><td>EMU の接続先ホスト名、OAuth/GitHub App の登録権限（管理者に確認）</td></tr>
+<tr><td><strong>進捗（2026-11-07）</strong></td><td><strong>S0-1〜S0-3 完了</strong>（スキャフォールド、レイヤ境界の lint とテスト、CI の設定、E2E smoke とセキュリティ確認、署名なしパッケージの作成と起動確認）。結果は <a href="architecture.html#phase0">architecture 11</a>。<strong>S0-4（EMU 認証）は一部確認</strong>（<code>github.com</code> で GCM の接続は成功。ブラウザ認証の実行・push・<code>ghe.com</code>・SSO・管理者確認は未了。architecture 11.3, open-questions L2）。CI は GitHub 上では未実行（リモート未設定）</td></tr></table>
 
 <h3>Phase 1: ドメイン層（約3週）</h3>
 <table><tr><th>項目</th><th>内容</th></tr>

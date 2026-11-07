@@ -1,0 +1,28 @@
+# electron-builder の設定（Phase 0: 署名なしの Windows ビルド。署名・自動更新は Phase 5）
+appId: local.project-schedule-editor
+productName: ProjectScheduleEditor
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+asar: true
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # Phase 0 は署名・実行ファイルの書き換え（rcedit）を行わない。署名は Phase 5（K7: 可能なら実施）。
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: プロジェクトスケジュールエディタ
+# Electron Fuses（セキュリティ強化。NF-007）
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true

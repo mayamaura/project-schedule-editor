@@ -6,6 +6,9 @@
 <h1>仕様変更履歴</h1>
 <p>仕様文書（requirements / data-model / architecture / ui-design / git-ux / open-questions）を変更したら、この表の<strong>先頭</strong>に追記する（pre-commit が検査）。</p>
 <table><tr><th>日付</th><th>変更内容</th><th>影響文書</th><th>要件ID</th></tr>
+<tr><td>2026-11-07</td><td>品質ゲート（ストップフック）で単体テストが断続的に失敗する不具合を修正: 原因は子プロセスの cwd が小文字のドライブレター（c:\）のときの Vitest の読み込み失敗。ROOT を大文字に正規化。architecture 11.4 の誤った推測（ビルドとの並行）を訂正</td><td>architecture</td><td>NF-011</td></tr>
+<tr><td>2026-11-07</td><td>L1 を決定（lightningcss の MPL-2.0 を許容）。EMU 認証の確認（L2）は github.com の ls-remote が成功したが、ブラウザ認証の実行・push・ghe.com・SSO は未確認のため「一部確認」として記録</td><td>open-questions, architecture, roadmap</td><td>NF-016, F-508</td></tr>
+<tr><td>2026-11-07</td><td>Phase 0 を実施（S0-1〜S0-3）: Electron + TypeScript + React のスキャフォールド、レイヤ境界の lint とテスト、型付き IPC、セキュリティ設定（CSP・Fuses）、i18n、E2E smoke、署名なしパッケージ、CI 設定。採用した依存パッケージとその理由、決定事項、既知の事項を architecture 11 に記録。EMU 認証の確認手順（S0-4）を spike/emu-auth に用意。確認事項 L1・L2 を追加</td><td>architecture, development-rules, roadmap, open-questions, CLAUDE.md</td><td>NF-007, NF-009, NF-011, NF-016</td></tr>
 <tr><td>2026-11-07</td><td>K1〜K7 を決定: <strong>MVP は 37 件</strong>（F-523・F-520 を S → M に格上げ）、リリース順 R2→R3→R4→R5、CSV・Excel の取り込みを R2 に前倒し（R2 は約6週）、前提は開発者1人+AI・パイロット3名2週、<strong>終了日は含む</strong>、階層は設計上上限なし（UI は10階層）、配布は GitHub Releases+利用者トークン・署名は可能なら・再起動時に更新</td><td>open-questions, requirements, data-model, roadmap</td><td>F-301, F-520, F-523, F-602, NF-008</td></tr>
 <tr><td>2026-11-07</td><td>ロードマップ（roadmap.html）を追加: MVP の定義（案）、Phase 0〜5 の設計・実装・テスト、MVP 後のリリース（R2〜R5）、テストと品質ゲートの導入計画、リスク。全要件のフェーズへの割り当てを機械検査（check-docs）。確認事項 K1〜K7 を追加</td><td>roadmap（新規）, open-questions, index, development-rules, CLAUDE.md</td><td>全要件</td></tr>
 <tr><td>2026-11-07</td><td>J1〜J3 を推奨案で決定（出力は MVP の次段階で HTML を最優先、メモ・担当者は既定で含めない、大きな範囲は縮小/分割を選択）</td><td>open-questions, requirements, architecture, ui-design</td><td>F-606, F-607, F-608</td></tr>

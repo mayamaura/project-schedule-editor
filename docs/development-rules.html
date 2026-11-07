@@ -99,5 +99,14 @@ spike/        技術検証の使い捨てコード（本体に混ぜない）</p
 <tr><td>描画性能・Git認証などの検証</td><td><code>/tech-spike</code></td></tr>
 <tr><td>区切りでの整合性監査</td><td><code>/doc-audit</code></td></tr></table>
 <div class="note">推奨する着手順: ①技術検証（実施済み: 描画・Git フロー・自動保存・Copilot SDK の調査。残り: EMU 認証と Copilot 実動作。<a href="architecture.html#spike-results">architecture 9</a>）→ ②スキャフォールド（electron-vite・TS strict・Vitest・ESLint 境界ルールを導入し、<code>typecheck</code> / <code>lint</code> / <code>test</code> を package.json に定義）→ ③domain 層（テスト先行）→ ④UI → ⑤Git UI。</div>
+<h2>9. 開発コマンド</h2>
+<table><tr><th>コマンド</th><th>内容</th></tr>
+<tr><td><code>npm install</code> の後に <code>node node_modules/electron/install.js</code></td><td>依存の取得と、Electron のバイナリ取得（Electron のパッケージは postinstall を持たない）</td></tr>
+<tr><td><code>npm run dev</code></td><td>開発モード（HMR）。<code>ELECTRON_RUN_AS_NODE</code> が設定されていると起動しない（<a href="architecture.html#phase0">architecture 11.4</a>）</td></tr>
+<tr><td><code>npm run build</code></td><td>main・preload・renderer をビルド（<code>out/</code>）</td></tr>
+<tr><td><code>npm run typecheck</code> / <code>lint</code> / <code>test</code></td><td>型（4設定）/ ESLint（レイヤ境界）/ Vitest（単体）。<code>verify</code> が自動で実行する</td></tr>
+<tr><td><code>npm run test:e2e</code></td><td>実際の Electron を起動する E2E（事前に <code>npm run build</code>）。画面にウィンドウが一瞬開く</td></tr>
+<tr><td><code>npm run pack</code> / <code>dist</code></td><td>署名なしのパッケージ（<code>dist/</code>）。<code>pack</code> は展開形式、<code>dist</code> は NSIS インストーラ</td></tr>
+<tr><td><code>npm run verify</code></td><td>品質ゲート（文書整合・要件ID追跡・ライセンス・typecheck・lint・test）</td></tr></table>
 <div class="todo">ルールの追加・変更希望（コーディング規約、レビュー方針、ブランチ運用など）を追記。</div>
 </main></body></html>

@@ -160,6 +160,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <li>許容: MIT / ISC / BSD-2/3 / Apache-2.0 / 0BSD / CC0 / Unlicense など許諾型 OSS。MPL-2.0 は要確認（警告）。GPL 系・独自条件・ライセンス不明は、ユーザーの承認なしに採用しない。</li>
 <li>検査: <code>scripts/check-licenses.mjs</code>（<code>node_modules</code> がある場合は <code>verify.mjs</code> から実行）。例外を認める場合は、理由とともにスクリプトの例外一覧と本節に記録する。</li>
 <li><strong>同梱 Git は GPL-2.0 の別プログラム</strong>（dugite 自体は MIT だが、配布物に Git 本体を含む）。別個の実行ファイルとして同梱する形で、ライセンス告知・ソース入手先の記載が必要になる見込み。<code>check-licenses.mjs</code> は npm パッケージの宣言のみを検査するため、<strong>この件は手動で確認し、ユーザーの承認を得る</strong>（NF-016）。同梱は決定済み（H1）: 配布物に含め、GPL-2.0 の告知を同梱する。</li>
+<li><strong>ビルド時ツールの警告（Phase 0）:</strong> <code>lightningcss</code>（Vite 8 が CSS の処理に使う。MPL-2.0。ファイル単位のコピーレフト）は<strong>ビルド時のみ</strong>で配布物には含まれない。許諾型ではないが、<code>check-licenses.mjs</code> では警告扱い。許容は決定済み（L1）。</li>
 <li>既に想定している d3（ISC/BSD）、React（MIT）、Electron（MIT）、dugite（MIT）、zod（MIT）、Vitest（MIT）は許諾型。<strong>Copilot SDK（1.0.29）とそのランタイムパッケージは、npm 上のライセンス表記が MIT</strong>。ただしランタイムは約 144MB のネイティブバイナリを含み、パッケージに LICENSE ファイルは含まれない。単体の <code>@github/copilot</code>（CLI）は「SEE LICENSE IN LICENSE.md」（独自条件）。出所と条件を確認のうえ、<strong>ユーザーの承認を得る</strong>（I2）。Copilot はサービスの利用契約が別途必要（E1 で契約済みの前提）。</li>
 </ul>
 <h2 id="autosave">8. 作業版のGit運用と自動保存・クラッシュ復旧</h2>
@@ -275,6 +276,45 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <li>大きな範囲（8年 × 500行）の PDF/SVG は巨大になる。用紙サイズに「1ページに収める（縮小）」と「期間・行で分割」を選べるようにする（決定 J3）。</li>
 <li>HTML のサイズは、25,000 イベントで非圧縮 JSON 約 3〜4MB の見込み（試算）。実測して NF-020 の目標（10MB 以下）を確認する。</li>
 <li>新しい npm 依存は増やさない想定（ビューアのバンドルは Vite、PDF は Electron の機能）。</li>
+</ul>
+<h2 id="phase0">11. Phase 0 の実施結果（スキャフォールド）</h2>
+<p>2026-11-07 に実施（<a href="roadmap.html">roadmap</a> Phase 0）。コマンドは <a href="development-rules.html">開発ルール 9</a>。</p>
+<h3>11.1 採用した依存パッケージ（CLAUDE.md ルール6: 追加の理由）</h3>
+<table><tr><th>パッケージ</th><th>版</th><th>ライセンス</th><th>用途・理由</th></tr>
+<tr><td>electron</td><td>45.2.3</td><td>MIT</td><td>デスクトップアプリの基盤（決定済み）</td></tr>
+<tr><td>electron-vite / vite / @vitejs/plugin-react</td><td>6.0.0 / 8.3.6 / 6.2.1</td><td>MIT</td><td>main・preload・renderer のビルドと開発サーバ（HMR）。設定が少ない</td></tr>
+<tr><td>react / react-dom</td><td>19.3.1</td><td>MIT</td><td>UI（決定済み）。ビルドで束ねるため devDependencies に置く</td></tr>
+<tr><td>typescript</td><td>~6.0.3</td><td>Apache-2.0</td><td>型。<strong>7.x は使わない</strong>（typescript-eslint が &lt;6.1 を要求するため）。7.x へは typescript-eslint の対応後に移行</td></tr>
+<tr><td>eslint / typescript-eslint</td><td>10.14.0 / 8.72.1</td><td>MIT</td><td>レイヤ境界の強制と静的検査</td></tr>
+<tr><td>vitest</td><td>5.1.0</td><td>MIT</td><td>単体テスト（決定済み）</td></tr>
+<tr><td>@playwright/test</td><td>1.65.0</td><td>Apache-2.0</td><td>実際の Electron を起動する E2E（決定済み）</td></tr>
+<tr><td>electron-builder</td><td>26.18.0</td><td>MIT</td><td>Windows のインストーラ作成と Fuses 適用。後に自動更新（electron-updater）も同系統</td></tr>
+<tr><td>zod</td><td>4.6.7</td><td>MIT</td><td>IPC の入出力検証（Phase 0）。Phase 1 以降はデータのスキーマ検証にも使う</td></tr>
+<tr><td>@types/node / react / react-dom</td><td>—</td><td>MIT</td><td>型定義</td></tr></table>
+<p>検査: <code>check-licenses.mjs</code> は 383 パッケージで error 0・警告 2（lightningcss。上記）。</p>
+<h3>11.2 決定・実装した内容</h3>
+<table><tr><th>項目</th><th>内容</th></tr>
+<tr><td>TypeScript の設定</td><td>4分割: <code>tsconfig.domain.json</code>（<strong>DOM・Node の型を持たない</strong> = domain が DOM / Node に依存するとコンパイルエラー）、<code>node</code>（main / preload / shared / テスト）、<code>web</code>（renderer。DOM あり）、<code>e2e</code>（Playwright の evaluate 用に DOM あり）。<code>strict</code> + <code>noUncheckedIndexedAccess</code> など</td></tr>
+<tr><td>レイヤ境界（ESLint）</td><td><code>eslint.config.mjs</code>: domain は electron / node / react / 他の層 / DOM・Node のグローバルを禁止。shared は electron / node / react を禁止。main は renderer・react を、preload は main・renderer・react を、renderer は electron・node・main・preload を、viewer は react・electron・node・他の層を禁止。<strong>違反を意図的に混ぜて検出されることを 18 ケースのテストで確認</strong>（<code>tests/lint/boundaries.test.ts</code>）</td></tr>
+<tr><td>IPC の方針</td><td><code>src/shared/ipc.ts</code> がチャネル定義の<strong>唯一の正</strong>（zod で入出力を定義）。Main は <code>handle()</code> で登録し、<strong>入力と出力を検証</strong>、送信元がアプリ自身の画面でなければ拒否。preload は <code>invoke</code> だけを公開し、<strong>定義済みのチャネル以外は拒否</strong></td></tr>
+<tr><td>Electron のセキュリティ（NF-007）</td><td><code>contextIsolation</code> 有効・<code>nodeIntegration</code> 無効・<code>sandbox</code> 有効。新規ウィンドウ・外部への遷移・webview・権限要求を拒否。<strong>CSP</strong>（本番は <code>connect-src 'none'</code>・インラインスクリプト禁止。開発時のみ HMR 用に緩和）。<strong>Fuses</strong>（<code>runAsNode</code> 無効、Cookie 暗号化、NODE_OPTIONS・CLI の inspect 無効、asar の整合性検証、asar 以外からの読み込み禁止）</td></tr>
+<tr><td>文言（NF-009）</td><td><code>src/renderer/i18n/ja.ts</code> に文言を外出しし、<code>t(key, params)</code> で取得</td></tr>
+<tr><td>パッケージ</td><td><code>electron-builder.yml</code>: NSIS（x64、署名なし）。署名・自動更新は Phase 5（K7）</td></tr>
+<tr><td>CI</td><td><code>.github/workflows/ci.yml</code>（windows-latest）: <code>npm ci</code> → Electron のバイナリ取得 → <code>verify.mjs</code> → build → E2E → pack。<strong>リモートが未設定のため、GitHub 上では未実行</strong></td></tr></table>
+<h3>11.3 検証結果（Phase 0 の完了条件）</h3>
+<table><tr><th>確認</th><th>結果</th></tr>
+<tr><td>typecheck（4設定）/ lint / 単体テスト（26件）</td><td>全て通過</td></tr>
+<tr><td>E2E（実際の Electron を起動）</td><td>6件通過: 起動と IPC 経由の表示、<code>require</code>・<code>process</code> が見えない、未定義の IPC チャネルを拒否、<strong>CSP による外部通信の遮断（CSP 違反イベントで判定。ネットワークの有無に依存しない）</strong>、インラインスクリプト不実行、新規ウィンドウ不可</td></tr>
+<tr><td>パッケージ（<code>npm run pack</code> / <code>dist</code>）</td><td>成功。Fuses 適用。<strong>パッケージ版の exe を起動し、ウィンドウが開くことを確認</strong>（exe 238MB、展開後 357MB）。<strong>NSIS インストーラ（署名なし）も作成でき、サイズは約 116MB</strong>（インストールの動作確認は Phase 5）</td></tr>
+<tr><td>EMU 認証（S0-4）</td><td><strong>一部確認</strong>: ユーザー環境の <code>github.com</code> で <code>ls-remote</code> が成功（GCM 2.8.0、約1秒、ブランチ0件）。ただし、①ブランチ0件は空のリポジトリの可能性が高い ②1秒で成功しており、ブラウザ認証が実際に走ったかは不明（既存の資格情報や公開リポジトリの可能性）③push は未確認 ④<code>ghe.com</code>・SSO・OAuth App の登録権限・Copilot のポリシーは未確認。<strong>EMU の認証が通ると結論づけられる結果ではない</strong>。手順は <code>spike/emu-auth/</code></td></tr></table>
+<h3>11.4 注意事項・既知の事項</h3>
+<ul>
+<li><strong><code>ELECTRON_RUN_AS_NODE</code></strong>: VS Code など Electron 製のホスト（Claude Code の拡張を含む）から起動した場合、この環境変数が引き継がれ、Electron が Node として動いて起動に失敗する。E2E は環境変数を取り除いて起動する。<code>npm run dev</code> でウィンドウが開かない場合は、この変数を解除する。</li>
+<li>Electron のパッケージは <code>postinstall</code> を持たないため、<code>npm install</code> のあとにバイナリ取得（<code>node node_modules/electron/install.js</code>）が必要（CI にも明記）。</li>
+<li>Fuses で <code>enableNodeCliInspectArguments</code> を無効にしているため、<strong>パッケージ版は Playwright で操作できない</strong>。E2E は <code>out/</code> の開発ビルドで実行し、パッケージ版は起動確認を手動で行う（インストーラの確認は Phase 5）。</li>
+<li>開発時の CSP は HMR のため緩めている（本番は厳格）。本番相当の CSP は E2E で検証される。</li>
+<li>配布サイズ: 展開後 357MB（Electron 本体が大部分）、<strong>インストーラは約 116MB</strong>。ここに同梱 Git（約45MB）や、AI 機能を含める場合は Copilot ランタイム（圧縮 69MB・展開 181MB）が加わる。Phase 5 で評価する（NF-008）。</li>
+<li><strong>Windows のドライブレターは大文字にそろえる。</strong>子プロセスの cwd が小文字（<code>c:\...</code>）だと、Vitest がテストを読み込めず「Cannot read properties of undefined (reading 'config')」で失敗する（大文字 <code>C:\...</code> では通る。2026-11-07 に再現して特定）。ストップフックは <code>$CLAUDE_PROJECT_DIR</code> 経由のため小文字で起動されることがあり、「フックでだけ失敗する」原因だった。品質ゲートの <code>ROOT</code>（<code>scripts/lib/docs.mjs</code>）で大文字に正規化して解決。開発者が小文字の cwd のシェルから直接 <code>npm test</code> を実行した場合は同じ失敗になりうる（Vitest 側の挙動。未修正）。<strong>初出時に「ビルドとの並行実行が原因」と推測したが誤りだった。</strong></li>
 </ul>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>

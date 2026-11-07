@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # Electron のパッケージは postinstall を持たないため、バイナリ取得を明示する
+      - run: node node_modules/electron/install.js
+      # 文書整合・要件ID追跡・ライセンス・typecheck・lint・単体テスト（scripts/verify.mjs）
+      - run: node scripts/verify.mjs
+      - run: npm run build
+      # 実際の Electron を起動する E2E（smoke + セキュリティ設定の確認）
+      - run: npm run test:e2e
+      # 署名なしの Windows パッケージが作れること
+      - run: npm run pack

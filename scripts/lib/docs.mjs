@@ -4,7 +4,10 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+// Windows のドライブレターは大文字に正規化する。小文字（c:\...）の cwd で Vitest を起動すると
+// テストの読み込みに失敗する（「Cannot read properties of undefined (reading 'config')」）。
+// フックは $CLAUDE_PROJECT_DIR 経由のため小文字で起動されることがある。
+export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..').replace(/^[a-z]:/, (d) => d.toUpperCase());
 export const DOCS = join(ROOT, 'docs');
 export const docFiles = () => readdirSync(DOCS).filter((f) => f.endsWith('.html'));
 export const read = (f) => readFileSync(join(DOCS, f), 'utf8');

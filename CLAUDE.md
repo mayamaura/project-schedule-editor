@@ -50,5 +50,8 @@ Electron 製デスクトップアプリ。縦=プロジェクト、横=日付の
 - コミットメッセージ: `type(scope): 概要 [F-201]`（type = feat/fix/docs/test/refactor/chore）。
 - 言語: 文書・コメント・UI 文言・やり取りは日本語。識別子は英語。
 
+## 開発コマンド
+`npm run build` / `typecheck` / `lint` / `test` / `test:e2e` / `pack` / `verify`（詳細は docs/development-rules.html 9）。E2E・`dev` は `ELECTRON_RUN_AS_NODE` が設定された環境（VS Code 拡張など）では Electron が起動しない（docs/architecture.html 11.4）。
+
 ## 現状の注意
-- アプリ本体は未スキャフォールド。作成時に `package.json` へ `typecheck` / `lint` / `test` スクリプトを定義すること（`verify.mjs` が自動で拾う）。ESLint でレイヤ境界（上記 `src/domain` の import 制限）を強制する。
+- Phase 0（スキャフォールド）は完了。`typecheck` / `lint` / `test` は定義済みで、ESLint がレイヤ境界を強制する。次は Phase 1（ドメイン層）。進捗は docs/roadmap.html。
