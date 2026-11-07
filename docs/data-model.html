@@ -183,5 +183,11 @@
 <li>結果は新規 ID を持つ<strong>コマンド列（addProject / addEvent / addMilestone / addDependency）</strong>として生成し、<code>diffSchedule</code> でプレビュー、承認後に1コマンドとして適用する（Undo 1単位）。AI 提案（<a href="#ai-changeset">ChangeSet</a>）と同じ経路。</li>
 <li>展開後のプロジェクトは標準日程への参照を持たない（独立）。</li></ol>
 <div class="note">月の加減算は暦月で行うため加法的でない（「3/31 の1ヶ月前」の1ヶ月後は 2/28 → 3/28 で元に戻らない）。(a) のようにマイルストーンを起点に選ぶと、<em>D<sub>0</sub></em> の逆算で月末付近に数日のずれが出る場合がある。ずれは<strong>プレビューで確認・調整</strong>できるようにする。単体テスト（月末・閏年・年またぎ・稼働日）は必須。</div>
+<h2>9. 書き込みと復旧</h2>
+<ul>
+<li>全ファイルの書き込みは<strong>一時ファイル → fsync → rename</strong>（原子的置換）。部分的に書かれたファイルを作らない。</li>
+<li>自動保存はこれらのファイルを直接更新する（Git の作業ツリーの変更 = 未保存の変更）。アプリ専用の領域 <code>.autosave/</code>（<code>running</code>・<code>pending.json</code>・<code>flow.json</code>）は <strong>Git 管理外</strong>（データリポジトリ作成時にアプリが <code>.gitignore</code> へ登録）。</li>
+<li>起動時にスキーマ検証と参照整合の検証を行い、不整合は修復案とともに提示する（データを黙って削除しない）。詳細は <a href="architecture.html#autosave">architecture 8</a>。</li>
+</ul>
 <div class="todo">属性の追加（予算・工数・進捗率など）、データ形式の希望を追記。</div>
 </main></body></html>

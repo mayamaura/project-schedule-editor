@@ -51,6 +51,7 @@ spike/        技術検証の使い捨てコード（本体に混ぜない）</p
 <li>状態変更は全て<strong>コマンド</strong>経由（UI・キーボード・将来の自動化が同じ経路）。ドラッグ中は ref + rAF、確定時に1コマンド（= Undo 1単位）。</li>
 <li>イベントはルートで委譲、Pointer Events + setPointerCapture（<a href="architecture.html">architecture</a> 参照）。</li>
 <li>JSON 出力規則（キー昇順・インデント2・LF・IDキー）を守る。形式変更は schemaVersion とマイグレーションを伴う。</li>
+<li>UI 文言に Git 用語を出さない（NF-019）。ファイル書き込みは一時ファイル＋<code>rename</code> の原子的置換。Git の破壊的操作（強制 push、履歴の削除・書き換え）は実装しない。</li>
 <li>実装には <code>@req F-xxx</code> タグを付ける（存在しない ID は機械検査で error）。</li>
 <li>ライブラリの機能が足りないときは、まず標準機能・既存コードを探し、不要な抽象化をしない。</li>
 </ul>

@@ -27,7 +27,9 @@
 <tr><td>F-206</td><td>Undo / Redo（無制限に近い深さ）</td><td class="must">M</td><td>Git 履歴とは別の編集中履歴</td></tr>
 <tr><td>F-207</td><td>複数選択して一括移動（日数シフト）</td><td class="should">S</td><td>子孫ごと移動する option</td></tr>
 <tr><td>F-208</td><td>入力検証（終了≧開始、依存の循環検出など）と分かりやすいエラー表示</td><td class="must">M</td><td></td></tr>
-<tr><td>F-209</td><td><strong>右クリックメニュー</strong>: 対象に応じたコンテキストメニューを表示する（空白 / イベント / マイルストーン / プロジェクト行 / 依存線 / 日付ヘッダ）。メニューキー・Shift+F10 でも開ける</td><td class="must">M</td><td>メニュー項目は F-202 作成、標準日程の展開（F-805）などを含む。内容は <a href="ui-design.html">ui-design 2.5</a>。項目はコマンドIDに紐付け、キーマップと共通化</td></tr></table>
+<tr><td>F-209</td><td><strong>右クリックメニュー</strong>: 対象に応じたコンテキストメニューを表示する（空白 / イベント / マイルストーン / プロジェクト行 / 依存線 / 日付ヘッダ）。メニューキー・Shift+F10 でも開ける</td><td class="must">M</td><td>メニュー項目は F-202 作成、標準日程の展開（F-805）などを含む。内容は <a href="ui-design.html">ui-design 2.5</a>。項目はコマンドIDに紐付け、キーマップと共通化</td></tr>
+<tr><td>F-210</td><td><strong>自動保存（異常終了への備え）</strong>: 編集内容は操作のたびに（遅くとも約1秒以内に）自動でディスクに書き出す。アプリがクラッシュ・強制終了・OS 再起動・電源断で落ちても、<strong>それまでの編集は失われない</strong>（失うのは最後の約1秒の操作まで）。自動保存は Git の「保存」（commit）とは別で、履歴には残らない</td><td class="must">M</td><td>決定（2026-11-07）。NF-018。方式は <a href="architecture.html#autosave">architecture 8</a></td></tr>
+<tr><td>F-211</td><td><strong>復元</strong>: 次回起動時、前回が異常終了だったことと、自動保存された未保存の変更があることを検出し、「前回の編集内容を復元しました（○件の変更）」と知らせる。変更内容は一覧で確認でき、そのまま続ける / 内容を確認して破棄、を選べる。破棄は確認必須</td><td class="must">M</td><td>復元後は通常の「未保存の変更」（F-502 の対象）。Undo 履歴の復元は努力目標</td></tr></table>
 
 <h3>1.3 階層・依存関係</h3>
 <table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
@@ -49,7 +51,7 @@
 <table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
 <tr><td>F-501</td><td>データリポジトリの 新規作成 / clone / 既存フォルダを開く</td><td class="must">M</td><td>初回セットアップウィザード</td></tr>
 <tr><td>F-502</td><td>「変更を保存」（= commit）。変更内容を日本語で要約表示（例:「A案件のリリース日を 3/1→3/15」）</td><td class="must">M</td><td>差分は JSON でなく業務語で見せる</td></tr>
-<tr><td>F-503</td><td>「共有する」（= pull + push）を1ボタンで。失敗時は平易な説明と選択肢</td><td class="must">M</td><td></td></tr>
+<tr><td>F-503</td><td>共有操作を1ボタンで行う。正式版を直接編集している場合は「共有する」（最新の取り込み＋送信）、作業版にいる場合は「正式版に反映する」（F-517）。失敗時は平易な説明と選択肢を示す</td><td class="must">M</td><td>Git 用語を表に出さない（NF-019）</td></tr>
 <tr><td>F-504</td><td>履歴一覧、過去時点の閲覧（読み取り専用）、特定版に戻す（新しい変更として）</td><td class="must">M</td><td>履歴を書き換える操作は出さない</td></tr>
 <tr><td>F-505</td><td>2つの版の比較（どの日程がどう動いたかをタイムライン上で差分表示）</td><td class="should">S</td><td>本アプリの大きな価値。仕組みは <a href="data-model.html">データモデル 4.5</a></td></tr>
 <tr><td>F-509</td><td>日程変更の検出: 両版の JSON をパースし ID 単位で比較し、追加/削除/日付変更(日数差)/親子移動/属性/依存の変更を抽出する</td><td class="must">M</td><td>F-502, 503, 505, 506 の共通基盤</td></tr>
@@ -57,8 +59,17 @@
 <tr><td>F-511</td><td>共有時、取り込む他者の変更を取り込み前に一覧表示</td><td class="must">M</td><td></td></tr>
 <tr><td>F-512</td><td>変更による依存違反の新規発生を警告として表示</td><td class="should">S</td><td>F-305 と連動</td></tr>
 <tr><td>F-506</td><td>競合解決UI（項目単位で「自分の/相手の」を選ぶ）</td><td class="must">M</td><td>最大のUX課題</td></tr>
-<tr><td>F-507</td><td>ブランチ相当の「シナリオ（案）」機能: 別案を作って比較・採用</td><td class="could">C</td><td>用語は「案」。後回し可</td></tr>
-<tr><td>F-508</td><td>GitHub 認証の設定支援（Device Flow / PAT）</td><td class="must">M</td><td>リモートは GitHub（A5）。トークンは OS 資格情報ストアに保存</td></tr></table>
+<tr><td>F-507</td><td>（廃止）ブランチ相当の「案」機能は F-513〜F-521 に統合</td><td>—</td><td>欠番扱い（ID は再利用しない）</td></tr>
+<tr><td>F-508</td><td>GitHub 認証の設定支援（Device Flow / PAT）</td><td class="must">M</td><td>リモートは GitHub（A5）。トークンは OS 資格情報ストアに保存</td></tr>
+<tr><td>F-513</td><td><strong>作業版の作成</strong>: 正式版（main）の最新から「作業版」（= ブランチ）を作り、自分だけでしばらく編集・保存できる。名前は日本語で付けられる（内部のブランチ名は自動生成）</td><td class="must">M</td><td>決定（2026-11-07）。決定（G1）: 用語は 正式版/作業版/反映する/バックアップ。<a href="git-ux.html#branch">git-ux 2.5</a></td></tr>
+<tr><td>F-514</td><td><strong>作業版の切替と現在地の常時表示</strong>: 今「正式版」と「どの作業版」のどちらを編集しているかを画面上部に常時表示（色でも区別）。作業版の一覧（名前・最終更新・正式版との差の件数）から切替できる。切替時に保存前の変更があれば、自動で退避して戻ったときに復元する</td><td class="must">M</td><td>誤って正式版を編集しないため</td></tr>
+<tr><td>F-515</td><td>作業版での編集・保存（F-502）は<strong>自分だけに影響し、他の人からは見えない</strong>（反映やバックアップをするまで）。保存は何度でも繰り返せ、履歴・戻す（F-504）も作業版ごとに使える</td><td class="must">M</td><td></td></tr>
+<tr><td>F-516</td><td>作業版のバックアップ: 作業版をリモート（GitHub）に任意で送って、PC の故障に備えられる。他の人には正式版として扱われない</td><td class="should">S</td><td>決定（G2）: 既定は手動</td></tr>
+<tr><td>F-517</td><td><strong>正式版に反映する</strong>（= main へマージ）: まとまった作業版を、1つの手順（ウィザード）で正式版に反映して共有する。①正式版の最新を取得 ②作業版に取り込み（競合は<strong>作業版側で</strong>解決。F-506）③確認（F-518）④反映して送信。送信時に他の人が先に更新していた場合は、自動で①からやり直して案内する</td><td class="must">M</td><td>正式版に競合を持ち込まない設計。決定（G3）: 作業版の保存履歴をそのまま残す</td></tr>
+<tr><td>F-518</td><td>反映前の確認: 正式版との差分を日程のタイムライン上と変更一覧で表示（F-509 の diffSchedule を再利用）。新たな不整合（F-704）と、競合しそうな項目を事前に知らせる</td><td class="must">M</td><td></td></tr>
+<tr><td>F-519</td><td>作業版の整理: 反映後に「続ける / 整理する」を選べる。不要な作業版は「整理」（一覧から非表示）で片付け、後から復元できる。履歴を即時に消す操作は提供しない</td><td class="should">S</td><td>破壊的操作を出さない原則</td></tr>
+<tr><td>F-520</td><td>正式版の直接編集: 軽微な修正のため、確認ダイアログ付きで正式版を直接編集できる（作業版の利用を促す表示を併記）</td><td class="should">S</td><td>決定（G4）: 確認付きで可能</td></tr>
+<tr><td>F-521</td><td>中断からの再開: 反映や競合解決の途中でアプリが落ちても、再起動後に途中の状態を検出し、「続きから再開」か「最初からやり直し」を選べる</td><td class="should">S</td><td>F-210/211 と対</td></tr></table>
 
 <h3>1.6 入出力・その他</h3>
 <table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
@@ -102,7 +113,7 @@
 <tr><td>NF-001</td><td>性能（最大規模）</td><td>500プロジェクト × 50イベント（約25,000件）× 8年。スクロール/ズーム 60fps 目標、ドラッグ中の遅延 &lt;16ms、起動時の全データ読込 数秒以内</td></tr>
 <tr><td>NF-002</td><td>対応OS</td><td>Windows 10/11。将来 macOS / Linux を追加できるよう、OS依存API・パス区切り・改行(LF固定)・資格情報保管（Electron safeStorage 等）を抽象化</td></tr>
 <tr><td>NF-003</td><td>オフライン</td><td>編集・commit はオフライン可。共有時のみネット必要</td></tr>
-<tr><td>NF-004</td><td>データ安全性</td><td>クラッシュ時も未保存編集を復元（自動一時保存）。Git操作は破壊的操作（force push, reset --hard）を提供しない</td></tr>
+<tr><td>NF-004</td><td>データ安全性</td><td>異常終了時も編集内容を失わない（F-210, F-211, NF-018）。Git 操作は破壊的操作（force push, reset --hard、履歴の書き換え）を提供しない。書き込みは途中で落ちてもファイルが壊れない方式（一時ファイル＋置換）</td></tr>
 <tr><td>NF-005</td><td>マージしやすさ</td><td>共同編集（Git 経由）での競合が最小になるデータ形式（<a href="data-model.html">データモデル</a>）</td></tr>
 <tr><td>NF-006</td><td>スキーマ互換</td><td>スキーマバージョン付き。旧版データの自動マイグレーション。新しいデータを旧アプリが壊さない</td></tr>
 <tr><td>NF-007</td><td>セキュリティ</td><td>Electron: contextIsolation 有効、nodeIntegration 無効、preload 経由のIPCのみ。認証情報は OS 資格情報ストア</td></tr>
@@ -115,6 +126,8 @@
 <tr><td>NF-014</td><td>SDK の変更耐性</td><td>Copilot SDK は技術プレビューで破壊的変更の可能性があるため、利用箇所を <code>src/main/ai/</code> に閉じ込め、差し替え可能にする</td></tr>
 <tr><td>NF-015</td><td>プライバシー</td><td>AI への送信データは最小限とし、送信先は Copilot（または設定した BYOK 先）のみ。送信内容は利用者が確認できる（F-707）</td></tr>
 <tr><td>NF-016</td><td>ライセンス</td><td><strong>商用ライブラリ（有償・商用ライセンスが必要なもの）は使用しない。</strong>許諾型 OSS（MIT / ISC / BSD / Apache-2.0 等）を使用する。依存追加時にライセンスを確認し、<code>scripts/check-licenses.mjs</code> で検査する。それ以外のライセンス（GPL 系・独自条件等）は個別にユーザーの承認が必要</td></tr>
-<tr><td>NF-017</td><td>編集モデル</td><td>編集は常に1人（ローカルのリポジトリ）で行い、複数人での共同編集は Git のリモート（GitHub）を介した非同期（保存→共有）で行う。Word / Excel のような<strong>リアルタイム同時編集は対象外</strong>。他者の変更とぶつかった場合は競合解決（F-506）で対処する</td></tr></table>
+<tr><td>NF-017</td><td>編集モデル</td><td>編集は常に1人（ローカルのリポジトリ）で行い、複数人での共同編集は Git のリモート（GitHub）を介した非同期（保存→共有）で行う。Word / Excel のような<strong>リアルタイム同時編集は対象外</strong>。他者の変更とぶつかった場合は競合解決（F-506）で対処する</td></tr>
+<tr><td>NF-018</td><td>自動保存の目標</td><td>編集操作から自動保存の完了まで 約1秒以内（連続操作は束ねる）。異常終了後に失う編集は最後の約1秒分まで。自動保存は操作性（ドラッグ中の描画など）を損なわない（NF-001）。複数ファイルにまたがる操作の途中で落ちても、次回読み込み時の整合性検証で検出・復旧できる</td></tr>
+<tr><td>NF-019</td><td>Git 初心者向けユーザビリティ</td><td>UI に Git 用語（commit / branch / merge / push 等）を出さず、「保存」「作業版」「正式版」「反映」などの業務語を使う。受け入れ基準: <strong>Git 未経験者が説明なしで、作業版の作成 → 編集 → 保存 → 正式版への反映を完遂できる</strong>。常に「今どこにいるか」と「次にできること」を示す</td></tr></table>
 <div class="todo">非機能要件の追記。</div>
 </main></body></html>

@@ -56,6 +56,7 @@
 │  ├ GitService  ← dugite / isomorphic-git
 │  ├ FileRepository (JSON 読み書き・検証)
 │  ├ AiService  ← GitHub Copilot SDK（提案の生成のみ。main/ai/ に隔離）
+│  ├ AutosaveService（変更を即時に作業ツリーへ書込・復旧。architecture 8）
 │  ├ Settings / 資格情報(OS keychain)
 │  └ IPC ハンドラ（型付き）
 │            ▲ contextBridge / preload
@@ -139,6 +140,31 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <li>許容: MIT / ISC / BSD-2/3 / Apache-2.0 / 0BSD / CC0 / Unlicense など許諾型 OSS。MPL-2.0 は要確認（警告）。GPL 系・独自条件・ライセンス不明は、ユーザーの承認なしに採用しない。</li>
 <li>検査: <code>scripts/check-licenses.mjs</code>（<code>node_modules</code> がある場合は <code>verify.mjs</code> から実行）。例外を認める場合は、理由とともにスクリプトの例外一覧と本節に記録する。</li>
 <li>既に想定している d3（ISC/BSD）、React（MIT）、Electron（MIT）、dugite（MIT）、zod（MIT）、Vitest（MIT）は許諾型。<strong>Copilot SDK 自体のライセンスは技術検証で確認する</strong>（Copilot はサービスの利用契約が別途必要。E1 で契約済みの前提）。</li>
+</ul>
+<h2 id="autosave">8. 作業版のGit運用と自動保存・クラッシュ復旧</h2>
+<p>要件: F-210, F-211, F-513〜F-521, NF-018, NF-019。</p>
+<h3>8.1 自動保存の方式（採用案）</h3>
+<ul>
+<li><strong>変更は作業ツリーの JSON に即時書き込む。</strong>つまり「自動保存された未保存の変更」は、Git 的には「コミット前の作業ツリーの変更」と同一。別のジャーナルを持たず、<code>diffSchedule(HEAD, 作業ツリー)</code> で「未保存の変更」を常に表示・復元できる。</li>
+<li>書き込みは <strong>Renderer が変更後のエンティティ（ファイル内容）を IPC で Main に送り、Main の AutosaveService が束ねて書く</strong>。連続操作は 約300ms で束ね、最長でも約1秒以内に書き込む。終了時（<code>before-quit</code>・ウィンドウ close）は即時フラッシュ。Renderer がクラッシュ（<code>render-process-gone</code>）しても、Main が受信済みの変更は失われない。</li>
+<li><strong>原子的な書き込み</strong>: 同一ディレクトリの一時ファイルに書き出し → <code>fsync</code> → <code>rename</code> で置換（途中で落ちても旧版か新版のどちらかが残り、中途半端なファイルにならない）。</li>
+<li><strong>複数ファイルにまたがる操作</strong>（標準日程の展開、プロジェクト移動 など）: まず新規/変更ファイルを一時領域にすべて書き、その後に順に置換。置換の途中で落ちた場合に備え、<code>.autosave/pending.json</code>（操作の意図を記した小さな印）を先に書き、起動時に残っていれば整合性検証と修復を行う。</li>
+<li><strong>起動時の整合性検証</strong>: 全ファイルのスキーマ検証＋参照整合（存在しないプロジェクトを指す依存、孤立した子など）。問題があれば、修復案（自動修復できるものは確認のうえ実行）を提示し、データを黙って捨てない。</li>
+<li><strong>異常終了の検出</strong>: 起動時に <code>.autosave/running</code> を作成し、正常終了時に削除。起動時にファイルが残っていれば前回は異常終了 → 復元ダイアログ（F-211）。</li>
+<li>Undo 履歴は復元しない（努力目標）。復元後の変更は通常の未保存の変更として扱う。</li>
+</ul>
+<h3>8.2 作業版のGit操作</h3>
+<ul>
+<li>ブランチ名は <code>work/&lt;yyyymmdd&gt;-&lt;短い識別子&gt;</code>（ASCII）。日本語の表示名は <code>git config branch.&lt;名&gt;.description</code> に保存。</li>
+<li><strong>切替時の退避</strong>: 作業ツリーに保存前の変更があるとき、<code>refs/app/pending/&lt;ブランチ&gt;</code> に退避用コミット（ブランチ履歴には載せない）を作って作業ツリーをきれいにしてから切替。戻ったら復元して退避を削除。</li>
+<li><strong>反映の手順</strong>: ①<code>fetch</code> ②main を最新に ③作業版へ main を <code>merge</code>（競合は作業版側で解決） ④検証（スキーマ・F-704） ⑤main を作業版の先端へ <code>merge --no-ff</code>（決定 G3: 作業版の保存履歴をそのまま残す＝<code>--no-ff</code>） ⑥<code>push</code>。⑥が拒否されたら ① に戻る。<strong>強制 push は実装しない。</strong>反映前に <code>refs/app/backup/&lt;時刻&gt;</code> を作成（「元に戻す」用）。</li>
+<li><strong>中断の検出</strong>: <code>.git/MERGE_HEAD</code> などの Git の途中状態と、アプリの <code>.autosave/flow.json</code>（反映の何段階目か）から、起動時に「続きから再開 / 最初からやり直し」を提示。</li>
+<li><strong>整理</strong>: ブランチを削除せず <code>refs/app/archive/&lt;名&gt;</code> へ移す（復元可能）。</li>
+</ul>
+<h3>8.3 テスト</h3>
+<ul>
+<li>自動保存: 書き込み途中での強制終了（プロセス kill）を模したテスト（一時ファイルのみ残る / rename 前後）で、読み込みが旧版か新版のどちらかになることを確認。</li>
+<li>Git フロー: 一時リポジトリで、作業版作成 → 保存 → 反映、他者が先に更新（push 拒否 → 再取り込み）、競合、反映の中断と再開、切替時の退避と復元を再現。</li>
 </ul>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>
