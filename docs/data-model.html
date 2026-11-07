@@ -62,7 +62,7 @@
     "m1": { "name": "設計レビュー", "date": "2026-12-16", "type": "review" }
   }
 }</pre>
-<p>events / milestones は配列ではなく <strong>ID をキーにしたオブジェクト</strong>とする（キー順は ID 昇順で固定）。要素の追加・削除が他の行に波及せず、末尾カンマ起因の偽の競合が起きにくい。</p>
+<p>events / milestones は配列ではなく <strong>ID をキーにしたオブジェクト</strong>とする（キー順は ID 昇順で固定）。要素の追加・削除が他の行に波及しにくい（ただし<strong>末尾への追加は直前の行のカンマが変わるため競合する</strong>。実測は 11.1）。</p>
 
 <h2>3.5 形式の決定: JSON（確定）</h2>
 <table><tr><th>項目</th><th>決定</th></tr>
@@ -206,5 +206,39 @@
 }</pre>
 <ul><li>オプションで除外された項目（メモ・担当者など）は<strong>スナップショットに含めない</strong>（HTML 上で非表示にするだけでなく、データ自体を出力しない）。</li>
 <li>表示に不要な内部情報（作者・メール・コミット履歴・AI の指示や会話）は含めない。<code>source</code> は版の表記用。</li></ul>
+<h2 id="phase1">11. ドメイン層の実装仕様（Phase 1）</h2>
+<p>実装: <code>src/domain/</code>（純 TypeScript。テスト: <code>tests/domain/</code>）。要件: F-206, F-208, F-301, F-305, F-509, NF-004〜006。<strong>以下のうち「仮定」は、ユーザーの決定事項ではなく Phase 1 での設計判断</strong>（変更があれば <code>/spec-change</code>）。</p>
+<table><tr><th>項目</th><th>仕様</th></tr>
+<tr><td>モジュール</td><td><code>date</code>（日付計算）／<code>model</code>（型と zod スキーマ）／<code>order</code>（fractional index）／<code>serialize</code>（整形出力・読み込み・スキーマ版管理）／<code>validate</code>（整合性チェック）／<code>commands</code>＋<code>history</code>（コマンド適用・Undo/Redo）／<code>diff</code>（<code>diffSchedule</code>）／<code>sample</code>（性能検証用データ生成）</td></tr>
+<tr><td>日付（K5 決定を反映）</td><td>文字列 <code>YYYY-MM-DD</code> のみ（年は 0001〜9999）。内部は「1970-01-01 からの通算日数」の整数演算で、<strong>Date 型・タイムゾーンを使わない</strong>。期間の日数は <code>end − start + 1</code>。週は月曜始まり。月の加減算は暦月で、存在しない日は月末に丸める（F7）</td></tr>
+<tr><td>ID（仮定）</td><td>不透明な文字列（<code>[A-Za-z0-9_-]{1,64}</code>）。<strong>生成は domain の外</strong>（UUID 等）で行い、コマンドに含める（テストが決定的になる）。<strong>全プロジェクト・イベント・マイルストーン・依存で一意</strong>（種類をまたいで重複不可）</td></tr>
+<tr><td>集約（<code>Schedule</code>）</td><td><code>{ schemaVersion, projects, dependencies, types }</code>。<code>projects</code> は ID をキーとし、各プロジェクトが <code>events</code> と <code>milestones</code> を ID キーのオブジェクトで持つ。不変データとして扱い、更新は変更した部分だけ新しいオブジェクトにする（構造共有）</td></tr>
+<tr><td>依存の判定式（仮定）</td><td>終了日を含むため、<strong>FS: 後続.開始 ≥ 先行.終了 + 1 + ラグ</strong>、SS: 後続.開始 ≥ 先行.開始 + ラグ、FF: 後続.終了 ≥ 先行.終了 + ラグ、SF: 後続.終了 ≥ 先行.開始 + ラグ。マイルストーンは開始＝終了＝日付。違反は<strong>警告のみ</strong>（A2。自動連動しない）。ラグは負の値も可</td></tr>
+<tr><td>コマンド（F-206）</td><td>add / update / delete × Project・Event・Milestone・Dependency、<code>moveProject</code>（親・並び順）、<code>batch</code>（複数コマンドを1つの Undo 単位に）。<strong>適用前に検証</strong>し、失敗なら理由コード付きのエラーを返して<strong>状態を変えない</strong>。ドラッグなどの連続操作は確定時に1コマンド</td></tr>
+<tr><td>拒否する操作（F-208, F-301）</td><td>存在しない ID／ID の重複／不正な日付／終了＜開始／プロジェクトの循環（自分の子孫を親にする）／自己依存・重複依存・依存の循環／存在しない端点への依存。<strong>依存違反は拒否せず警告</strong>（編集の自由を優先）</td></tr>
+<tr><td>削除の連鎖（仮定）</td><td>プロジェクトの削除は<strong>子孫のプロジェクト、それらのイベント・マイルストーン、それらを端点とする依存</strong>も削除。イベント・マイルストーンの削除も、それを端点とする依存を削除。Undo で全て復元</td></tr>
+<tr><td>Undo/Redo（仮定）</td><td>変更前のスナップショット（構造共有のため 25,000 イベントでも軽量）を履歴に積む。深さの既定は 1,000。新しいコマンドで Redo 履歴は破棄</td></tr>
+<tr><td>整合性チェック（F-704 の基礎）</td><td><code>validateSchedule(schedule) → ValidationIssue[]</code>（<code>{ rule, severity, target, message }</code>）。ルール: <code>date-invalid</code> / <code>id-mismatch</code>（キーと内容の id の不一致）/ <code>end-before-start</code> / <code>dependency-violation</code>（警告）/ <code>dependency-cycle</code> / <code>dangling-reference</code> / <code>parent-cycle</code> / <code>duplicate-id</code> / <code>child-outside-parent</code>（警告）。ファイルを外部で編集された場合に備え、読み込み後に実行する</td></tr>
+<tr><td>差分（F-509）</td><td><code>diffSchedule(old, new) → Change[]</code>。種類: プロジェクトの追加・削除・改名・親/順序の変更・属性変更、イベント/マイルストーンの追加・削除・<strong>日付変更（変動日数つき）</strong>・属性変更、依存の追加・削除・変更。ID で対応付けるため、改名・並べ替え・プロジェクト間の移動でも同一物として追跡する。出力は決定的な順序（保存・テストのため）</td></tr>
+<tr><td>整形出力（NF-005）</td><td>キー昇順（再帰）、インデント2、LF、末尾改行、値に <code>undefined</code> を出さない。<code>serializeSchedule</code> は <code>{ パス: 文字列 }</code> を返す（<code>schedule.json</code> / <code>types.json</code> / <code>projects/&lt;id&gt;.json</code> / <code>dependencies/&lt;id&gt;.json</code>）。<strong>往復して同一になる</strong>（テストで保証）。ファイル I/O は main 層（原子的書き込み）が担当</td></tr>
+<tr><td>スキーマ版（NF-006）</td><td><code>schedule.json</code> の <code>schemaVersion</code>（現在 1）。新しい版は読み取り専用で開く（<code>tooNew</code>）。古い版は <code>migrate</code>（版ごとの純関数の連鎖）で上げる</td></tr>
+<tr><td>並び順（<code>order</code>）</td><td>fractional index（文字列。<code>orderBetween(a, b)</code> が a と b の間の文字列を返す）。並べ替えは1要素の変更で済む</td></tr></table>
+<h3 id="phase1-merge">11.1 実測: 実際の Git でのマージ（Git 2.55、<code>tests/main/gitMerge.test.ts</code>）</h3>
+<p>整形出力した JSON を、実際の Git で2人が別々に編集して取り込む（merge）実験の結果。<strong>「競合しにくい」は条件付きで成り立つ。</strong></p>
+<table><tr><th>2人の編集</th><th>Git の自動マージ</th></tr>
+<tr><td>別々のプロジェクト（別ファイル）／別々の依存の追加／別IDのプロジェクトの追加／並べ替えと別プロジェクトの編集</td><td>○ 競合しない</td></tr>
+<tr><td>同じプロジェクトの離れたイベントの編集</td><td>○ 競合しない</td></tr>
+<tr><td>同じプロジェクトへの追加（既存イベントを挟んだ別々の隙間）</td><td>○ 競合しない</td></tr>
+<tr><td>同じイベントの、離れたフィールド（例: 名称と種別）の編集</td><td>○ 競合しない</td></tr>
+<tr><td><strong>同じイベントの、隣り合うフィールド（例: 名称と終了日）の編集</strong></td><td>✕ <strong>競合する</strong>。キーが昇順（<code>end, name, start, type</code>）のため行が隣り合う。<strong>意味の上では衝突していない</strong>（別のフィールド）</td></tr>
+<tr><td><strong>同じプロジェクトの末尾へ、新しいイベントを追加どうし</strong></td><td>✕ <strong>競合する</strong>。直前の行にカンマが付くため</td></tr>
+<tr><td>同じイベントの同じフィールドを別の値に変更</td><td>✕ 競合する（本来の競合。アプリの競合解決 UI で解決）</td></tr></table>
+<div class="note"><strong>設計への含意（Phase 4 の S4-5 に反映）:</strong> Git の行単位の競合のうち、<strong>意味の上では衝突していないもの</strong>（上の「隣り合うフィールド」「末尾への追加」）が起きる。競合解決は、Git の競合マーカーを読むのではなく、<code>git show :1:/:2:/:3:</code> で取れる base / 自分 / 相手の3版を JSON として読み、<strong>エンティティ・フィールド単位で比較して、重ならない変更は自動で取り込み、同じ項目の同じフィールドが食い違うときだけ利用者に選んでもらう</strong>（F-506）。これで、利用者が見る競合は「本当の衝突」だけになる。ドメイン層に <code>mergeSchedules(base, ours, theirs)</code>（純関数）を置く想定。書式の変更（1フィールド1行をやめて隣接を避ける等）は、差分の読みやすさを損なうため採らない。</div>
+<h3>11.2 実装状況と実測（Phase 1、2026-11-07）</h3>
+<ul>
+<li><strong>実装済み</strong>: <code>date</code> / <code>model</code> / <code>order</code> / <code>validate</code> / <code>commands</code> / <code>history</code> / <code>serialize</code>（整形出力・読み込み・マイグレーション枠）/ <code>diff</code> / <code>sample</code>。main 層に <code>fileRepository</code>（原子的書き込み・複数ファイルのトランザクション・復旧・保存/読み込み）。</li>
+<li><strong>25,000イベントでの実測</strong>（<code>tests/domain/perf.test.ts</code>）: 全データの読み込み（スキーマ検証＋整合性チェック込み）約 110ms、整形出力 約 55ms、整合性チェック 約 50ms、<strong>1回の編集コマンド 約 0.015ms</strong>、差分検出 約 32ms、1,000回の編集＋Undo 全戻し 約 107ms。NF-001・NF-018 に対して桁違いに余裕がある。</li>
+<li><strong>未実装（意図的に後回し）</strong>: 稼働日・祝日を使う日付計算（カレンダー。F-603 / F-804 とともに R2）、<code>mergeSchedules</code>（Phase 4）、プロセスの強制終了を使った自動保存のテスト（Phase 3 の E2E。復旧ロジック自体は途中状態を手で再現したテストで検証済み。実際の強制終了は <code>spike/autosave-atomic</code> で検証済み）。</li>
+</ul>
 <div class="todo">属性の追加（予算・工数・進捗率など）、データ形式の希望を追記。</div>
 </main></body></html>

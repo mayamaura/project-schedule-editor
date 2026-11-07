@@ -9,6 +9,8 @@
     "src/preload/**/*",
     "src/shared/**/*",
     "src/domain/**/*",
+    "tests/domain/**/*",
+    "tests/main/**/*",
     "tests/lint/**/*",
     "tests/unit/**/*",
     "electron.vite.config.ts",

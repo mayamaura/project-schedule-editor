@@ -6,6 +6,8 @@
 <h1>仕様変更履歴</h1>
 <p>仕様文書（requirements / data-model / architecture / ui-design / git-ux / open-questions）を変更したら、この表の<strong>先頭</strong>に追記する（pre-commit が検査）。</p>
 <table><tr><th>日付</th><th>変更内容</th><th>影響文書</th><th>要件ID</th></tr>
+<tr><td>2026-11-07</td><td>Phase 1（ドメイン層）を実装: 日付・モデル・並び順・検証・コマンドと Undo/Redo・整形出力と読み込み・マイグレーション枠・diffSchedule・サンプル生成・FileRepository（原子的書き込みと復旧）。<strong>実際の Git でマージを検証し、「競合しにくい」が条件付きと判明</strong>（同じイベントの隣り合うフィールドの編集、末尾への追加どうしは競合）。F-506 の競合解決を「3版をフィールド単位で比較し、重ならない変更は自動で取り込む」方式に具体化。25,000イベントでの実測を記録</td><td>data-model, git-ux, requirements, roadmap, CLAUDE.md</td><td>F-205, F-206, F-208, F-301, F-305, F-506, F-509, NF-004, NF-005, NF-006</td></tr>
+<tr><td>2026-11-07</td><td>Phase 1 の詳細設計を追加（data-model 11）: モジュール構成、ID、依存の判定式（終了日を含む前提）、コマンドと拒否規則、削除の連鎖、Undo の方式、整合性チェックのルール、差分の種類、整形出力、スキーマ版管理。「仮定」を明記</td><td>data-model, roadmap</td><td>F-206, F-208, F-301, F-305, F-509, NF-005, NF-006</td></tr>
 <tr><td>2026-11-07</td><td>品質ゲート（ストップフック）で単体テストが断続的に失敗する不具合を修正: 原因は子プロセスの cwd が小文字のドライブレター（c:\）のときの Vitest の読み込み失敗。ROOT を大文字に正規化。architecture 11.4 の誤った推測（ビルドとの並行）を訂正</td><td>architecture</td><td>NF-011</td></tr>
 <tr><td>2026-11-07</td><td>L1 を決定（lightningcss の MPL-2.0 を許容）。EMU 認証の確認（L2）は github.com の ls-remote が成功したが、ブラウザ認証の実行・push・ghe.com・SSO は未確認のため「一部確認」として記録</td><td>open-questions, architecture, roadmap</td><td>NF-016, F-508</td></tr>
 <tr><td>2026-11-07</td><td>Phase 0 を実施（S0-1〜S0-3）: Electron + TypeScript + React のスキャフォールド、レイヤ境界の lint とテスト、型付き IPC、セキュリティ設定（CSP・Fuses）、i18n、E2E smoke、署名なしパッケージ、CI 設定。採用した依存パッケージとその理由、決定事項、既知の事項を architecture 11 に記録。EMU 認証の確認手順（S0-4）を spike/emu-auth に用意。確認事項 L1・L2 を追加</td><td>architecture, development-rules, roadmap, open-questions, CLAUDE.md</td><td>NF-007, NF-009, NF-011, NF-016</td></tr>

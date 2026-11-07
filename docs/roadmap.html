@@ -73,6 +73,7 @@
 <tr><td>設計</td><td>型・zod スキーマの確定、JSON 出力規則、ID・並び順（fractional index）、<strong>終了日は含む（決定 K5）</strong>、コマンド一覧（add/update/delete × Event/Milestone/Project/Dependency）、マイグレーション方針、<code>diffSchedule</code> の変更種類</td></tr>
 <tr><td>実装</td><td>S1-1 型・スキーマ・JSON 整形（キー昇順・LF）・FileRepository（原子的書き込み）。S1-2 日付ユーティリティ（月曜起点の週、暦月）とカレンダー。S1-3 コマンド適用・Undo/Redo・検証（終了≧開始、循環依存）。S1-4 <code>diffSchedule</code>。S1-5 スキーマ版管理・マイグレーションの骨組み、500×50×8年のサンプルデータ生成</td></tr>
 <tr><td>テスト</td><td><strong>テスト先行</strong>の単体テスト（Vitest）: 日付の境界（月跨ぎ・年跨ぎ・閏年・週の起点）、コマンドと Undo の往復、循環検出、<code>diffSchedule</code> の全変更種類、不正入力。強制終了テスト（<code>spike/autosave-atomic</code> を取り込む）。ドメイン層のカバレッジ閾値 90%</td></tr>
+<tr><td><strong>進捗（2026-11-07）</strong></td><td>詳細設計は <a href="data-model.html#phase1">data-model 11</a>（依存の判定式・ID・Undo の方式などは「仮定」と明記）。<strong>S1-1〜S1-5 を実装</strong>（日付、モデルとスキーマ、整形出力、FileRepository、コマンドと Undo/Redo、検証、<code>diffSchedule</code>、マイグレーション枠、サンプル生成）。ドメイン層のカバレッジは行 99.8%・分岐 94.8%（閾値 90%）。25,000イベントの実測は <a href="data-model.html#phase1">data-model 11.2</a>。<strong>実際の Git でのマージを検証し、「競合しにくい」が条件付きだと判明</strong>（<a href="data-model.html#phase1-merge">11.1</a>）。<strong>未実装（後回し）</strong>: カレンダー（R2）、<code>mergeSchedules</code>（Phase 4 S4-5）、強制終了を使ったテスト（Phase 3）。</td></tr>
 <tr><td>完了条件</td><td>サンプルデータを読み書き・編集・差分取得でき、全テストが通る。カバレッジ 90%。出力 JSON が Git で差分・マージしやすい（書式が安定している）</td></tr></table>
 
 <h3>Phase 2: 表示（約4週）</h3>
@@ -95,7 +96,7 @@
 <table><tr><th>項目</th><th>内容</th></tr>
 <tr><td>要件</td><td>F-501 F-502 F-503 F-504 F-506 F-508 F-511 F-513 F-514 F-515 F-517 F-518 F-522 NF-003 NF-017 NF-019 F-520 F-523（K1 で MVP に追加）</td></tr>
 <tr><td>設計</td><td><strong>S4-0（冒頭）</strong>: 作業版・反映・競合解決の画面を<strong>モック（クリック可能な試作）で作り、Git 未経験者3名に試してもらう</strong>。結果で用語・導線を修正してから実装に入る。Git フローの状態遷移（作業版・反映・中断）、変更の日本語要約の文言規則</td></tr>
-<tr><td>実装</td><td>S4-1 GitService（Git の解決: 外部/同梱、実行、診断）と認証（GCM のブラウザ認証、代替の Device Flow / PAT）。S4-2 保存（commit）と日本語の変更要約、履歴・戻す。S4-3 作業版（作成・切替・現在地の常時表示・退避と復元）と、正式版の直接編集（確認付き。F-520）。S4-4 反映ウィザード（最新の取り込み・競合の事前予告・main へ <code>--no-ff</code>・push の再試行）。S4-5 競合解決 UI（項目単位）。S4-6 初回セットアップ（clone / 新規 / 開く）、共有時の変更一覧、共有</td></tr>
+<tr><td>実装</td><td>S4-1 GitService（Git の解決: 外部/同梱、実行、診断）と認証（GCM のブラウザ認証、代替の Device Flow / PAT）。S4-2 保存（commit）と日本語の変更要約、履歴・戻す。S4-3 作業版（作成・切替・現在地の常時表示・退避と復元）と、正式版の直接編集（確認付き。F-520）。S4-4 反映ウィザード（最新の取り込み・競合の事前予告・main へ <code>--no-ff</code>・push の再試行）。S4-5 競合解決（<strong>3版をフィールド単位で比較して、重ならない変更は自動で取り込む <code>mergeSchedules</code>（ドメイン層の純関数）</strong> と、食い違いだけを選ぶ UI。根拠: data-model 11.1）。S4-6 初回セットアップ（clone / 新規 / 開く）、共有時の変更一覧、共有</td></tr>
 <tr><td>テスト</td><td>一時リポジトリでの Git 統合テスト（<code>spike/git-flow</code> を取り込む: 作業版・反映・競合・push 拒否・退避・非対話の認証失敗）、<code>diffSchedule</code> を使った要約の単体テスト、Git フローの E2E、<strong>S4-7 ユーザビリティ受け入れテスト（NF-019。Git 未経験者3名）</strong>、EMU 実環境での認証・clone・push</td></tr>
 <tr><td>完了条件</td><td>受け入れ基準の 3・4 を満たす（Git 未経験者が作業版 → 反映と競合解決を完遂。EMU/GitHub で認証・push が通る）</td></tr></table>
 

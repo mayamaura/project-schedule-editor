@@ -1,3 +1,11 @@
-// ドメイン層（Phase 1 で実装: 日付計算・コマンド・検証・diffSchedule・マイグレーション）。
-// electron / node / react / DOM に依存しない純 TypeScript（tsconfig.domain.json と ESLint で強制）。
-export {};
+// ドメイン層の公開口（純 TypeScript。electron / node / react / DOM に依存しない）。
+// 詳細仕様: docs/data-model.html 11
+export * from './commands';
+export * from './date';
+export * from './diff';
+export * from './history';
+export * from './model';
+export * from './order';
+export * from './sample';
+export * from './serialize';
+export * from './validate';

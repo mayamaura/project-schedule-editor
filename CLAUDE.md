@@ -54,4 +54,4 @@ Electron 製デスクトップアプリ。縦=プロジェクト、横=日付の
 `npm run build` / `typecheck` / `lint` / `test` / `test:e2e` / `pack` / `verify`（詳細は docs/development-rules.html 9）。E2E・`dev` は `ELECTRON_RUN_AS_NODE` が設定された環境（VS Code 拡張など）では Electron が起動しない（docs/architecture.html 11.4）。
 
 ## 現状の注意
-- Phase 0（スキャフォールド）は完了。`typecheck` / `lint` / `test` は定義済みで、ESLint がレイヤ境界を強制する。次は Phase 1（ドメイン層）。進捗は docs/roadmap.html。
+- Phase 0（スキャフォールド）は完了。Phase 1（ドメイン層）は実装済み（未実装は roadmap の Phase 1「進捗」欄を参照）。`typecheck` / `lint` / `test`（カバレッジ閾値つき）が定義済みで、ESLint がレイヤ境界を強制する。次は Phase 2（Canvas 表示）。進捗は docs/roadmap.html。ドメインの公開口は `src/domain/index.ts`、仕様は docs/data-model.html 11。
