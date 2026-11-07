@@ -11,14 +11,14 @@
 <h1>UI設計</h1>
 <h2>1. 画面構成（ワイヤーフレーム案）</h2>
 <div class="mock">
-<div class="row hd"><div>ツールバー: [保存] [共有] [履歴] | ビュー▼ | ズーム 日週<b>月</b>年 | 依存線▼ | 検索</div><div></div></div>
+<div class="row hd"><div>ツールバー: [履歴に残す] [共有する] [履歴] | ビュー▼ | ズーム 日週<b>月</b>年 | 依存線▼ | 検索</div><div></div></div>
 <div class="row hd"><div>プロジェクト</div><div>2026/11　　　　　2026/12　　　　　2027/01　　　　　2027/02</div></div>
 <div class="row"><div>▼ 新製品A</div><div><span class="bar">設計</span><span class="bar">試作</span><span class="ms">◆レビュー</span><span class="ms">◆リリース</span></div></div>
 <div class="row"><div>　├ 筐体</div><div><span class="bar">金型</span><span class="ms">◆試作完了</span></div></div>
 <div class="row"><div>　└ ソフト</div><div><span class="bar">実装</span><span class="bar">結合試験</span></div></div>
 <div class="row"><div>▶ 新製品B</div><div><span class="bar">サマリー（折りたたみ時は子を集約）</span></div></div>
 </div>
-<p>右側に 詳細パネル（選択項目のプロパティ）を開閉式で配置。下部ステータスバーに 未保存の変更数・同期状態を表示。</p>
+<p>右側に 詳細パネル（選択項目のプロパティ）を開閉式で配置。下部ステータスバーに 履歴に未記録の変更数・同期状態を表示。</p>
 
 <h2>1.5 日付ヘッダの表示方法（確定）</h2>
 <p>日付軸は日単位。ヘッダの見せ方を2種類用意し、ツールバーで切り替える。</p>
@@ -51,7 +51,7 @@
 <tr><td>右クリック</td><td>対象に応じたコンテキストメニュー（<a href="#ctx">2.5</a>）。空白の右クリック →「イベントを作成」「マイルストーンを作成」で新規作成（F-202）</td></tr>
 <tr><td>Ctrl+Z / Ctrl+Y</td><td>Undo / Redo</td></tr>
 <tr><td>Ctrl+C / V</td><td>コピー&amp;ペースト（行・イベント）</td></tr>
-<tr><td>Ctrl+S</td><td>「変更を保存」ダイアログ（Git commit）</td></tr>
+<tr><td>Ctrl+S</td><td>「変更を履歴に残す」ダイアログ（Git commit）</td></tr>
 <tr><td>Ctrl+ホイール</td><td>ズーム</td></tr>
 <tr><td>矢印キー</td><td>項目/行の選択移動、Enter で編集</td></tr></table>
 <h3 id="ctx">2.5 右クリックメニュー（F-209）</h3>
@@ -130,7 +130,7 @@
 <p>要件: F-513〜F-521、NF-019。手順の詳細は <a href="git-ux.html#branch">git-ux 2.5</a>。UI に Git 用語は出さない。</p>
 <h3>7.1 現在地の常時表示（ヘッダ）</h3>
 <div class="mock">
-<div class="row hd"><div style="background:#2d7d46;color:#fff">作業版: 11月改訂案 ▼</div><div>自動保存済み 12:03　[保存] [正式版に反映する] [バックアップ]</div></div>
+<div class="row hd"><div style="background:#2d7d46;color:#fff">作業版: 11月改訂案 ▼</div><div>自動保存済み 12:03　[履歴に残す] [正式版に反映する] [バックアップ]</div></div>
 <div class="row hd"><div style="background:#2364aa;color:#fff">正式版 ▼</div><div>最新です　[作業版を作る] [共有する]（正式版を直接編集中は確認付き）</div></div>
 </div>
 <ul><li>作業版=緑、正式版=青の帯で、ひと目で区別（色だけに依存せず文言も表示）。</li>
@@ -147,7 +147,7 @@
 <div class="row hd"><div>前回、アプリが正常に終了しませんでした</div><div></div></div>
 <div class="row"><div>編集内容を復元しました（作業版「11月改訂案」・8件の変更）</div><div>[変更を確認] [このまま続ける]　[破棄する…]（確認あり）</div></div>
 </div>
-<ul><li>ステータスバーに「自動保存済み HH:MM」を常に表示（書き込み失敗時は赤字で警告し、[保存] を促す）。</li>
+<ul><li>ステータスバーに「自動保存済み HH:MM」を常に表示（書き込み失敗時は赤字で警告し、[履歴に残す] を促す）。</li>
 <li>反映の途中で落ちた場合は、起動時に「反映の途中でした。続きから再開 / 最初からやり直し」を表示（F-521）。</li></ul>
 <h2>8. 出力（画像・PDF・HTML）</h2>
 <p>要件: F-601, F-606〜F-609。設計は <a href="architecture.html#export">architecture 10</a>。</p>

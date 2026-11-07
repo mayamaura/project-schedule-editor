@@ -40,7 +40,7 @@ test.afterAll(async () => {
 });
 
 test('編集すると「未保存の変更」が日本語で数えられ、保存すると 0 に戻る（F-502）', async () => {
-  await expect(page.getByTestId('unsaved')).toHaveText('未保存の変更なし');
+  await expect(page.getByTestId('unsaved')).toHaveText('未記録の変更なし');
   const canvas = page.getByTestId('timeline-canvas');
   await expect.poll(() => canvas.getAttribute('data-probe')).toMatch(/\d+,\d+/);
   const [x, y] = (await canvas.getAttribute('data-probe'))!.split(',').map(Number) as [number, number];
@@ -48,14 +48,16 @@ test('編集すると「未保存の変更」が日本語で数えられ、保�
   const name = page.getByTestId('detail-panel').getByLabel('名称');
   await name.fill('設計（改）');
   await name.blur();
-  await expect(page.getByTestId('unsaved')).toHaveText('未保存の変更: 1 件');
+  // 正式版を直接編集するときの確認（F-520）。このまま編集する
+  await page.getByTestId('direct-go').click();
+  await expect(page.getByTestId('unsaved')).toHaveText('履歴に未記録の変更: 1 件');
 
   await page.getByTestId('ver-save').click();
   await expect(page.getByTestId('dialog-save')).toContainText('設計（改）');
   await expect(page.getByTestId('ver-memo')).toHaveValue(/設計/);
   await page.getByTestId('ver-do-save').click();
   await expect(page.getByTestId('dialog-save')).toBeHidden();
-  await expect(page.getByTestId('unsaved')).toHaveText('未保存の変更なし');
+  await expect(page.getByTestId('unsaved')).toHaveText('未記録の変更なし');
   expect(git('log', '--format=%s').trim().split('\n')).toHaveLength(2);
   expect(git('status', '--porcelain').trim()).toBe(''); // .autosave は対象外
 });
@@ -67,7 +69,7 @@ test('履歴に保存が並び、前の版に戻すと未保存の変更にな�
   page.once('dialog', (d) => void d.accept());
   await page.getByTestId('history-item').nth(1).getByRole('button', { name: 'この版に戻す…' }).click();
   await expect(page.getByTestId('dialog-history')).toBeHidden();
-  await expect(page.getByTestId('unsaved')).toHaveText('未保存の変更: 1 件');
+  await expect(page.getByTestId('unsaved')).toHaveText('履歴に未記録の変更: 1 件');
   await expect(page.getByTestId('save-state')).toHaveText('自動保存済み');
 });
 

@@ -186,7 +186,7 @@
 <h2>9. 書き込みと復旧</h2>
 <ul>
 <li>全ファイルの書き込みは<strong>一時ファイル → fsync → rename</strong>（原子的置換）。部分的に書かれたファイルを作らない。</li>
-<li>自動保存はこれらのファイルを直接更新する（Git の作業ツリーの変更 = 未保存の変更）。アプリ専用の領域 <code>.autosave/</code>（<code>running</code>・<code>pending.json</code>・<code>flow.json</code>）は <strong>Git 管理外</strong>（データリポジトリ作成時にアプリが <code>.gitignore</code> へ登録）。</li>
+<li>自動保存はこれらのファイルを直接更新する（Git の作業ツリーの変更 = 履歴に未記録の変更）。アプリ専用の領域 <code>.autosave/</code>（<code>running</code>・<code>pending.json</code>・<code>flow.json</code>）は <strong>Git 管理外</strong>（共有される <code>.gitignore</code> ではなく、リポジトリ内の除外設定 <code>.git/info/exclude</code> へアプリが登録する。実装済み）。</li>
 <li>起動時にスキーマ検証と参照整合の検証を行い、不整合は修復案とともに提示する（データを黙って削除しない）。詳細は <a href="architecture.html#autosave">architecture 8</a>。</li>
 </ul>
 <h2 id="export-snapshot">10. 出力用スナップショット（HTML ビューア）</h2>

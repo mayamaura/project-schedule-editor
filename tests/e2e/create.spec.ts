@@ -41,7 +41,7 @@ test('空のフォルダを選ぶと新規作成され、プロジェクトを�
   await expect(page.getByTestId('notice')).toBeHidden();
   expect(existsSync(join(dir, 'schedule.json'))).toBe(true);
   expect(existsSync(join(dir, '.git'))).toBe(true);
-  await expect(page.getByTestId('unsaved')).toHaveText('最初の保存がまだです');
+  await expect(page.getByTestId('unsaved')).toHaveText('最初の記録がまだです');
 
   await page.getByTestId('add-project').click();
   await expect(page.locator('.tree-row')).toHaveCount(1);

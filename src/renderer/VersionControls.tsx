@@ -1,41 +1,74 @@
-// @req F-502, F-504, F-523, NF-019
-// 保存・履歴・戻す・診断（版管理の画面）。UI に Git 用語を出さない（docs/git-ux.html）。
-// 「未保存の変更」は、最後に保存した版（HEAD）と今の日程の diffSchedule を日本語にしたもの（F-509）。
+// @req F-502, F-504, F-513, F-514, F-515, F-517, F-520, F-523, NF-019
+// 履歴に残す・履歴・戻す・診断、作業版（現在地の常時表示・切替・作成）、正式版への反映 / 共有。
+// UI に Git 用語を出さない（docs/git-ux.html）。「未記録の変更」は、最後に履歴に残した版と今の日程の diffSchedule（F-509）。
 import { useEffect, useMemo, useState } from 'react';
 import { diffSchedule, parseSchedule, summarizeChange, type Schedule } from '@domain/index';
 import { t } from './i18n';
+import { SyncWizard } from './SyncWizard';
 
 type GitState = Awaited<ReturnType<typeof window.api.invoke<'git:state'>>>;
 type LogEntry = Awaited<ReturnType<typeof window.api.invoke<'git:log'>>>[number];
 type Diag = Awaited<ReturnType<typeof window.api.invoke<'git:diagnose'>>>[number];
+type Works = Awaited<ReturnType<typeof window.api.invoke<'work:list'>>>;
 
-type Dialog = 'save' | 'history' | 'diagnose' | null;
+type Dialog = 'save' | 'history' | 'diagnose' | 'works' | 'sync' | null;
+
+/** 画面の他の部分が知っておくべき版の状態（正式版の直接編集の確認に使う）。 */
+export interface VersionInfo {
+  readonly branch: string | null;
+  /** 履歴が 1 件以上ある。 */
+  readonly hasHistory: boolean;
+}
 
 export function VersionControls({
   schedule,
   edits,
   flush,
   onRestore,
+  onReload,
+  onInfo,
+  openWorksSignal,
 }: {
   schedule: Schedule;
-  /** 編集のたびに増える（未保存の変更を数え直す合図）。 */
+  /** 編集のたびに増える（未記録の変更を数え直す合図）。 */
   edits: number;
-  /** 自動保存の書き出しを完了させる（保存の直前に呼ぶ）。 */
+  /** 自動保存の書き出しを完了させる（履歴に残す直前などに呼ぶ）。 */
   flush: () => Promise<void>;
   onRestore: (s: Schedule) => void;
+  /** 版の切り替え・取り込みの後に、日程データを読み直す。 */
+  onReload: () => Promise<void>;
+  onInfo: (v: VersionInfo) => void;
+  /** 増えると「版の切り替え」を開く（正式版の直接編集の確認から）。 */
+  openWorksSignal: number;
 }) {
   const [git, setGit] = useState<GitState | null>(null);
+  const [works, setWorks] = useState<Works | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [note, setNote] = useState('');
   const [memo, setMemo] = useState('');
   const [identity, setIdentity] = useState<{ name: string; email: string } | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [diag, setDiag] = useState<Diag[]>([]);
+  const [newName, setNewName] = useState('');
+  const [remoteUrl, setRemoteUrl] = useState('');
 
-  const refresh = async (): Promise<void> => setGit(await window.api.invoke('git:state'));
+  const refresh = async (): Promise<void> => {
+    const g = await window.api.invoke('git:state');
+    setGit(g);
+    if (g.available && g.isRepo) setWorks(await window.api.invoke('work:list'));
+  };
   useEffect(() => {
     void refresh();
   }, []);
+  useEffect(() => {
+    if (git) onInfo({ branch: git.branch, hasHistory: git.head !== null });
+  }, [git]);
+  useEffect(() => {
+    if (openWorksSignal > 0) {
+      setNote('');
+      setDialog('works');
+    }
+  }, [openWorksSignal]);
 
   const head = useMemo(() => {
     if (!git?.head) return null;
@@ -57,7 +90,10 @@ export function VersionControls({
     );
   }
 
+  const onMain = git.branch === 'main';
+  const currentWork = works?.items.find((w) => w.name === git.branch) ?? null;
   const unsaved = git.head === null ? null : lines.length;
+
   const openSave = async (): Promise<void> => {
     await flush();
     await refresh();
@@ -93,10 +129,42 @@ export function VersionControls({
     onRestore(p.schedule);
     setDialog(null);
   };
+  const openWorks = async (): Promise<void> => {
+    await flush();
+    await refresh();
+    setNote('');
+    setDialog('works');
+  };
+  // 版の切り替え・作成: 自動保存を済ませてから行い、終わったら日程データを読み直す
+  const changeVersion = async (run: () => Promise<{ ok: boolean; message?: string }>): Promise<void> => {
+    await flush();
+    const r = await run();
+    if (!r.ok) {
+      setNote(t('work.failed', { message: r.message ?? '' }));
+      return;
+    }
+    setDialog(null);
+    setNewName('');
+    await onReload();
+    await refresh();
+  };
+  const setRemote = async (): Promise<void> => {
+    const r = await window.api.invoke('git:setRemote', { url: remoteUrl.trim() });
+    setNote(r.ok ? '' : t('sync.remoteFailed', { message: r.message ?? '' }));
+    if (r.ok) {
+      setRemoteUrl('');
+      setDiag(await window.api.invoke('git:diagnose'));
+      await refresh();
+    }
+  };
+
+  const bandText = onMain ? t('work.main') : t('work.band', { name: currentWork?.display ?? git.branch ?? '' });
 
   return (
     <>
-      {git.branch ? <span>{t('ver.branch', { name: git.branch === 'main' ? '正式版' : git.branch })}</span> : null}
+      <button type="button" className={`band ${onMain ? 'main' : 'work'}`} data-testid="branch-band" onClick={() => void openWorks()}>
+        {bandText} ▾
+      </button>
       <span data-testid="unsaved">{unsaved === null ? t('ver.first') : unsaved > 0 ? t('ver.unsaved', { count: String(unsaved) }) : t('ver.clean')}</span>
       <button type="button" data-testid="ver-save" onClick={() => void openSave()}>
         {t('ver.save')}
@@ -104,18 +172,36 @@ export function VersionControls({
       <button type="button" data-testid="ver-history" onClick={() => void openHistory()}>
         {t('ver.history')}
       </button>
+      {git.head !== null ? (
+        <button type="button" data-testid="ver-sync" onClick={() => void flush().then(() => setDialog('sync'))}>
+          {t(onMain ? 'sync.share' : 'sync.reflect')}
+        </button>
+      ) : null}
       <button
         type="button"
         data-testid="ver-diagnose"
         onClick={() => {
           setDiag([]);
+          setNote('');
           setDialog('diagnose');
           void window.api.invoke('git:diagnose').then(setDiag);
         }}
       >
         {t('ver.diagnose')}
       </button>
-      {dialog ? (
+      {dialog === 'sync' ? (
+        <SyncWizard
+          mode={onMain ? 'main' : 'work'}
+          display={currentWork?.display ?? ''}
+          schedule={schedule}
+          flush={flush}
+          onClose={(reload) => {
+            setDialog(null);
+            void (reload ? onReload() : Promise.resolve()).then(refresh);
+          }}
+        />
+      ) : null}
+      {dialog && dialog !== 'sync' ? (
         <div className="modal-back" onKeyDown={(e) => e.key === 'Escape' && setDialog(null)}>
           <div className="modal" role="dialog" aria-modal="true" data-testid={`dialog-${dialog}`}>
             {dialog === 'save' ? (
@@ -182,6 +268,52 @@ export function VersionControls({
                 </div>
               </>
             ) : null}
+            {dialog === 'works' ? (
+              <>
+                <h2>{t('work.listTitle')}</h2>
+                <ul className="history" data-testid="works-list">
+                  <li data-testid="work-item">
+                    <strong className="band-text main">{t('work.main')}</strong> {onMain ? t('work.current') : ''}
+                    {!onMain ? (
+                      <div>
+                        <button type="button" data-testid="switch-main" onClick={() => void changeVersion(() => window.api.invoke('work:switch', { name: 'main' }))}>
+                          {t('work.switch')}
+                        </button>
+                      </div>
+                    ) : null}
+                  </li>
+                  {(works?.items ?? []).map((w) => (
+                    <li key={w.name} data-testid="work-item">
+                      <strong className="band-text work">{w.display}</strong> {w.name === git.branch ? t('work.current') : ''}
+                      <div className="mut">
+                        {t('work.ahead', { n: String(w.ahead) })}　{new Date(w.date).toLocaleString('ja-JP')}
+                      </div>
+                      {w.name !== git.branch ? (
+                        <button type="button" data-testid="switch-work" onClick={() => void changeVersion(() => window.api.invoke('work:switch', { name: w.name }))}>
+                          {t('work.switch')}
+                        </button>
+                      ) : null}
+                    </li>
+                  ))}
+                  {works && works.items.length === 0 ? <li className="mut">{t('work.none')}</li> : null}
+                </ul>
+                <h3>{t('work.create')}</h3>
+                <p className="mut">{t('work.createHint')}</p>
+                <label className="field">
+                  <span>{t('work.createLabel')}</span>
+                  <input data-testid="work-name" value={newName} onChange={(e) => setNewName(e.target.value)} />
+                </label>
+                {note ? <p role="alert" data-testid="work-note">{note}</p> : null}
+                <div className="actions">
+                  <button type="button" data-testid="work-create" disabled={newName.trim() === ''} onClick={() => void changeVersion(() => window.api.invoke('work:create', { display: newName.trim() }))}>
+                    {t('work.create')}
+                  </button>
+                  <button type="button" onClick={() => setDialog(null)}>
+                    {t('ver.cancel')}
+                  </button>
+                </div>
+              </>
+            ) : null}
             {dialog === 'diagnose' ? (
               <>
                 <h2>{t('ver.diagTitle')}</h2>
@@ -193,6 +325,18 @@ export function VersionControls({
                     </li>
                   ))}
                 </ul>
+                {diag.some((d) => d.key === 'remote' && !d.ok) ? (
+                  <>
+                    <label className="field">
+                      <span>{t('sync.remoteLabel')}</span>
+                      <input data-testid="remote-url" value={remoteUrl} onChange={(e) => setRemoteUrl(e.target.value)} />
+                    </label>
+                    {note ? <p role="alert">{note}</p> : null}
+                    <button type="button" data-testid="remote-set" disabled={remoteUrl.trim() === ''} onClick={() => void setRemote()}>
+                      {t('ver.setRemote')}
+                    </button>
+                  </>
+                ) : null}
                 <div className="actions">
                   <button type="button" onClick={() => setDialog(null)}>
                     {t('ver.cancel')}

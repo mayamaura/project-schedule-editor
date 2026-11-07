@@ -5,6 +5,7 @@ export * from './date';
 export * from './diff';
 export * from './edit';
 export * from './history';
+export * from './merge';
 export * from './model';
 export * from './order';
 export * from './sample';

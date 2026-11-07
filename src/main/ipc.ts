@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { ipcSchemas, type IpcChannel, type IpcInput, type IpcOutput } from '@shared/ipc';
 import { GitService, resolveGit } from './git/gitService';
+import { readdirSync } from 'node:fs';
 import { emptySchedule } from '../domain/model';
 import { serializeSchedule } from '../domain/serialize';
 import { beginSession, createEmpty, endSession, loadFiles, recover, saveFiles } from './fileRepository';
@@ -77,7 +78,7 @@ export function registerIpc(): void {
     return { written: saveFiles(currentRoot, files).written.length };
   });
   handle('git:state', async () => {
-    if (!gitService) return { available: false, isRepo: false, branch: null, dirty: false, head: null };
+    if (!gitService) return { available: false, isRepo: false, branch: null, dirty: false, head: null, hasRemote: false };
     return { available: true, ...(await gitService.state()) };
   });
   handle('git:init', async () => {
@@ -91,6 +92,51 @@ export function registerIpc(): void {
   handle('git:save', ({ message, identity }) => needGit().save(message, identity));
   handle('git:log', ({ limit }) => needGit().log(limit));
   handle('git:filesAt', ({ hash }) => needGit().filesAt(hash));
+  handle('work:list', async () => {
+    const g = needGit();
+    return { current: (await g.state()).branch, hasRemote: await g.hasRemote(), items: await g.workVersions() };
+  });
+  handle('work:create', async ({ display }) => {
+    const r = await needGit().createWork(display);
+    return r.ok ? { ok: true } : { ok: false, message: r.message };
+  });
+  handle('work:switch', async ({ name }) => {
+    const r = await needGit().switchTo(name);
+    return r.ok ? { ok: true } : { ok: false, message: r.message };
+  });
+  handle('repo:reload', () => {
+    if (!currentRoot) throw new Error('フォルダが開かれていない');
+    return { files: loadFiles(currentRoot) };
+  });
+  handle('sync:prepare', async () => {
+    const g = needGit();
+    const f = await g.fetch();
+    if (!f.ok) return { status: 'fetch-failed' as const, message: f.message };
+    const m = await g.mergeInputs();
+    if (m.status === 'dirty') return { status: 'dirty' as const };
+    if (m.status === 'up-to-date') {
+      const mode = (await g.state()).branch === 'main' ? ('main' as const) : ('work' as const);
+      return { status: 'up-to-date' as const, mode, main: mode === 'work' ? await g.mainFiles() : null };
+    }
+    return m;
+  });
+  handle('sync:complete', ({ files, theirsRef, message, identity }) => needGit().completeMerge(files, theirsRef, message, identity));
+  handle('sync:reflect', ({ display, identity }) => needGit().finishReflect(display, identity));
+  handle('sync:push', () => needGit().push());
+  handle('git:setRemote', async ({ url }) => {
+    const r = await needGit().setRemote(url);
+    return r.ok ? { ok: true } : { ok: false, message: r.message };
+  });
+  handle('repo:clone', async ({ url }, event) => {
+    const root = await pickFolder(event, '共有先から取得するフォルダを選ぶ（空のフォルダ）', true);
+    if (!root) return { status: 'cancelled' as const };
+    if (readdirSync(root).length > 0) return { status: 'not-empty' as const };
+    const info = resolveGit({});
+    if (!info) return { status: 'failed' as const, message: 'Git が見つかりません。Git をインストールしてください' };
+    const r = await GitService.clone(info, url, root);
+    if (!r.ok) return { status: 'failed' as const, message: r.message };
+    return { status: 'ok' as const, ...activate(root) };
+  });
   handle('git:diagnose', () => needGit().diagnose());
   app.on('before-quit', () => {
     if (currentRoot) endSession(currentRoot);

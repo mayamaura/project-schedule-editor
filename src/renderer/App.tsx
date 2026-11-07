@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { History, diffSchedule, generateSample, parseSchedule, serializeSchedule, summarizeChange, type Command, type Schedule, type ParseIssue } from '@domain/index';
 import { t } from './i18n';
 import { TimelineView } from './timeline/TimelineView';
-import { VersionControls } from './VersionControls';
+import { VersionControls, type VersionInfo } from './VersionControls';
 
 interface Loaded {
   readonly history: History;
@@ -42,6 +42,13 @@ export function App() {
   const [recovery, setRecovery] = useState<Recovery | null>(null);
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [edits, bump] = useState(0);
+  const [ver, setVer] = useState<VersionInfo>({ branch: null, hasHistory: false });
+  const [mainOk, setMainOk] = useState(false);
+  const [directPending, setDirectPending] = useState<Command | null>(null);
+  const [worksSignal, setWorksSignal] = useState(0);
+  const [opened, setOpened] = useState(0); // フォルダを開き直すたびに増える（版の表示を作り直す）
+  const [cloneOpen, setCloneOpen] = useState(false);
+  const [cloneUrl, setCloneUrl] = useState('');
 
   useEffect(() => {
     void window.api.invoke('app:getVersion').then(setVersion);
@@ -60,6 +67,7 @@ export function App() {
   const applyOpened = (r: Opened): void => {
     const parsed = parseSchedule(r.files);
     if (parsed.status === 'ok') {
+      setOpened((n) => n + 1);
       setProblems([]);
       setMessage('');
       setEditError('');
@@ -100,10 +108,39 @@ export function App() {
     }
   };
 
+  // 共有先から取得（F-501 の (a)）
+  const cloneFolder = async (): Promise<void> => {
+    const r = await window.api.invoke('repo:clone', { url: cloneUrl.trim() });
+    if (r.status === 'ok') {
+      setCloneOpen(false);
+      applyOpened(r);
+    } else if (r.status === 'not-empty') setMessage(t('app.createNotEmpty'));
+    else if (r.status === 'failed') setMessage(t('clone.failed', { message: r.message }));
+    setProblems([]);
+  };
+
   const h = loaded?.history;
+
+  // 版の切り替え・取り込みの後に、作業ツリーの日程データを読み直す（履歴は新しく始める）
+  const reloadFromDisk = async (): Promise<void> => {
+    const r = await window.api.invoke('repo:reload');
+    const parsed = parseSchedule(r.files);
+    if (parsed.status !== 'ok' || !loaded) {
+      setMessage(t('app.readError', { count: String(parsed.status === 'error' ? parsed.errors.length : 1) }));
+      return;
+    }
+    setLoaded({ ...loaded, history: new History(parsed.schedule) });
+    setEditError('');
+    setMainOk(false);
+  };
 
   // コマンドの適用。成功なら null、拒否されたら理由を返し、画面上部にも出す（F-208）
   const commit = (c: Command): string | null => {
+    // 正式版を直接編集するときは確認する（作業版の利用を促す。F-520）
+    if (ver.branch === 'main' && ver.hasHistory && !mainOk && loaded?.path) {
+      setDirectPending(c);
+      return t('direct.title');
+    }
     const r = h?.execute(c);
     if (r?.ok) {
       setEditError('');
@@ -196,6 +233,9 @@ export function App() {
         <button type="button" data-testid="create" onClick={() => void createFolder()}>
           {t('app.create')}
         </button>
+        <button type="button" data-testid="clone" onClick={() => setCloneOpen(true)}>
+          {t('app.clone')}
+        </button>
         <button type="button" data-testid="open" onClick={() => void openFolder()}>
           {t('app.open')}
         </button>
@@ -234,6 +274,62 @@ export function App() {
           </button>
         </section>
       ) : null}
+      {cloneOpen ? (
+        <div className="modal-back" onKeyDown={(e) => e.key === 'Escape' && setCloneOpen(false)}>
+          <div className="modal" role="dialog" aria-modal="true" data-testid="dialog-clone">
+            <h2>{t('clone.title')}</h2>
+            <p>{t('clone.body')}</p>
+            <label className="field">
+              <span>{t('sync.remoteLabel')}</span>
+              <input data-testid="clone-url" value={cloneUrl} onChange={(e) => setCloneUrl(e.target.value)} />
+            </label>
+            <div className="actions">
+              <button type="button" data-testid="clone-go" disabled={cloneUrl.trim() === ''} onClick={() => void cloneFolder()}>
+                {t('clone.go')}
+              </button>
+              <button type="button" onClick={() => setCloneOpen(false)}>
+                {t('sync.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {directPending ? (
+        <div className="modal-back">
+          <div className="modal" role="dialog" aria-modal="true" data-testid="dialog-direct">
+            <h2>{t('direct.title')}</h2>
+            <p>{t('direct.body')}</p>
+            <div className="actions">
+              <button
+                type="button"
+                data-testid="direct-make-work"
+                onClick={() => {
+                  setDirectPending(null);
+                  setWorksSignal((n) => n + 1);
+                }}
+              >
+                {t('direct.makeWork')}
+              </button>
+              <button
+                type="button"
+                data-testid="direct-go"
+                onClick={() => {
+                  const c = directPending;
+                  setDirectPending(null);
+                  setMainOk(true);
+                  // 確認前に行おうとした編集をそのまま適用する
+                  if (h?.execute(c).ok) {
+                    setEditError('');
+                    bump((n) => n + 1);
+                  }
+                }}
+              >
+                {t('direct.go')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {editError ? (
         <section className="notice" role="alert" data-testid="edit-error">
           <p>{editError}</p>
@@ -247,9 +343,13 @@ export function App() {
             <span className="spacer" />
             {loaded.path ? (
               <VersionControls
+                key={opened}
                 schedule={loaded.history.present}
                 edits={edits}
                 flush={flush}
+                onReload={reloadFromDisk}
+                onInfo={setVer}
+                openWorksSignal={worksSignal}
                 onRestore={(sc) => {
                   setLoaded({ ...loaded, history: new History(sc) });
                   setEditError('');

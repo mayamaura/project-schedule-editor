@@ -63,7 +63,7 @@
 <h2>2. 全体構成</h2>
 <pre>┌───────────── Electron ─────────────┐
 │ Main process (Node)                 │
-│  ├ GitService  ← git 実行ファイル（同梱 dugite / 外部 git）+ Git Credential Manager
+│  ├ GitService  ← git 実行ファイル（外部 git。同梱は将来の余地）+ Git Credential Manager
 │  ├ FileRepository (JSON 読み書き・検証)
 │  ├ AiService  ← GitHub Copilot SDK（提案の生成のみ。main/ai/ に隔離）
 │  ├ AutosaveService（変更を即時に作業ツリーへ書込・復旧。architecture 8）
@@ -86,7 +86,7 @@
 
 <h2>3. Git 実装方式</h2>
 <table><tr><th>方式</th><th>利点</th><th>欠点</th></tr>
-<tr><td><strong>dugite（Git バイナリ同梱）（推奨）</strong></td><td>ユーザーに Git インストール不要。本物の git で挙動・性能・マージが信頼できる（GitHub Desktop が採用）</td><td>配布サイズ増（~数十MB）、OS別バイナリ管理</td></tr>
+<tr><td><strong>dugite（Git バイナリ同梱）</strong>（<strong>2026-11-08 に不採用</strong>: サイズが大きいため、外部 Git のインストールを前提にする。将来の追加余地は残す）</td><td>ユーザーに Git インストール不要。本物の git で挙動・性能・マージが信頼できる（GitHub Desktop が採用）</td><td>配布サイズ増（~数十MB）、OS別バイナリ管理</td></tr>
 <tr><td>isomorphic-git</td><td>純JSで軽量、導入簡単</td><td>マージ/競合処理が限定的、巨大リポジトリで遅い、一部機能未対応</td></tr>
 <tr><td>simple-git 等（システムの git を呼ぶ）</td><td>実装容易</td><td>Git 未導入の利用者では使えない（→ 同梱 Git をフォールバックとして併用して解消。3.5）</td></tr>
 <tr><td>libgit2 (nodegit)</td><td>高機能</td><td>ビルド/メンテ状況に難。非推奨</td></tr></table>
@@ -100,6 +100,7 @@
 <tr><td>認証（代替）</td><td>GCM が使えない場合（外部 Git が無く、同梱 Git の GCM も動作しない等）は、アプリが Device Flow（ブラウザ）または PAT でトークンを取得し、<strong>一時的な環境変数／askpass 経由で git に渡す</strong>。トークンを <code>.git/config</code>・コマンドライン引数・ログに残さない。保存は OS 資格情報ストア</td></tr>
 <tr><td>診断</td><td>F-523: Git のパスと版、GCM の有無、リモート接続（<code>git ls-remote</code>）、SSO 承認の状態を確認し、原因別の対処を表示</td></tr>
 <tr><td>抽象化</td><td>GitService は上記の解決済み実行ファイルだけを使い、同梱/外部の違いを他の層に漏らさない（実装は1つ）。isomorphic-git は採用しない</td></tr></table>
+<div class="note"><strong>決定変更（2026-11-08）:</strong> 同梱 Git（dugite）は採用しない。利用者が Git をインストールする前提とし、<code>resolveGit</code> は ①利用者指定のパス ②PATH 上の git（Windows は Git for Windows の既定場所も探索）の順で探す。見つからない・最低バージョン（2.38）未満のときは診断画面で案内する。将来、同梱を追加する場合は <code>resolveGit</code> の <code>bundledPath</code> に渡すだけでよい。これにより GPL-2.0 の同梱告知と配布サイズ増（約 45MB）は不要になる。</div>
 <div class="note">技術検証（2026-11-07）: ①同梱 Git（dugite 3.3.2 = Git 2.56.0）の Windows 版に <code>git-credential-manager.exe</code> が<strong>含まれることを確認</strong>（動作は未検証）。<strong>残る確認:</strong> ②外部 Git + GCM（および同梱 Git の GCM）で GitHub EMU（<code>github.com</code> / <code>ghe.com</code>）のブラウザ認証が通るか（利用者の環境が必要）③Git for Windows の他版での挙動差 ④認証待ち中の UI 非ブロック（GCM のブラウザ起動・キャンセル）。</div>
 
 <h2>4. その他の選定（案）</h2>
@@ -159,7 +160,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <li><strong>商用ライブラリは使用しない</strong>（NF-016）。有償・商用ライセンスが必要な部品（例: Bryntum、dhtmlx の商用版、AG Grid Enterprise、Handsontable の商用ライセンス等）は選定対象外。</li>
 <li>許容: MIT / ISC / BSD-2/3 / Apache-2.0 / 0BSD / CC0 / Unlicense など許諾型 OSS。MPL-2.0 は要確認（警告）。GPL 系・独自条件・ライセンス不明は、ユーザーの承認なしに採用しない。</li>
 <li>検査: <code>scripts/check-licenses.mjs</code>（<code>node_modules</code> がある場合は <code>verify.mjs</code> から実行）。例外を認める場合は、理由とともにスクリプトの例外一覧と本節に記録する。</li>
-<li><strong>同梱 Git は GPL-2.0 の別プログラム</strong>（dugite 自体は MIT だが、配布物に Git 本体を含む）。別個の実行ファイルとして同梱する形で、ライセンス告知・ソース入手先の記載が必要になる見込み。<code>check-licenses.mjs</code> は npm パッケージの宣言のみを検査するため、<strong>この件は手動で確認し、ユーザーの承認を得る</strong>（NF-016）。同梱は決定済み（H1）: 配布物に含め、GPL-2.0 の告知を同梱する。</li>
+<li><strong>（2026-11-08 に同梱を取りやめたため、現在は該当しない）同梱 Git は GPL-2.0 の別プログラム</strong>（dugite 自体は MIT だが、配布物に Git 本体を含む）。別個の実行ファイルとして同梱する形で、ライセンス告知・ソース入手先の記載が必要になる見込み。<code>check-licenses.mjs</code> は npm パッケージの宣言のみを検査するため、<strong>この件は手動で確認し、ユーザーの承認を得る</strong>（NF-016）。同梱は決定済み（H1）: 配布物に含め、GPL-2.0 の告知を同梱する。</li>
 <li><strong>ビルド時ツールの警告（Phase 0）:</strong> <code>lightningcss</code>（Vite 8 が CSS の処理に使う。MPL-2.0。ファイル単位のコピーレフト）は<strong>ビルド時のみ</strong>で配布物には含まれない。許諾型ではないが、<code>check-licenses.mjs</code> では警告扱い。許容は決定済み（L1）。</li>
 <li>既に想定している d3（ISC/BSD）、React（MIT）、Electron（MIT）、dugite（MIT）、zod（MIT）、Vitest（MIT）は許諾型。<strong>Copilot SDK（1.0.29）とそのランタイムパッケージは、npm 上のライセンス表記が MIT</strong>。ただしランタイムは約 144MB のネイティブバイナリを含み、パッケージに LICENSE ファイルは含まれない。単体の <code>@github/copilot</code>（CLI）は「SEE LICENSE IN LICENSE.md」（独自条件）。出所と条件を確認のうえ、<strong>ユーザーの承認を得る</strong>（I2）。Copilot はサービスの利用契約が別途必要（E1 で契約済みの前提）。</li>
 </ul>
@@ -239,7 +240,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <li>ランタイムパッケージ（<code>@github/copilot-sdk-win32-x64</code>）は npm 上の表記が MIT だが、LICENSE ファイルを含まない。単体の CLI（<code>@github/copilot</code>）は独自条件（「SEE LICENSE IN LICENSE.md」）。NF-016 に基づき、<strong>同梱の可否はユーザーの承認が必要（I2）</strong>。AI は MVP 後なので、決定は着手時でよい。</li>
 <li><code>electron-updater</code> 6.8.11 / <code>electron-builder</code> 26.18.0 / <code>electron-vite</code> 6.0.0 / <code>dugite</code> 3.3.2: すべて MIT。</li>
 </ul>
-<h3>9.5 同梱 Git（dugite）</h3>
+<h3>9.5 同梱 Git（dugite）— 2026-11-08 に採用を取りやめ（参考として検証結果を残す）</h3>
 <ul><li>dugite 3.3.2 は Git 2.56.0 を同梱（dugite-native。Windows x64 のアーカイブは約 45MB）。<code>git-credential-manager.exe</code>、<code>git-lfs.exe</code>、GCM のライセンス・NOTICE が含まれる。ダウンロードはインストール時（postinstall）に GitHub から取得する。</li>
 <li>同梱 Git の GCM を既定の credential helper として使えるか（設定済みか）、EMU で通るかは未検証。</li></ul>
 <h3>9.6 未検証・限界</h3>
@@ -433,26 +434,38 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <tr><td>標準日程の展開・色・表示方法のメニュー項目</td><td>R2 以降（F-805, F-102 の編集 UI）</td></tr>
 <tr><td>複数選択</td><td>未実装（単一選択のみ）</td></tr>
 <tr><td>プロジェクトの削除</td><td>確認なしで即時（Undo で戻る）。パイロットで事故が出たら確認を追加</td></tr></table>
-<h2 id="phase4">14. Phase 4（Git）の実装状況（2026-11-08。S4-1・S4-2 まで）</h2>
-<p>要件: F-502 F-504 F-522 F-523 NF-003 NF-019（一部）。<strong>「仮定」</strong>は未決のまま置いた前提。</p>
-<h3>14.1 実装したもの</h3>
+<h2 id="phase4">14. Phase 4（Git）の詳細設計と実装状況（2026-11-08）</h2>
+<p>要件: F-501 F-502 F-503 F-504 F-506 F-511 F-513 F-514 F-515 F-517 F-518 F-520 F-522 F-523 NF-003 NF-019。<strong>「仮定」</strong>は未決のまま置いた前提。</p>
+<h3>14.1 用語と方針の変更</h3>
 <ul>
-<li><strong>GitService</strong>（<code>src/main/git/gitService.ts</code>）: 解決済みの Git 実行ファイルだけを使う。<code>spawn</code> に引数配列で渡し（シェル禁止）、<code>GIT_TERMINAL_PROMPT=0</code>、バックグラウンド処理は <code>GCM_INTERACTIVE=never</code>。改行コード・パスの自動変換は無効（<code>core.autocrlf=false</code> / <code>core.quotepath=false</code>）で、JSON の LF を守る。</li>
-<li><strong>Git の解決（F-522）</strong>: ①利用者指定の外部 Git ②PATH 上の git（Windows は Git for Windows の既定場所も探索）③同梱 Git。外部が下限（2.38）未満・未検出なら同梱へ。<strong>同梱 Git（dugite）は未導入</strong>（下記 14.3）。</li>
-<li><strong>保存（F-502）</strong>: 全ての変更を 1 つの版として記録。変更が無ければ何もしない。名前・メールが未設定なら入力を求め、このリポジトリにだけ設定する。メモの既定は変更要約（<code>diffSchedule</code> + <code>summarizeChange</code>）。<code>.autosave/</code> は <code>.git/info/exclude</code>（共有されない除外設定）で対象外。</li>
-<li><strong>履歴・戻す（F-504）</strong>: 履歴（新しい順）を表示。「この版に戻す」は、その版の日程を読み込んで<strong>通常の未保存の変更</strong>にする（確認後に保存。履歴は書き換えない）。過去版の読み出しは <code>cat-file --batch</code> 1 回でまとめて行う（ファイル数ぶんプロセスを起動しない）。</li>
-<li><strong>未保存の変更の表示</strong>: 最後に保存した版と今の日程の差を件数で常時表示し、保存画面に日本語の一覧を出す。</li>
-<li><strong>診断（F-523）</strong>: Git の検出（種別・版・パス）、データの場所、名前とメール、共有先、共有先への接続（認証画面を出さない）を項目別に表示。</li>
-<li>IPC: <code>git:state</code> / <code>git:init</code> / <code>git:save</code> / <code>git:log</code> / <code>git:filesAt</code> / <code>git:diagnose</code>。パスは Main が保持するものを使い、Renderer からは受け取らない。</li></ul>
-<ul><li><strong>新規作成（F-501 の (c)）</strong>: 「新規作成」で空のフォルダ（<code>.git</code> だけは許す）を選ぶと、空の日程データ（<code>createEmpty</code>）と保存の履歴を用意して開く。<strong>中身があるフォルダには何も書かない</strong>（既存ファイルを巻き込まないため。理由を画面に出す）。共有先からの取得（a）と初回セットアップのウィザードは S4-6。</li></ul>
-<h3>14.2 検証</h3>
-<p>一時リポジトリでの実際の Git による単体テスト 10 件（<code>tests/main/gitService.test.ts</code>: 版の解釈と解決・フォールバック、保存、変更なし、名前未設定、<code>.autosave</code> 対象外、過去版の読み出し（日本語・改行を含む）、空の履歴、CRLF に変換されない、診断）と、E2E 3 件（<code>tests/e2e/versioning.spec.ts</code>: 編集 → 未保存の変更 → 保存 → 履歴 → 戻す、診断）。</p>
-<h3>14.3 未実装・見直しが必要なもの</h3>
+<li><strong>用語</strong>: 履歴に残す操作は「<strong>履歴に残す</strong>」（旧「保存」）。「保存」は自動保存の意味に限る。未保存の変更の表示は「履歴に未記録の変更: N 件」。</li>
+<li><strong>同梱 Git は採用しない</strong>（H1・H2 の変更）。外部 Git のインストールが前提。</li>
+<li><strong>S4-0（モックのユーザビリティ確認）は、ユーザーが UI を確認して問題なしと判断したため省略</strong>。NF-019 の受け入れ確認は S4-7。</li></ul>
+<h3>14.2 構成</h3>
+<ul>
+<li><strong>GitService</strong>（<code>src/main/git/gitService.ts</code>）: 解決済みの Git 実行ファイルだけを使う。<code>spawn</code> に引数配列で渡し（シェル禁止）、<code>GIT_TERMINAL_PROMPT=0</code>、バックグラウンドは <code>GCM_INTERACTIVE=never</code>。改行・パスの自動変換は無効。<strong>親の git から引き継いだ <code>GIT_DIR</code> / <code>GIT_INDEX_FILE</code> / <code>GIT_AUTHOR_*</code> などは使わない</strong>（フック内などで保存先・保存者が狂うため）。</li>
+<li><strong>履歴に残す・履歴・戻す</strong>: 全変更を 1 つの版に。メモの既定は変更要約（<code>diffSchedule</code> + <code>summarizeChange</code>）。名前・メールが未設定なら入力を求めてこのリポジトリにだけ設定。<code>.autosave/</code> は <code>.git/info/exclude</code> で対象外。「この版に戻す」は過去版を通常の未記録の変更として読み込む（履歴は書き換えない）。</li>
+<li><strong>作業版</strong>（<code>work/yyyymmdd-xxxx</code>、表示名は <code>branch.&lt;名&gt;.description</code>）: 作成は正式版の最新を取得してから（取得できなければ手元の最新から）。<strong>切り替え時、履歴に残していない変更は <code>refs/app/pending/&lt;版&gt;</code> に退避</strong>（<code>stash push -u</code> → 参照を保存 → stash を破棄。新規ファイルも含む）し、戻ると復元して退避を消す。一覧には「正式版より N 件先」。画面上部に現在地の帯（正式版=青、作業版=緑）を常時表示。</li>
+<li><strong>正式版の直接編集（F-520）</strong>: 履歴のあるフォルダで正式版のまま編集しようとすると確認を出し、「作業版を作る」か「このまま編集する」を選ぶ。「このまま」を選ぶと、確認前に行った編集がそのまま適用される。</li>
+<li><strong>取り込みと競合解決（F-506, F-511）</strong>: Git の競合状態は作らない。<code>mergeInputs</code> が 3 版（共通の祖先 / 自分 / 相手）の日程データを返し、<strong>ドメイン層の <code>mergeSchedules</code>（純関数）が項目・フィールド単位で比較</strong>して、重ならない変更は自動で取り込む。競合は「同じフィールドを別の値」と「片方が削除・片方が編集」だけ（同じ ID の追加どうしは違うフィールドだけが競合）。依存の端点とタグは 1 つの値として扱う。結果は <code>completeMerge</code> が <code>merge -s ours --no-commit</code> で履歴だけ結び、内容をマージ結果で置き換えて 1 つの版として記録する（自分側に変更が無ければ早送り）。失敗したら <code>merge --abort</code> で元に戻す。</li>
+<li><strong>反映（F-517, F-518）</strong>: ウィザード（最新の確認と取り込み一覧 → ぶつかった項目の解決 → 反映前の確認 → 反映）。確認画面に正式版との差分の一覧と、<strong>新たに増えた不整合</strong>（<code>validateSchedule</code>）を出し、新たなエラーがあれば進めない。反映は <code>commit-tree</code> で作る <strong>--no-ff のマージコミット</strong>（親は正式版の先端と作業版の先端。作業版の履歴が残る）。<strong>元に戻す用の退避参照 <code>refs/app/backup/&lt;時刻&gt;</code></strong> を作ってから共有先へ送信し、<strong>拒否されたら何も変えず</strong>、最新を取り込み直す（画面は「その間に更新がありました。もう一度確認しました」）。共有先が無ければ手元の正式版へ反映する。強制送信は実装しない。</li>
+<li><strong>共有する（F-503）</strong>: 正式版を直接編集しているとき、他の人の更新を取り込み（同じウィザード）、共有先へ送る。共有先が未設定なら URL を入力して設定。</li>
+<li><strong>共有先から取得・新規作成（F-501）</strong>: 「共有先から取得」（URL + 空のフォルダ）、「新規作成」（空のフォルダ。中身があるフォルダには何も書かない）、「フォルダを開く」。共有先の設定は診断画面からも行える。</li>
+<li><strong>診断（F-523）</strong>: Git（種別・版・パス）、データの場所、名前とメール、共有先、共有先への接続（認証画面を出さない）。</li>
+<li>IPC: <code>git:state</code> / <code>git:init</code> / <code>git:save</code> / <code>git:log</code> / <code>git:filesAt</code> / <code>git:diagnose</code> / <code>git:setRemote</code> / <code>work:list</code> / <code>work:create</code> / <code>work:switch</code> / <code>repo:reload</code> / <code>repo:create</code> / <code>repo:clone</code> / <code>sync:prepare</code> / <code>sync:complete</code> / <code>sync:reflect</code> / <code>sync:push</code>。パスは Main が保持するものを使い、Renderer からは受け取らない。</li></ul>
+<h3>14.3 検証</h3>
+<ul>
+<li>ドメイン単体 15 件（<code>tests/domain/merge.test.ts</code>: 同じイベントの別フィールド・追加どうし・依存・削除と無変更・同じフィールドの競合と 3 種の解決・削除と編集・同じ ID の追加・並び順・結果の検証）。</li>
+<li>実際の Git による統合テスト（bare のリモート + 自分 + 他の人。<code>tests/main/gitService.test.ts</code> 10 件、<code>tests/main/gitFlow.test.ts</code> 17 件）: 作業版の作成と日本語の表示名、切り替え時の退避と復元（新規ファイルも）、他の人が先に更新、重ならない変更の自動取り込み、競合の解決、送信直前の更新による拒否と再取り込み、取り込み未了は反映不可、未記録の変更があると進まない、早送り、共有先が無い場合、直接編集の共有と拒否、共有先の設定と取得。</li>
+<li>Electron の E2E（<code>tests/e2e/workflow.spec.ts</code> ほか）: 正式版の確認 → 作業版を作る → 編集して履歴に残す → 他の人の更新を取り込んで反映 → 競合を選んで解決して反映 → 共有先から取得。</li></ul>
+<h3>14.4 未実装・制約</h3>
 <table><tr><th>項目</th><th>状況</th></tr>
-<tr><td><strong>S4-0 モックによるユーザビリティ確認</strong></td><td>未実施。<strong>Git 未経験者 3 名に試してもらう必要がある</strong>ため、実装側では進められない。作業版・反映・競合解決の用語と導線は、その結果で修正してから実装に入る方針のため、S4-3 以降は着手していない</td></tr>
-<tr><td>同梱 Git（dugite）</td><td>決定済み（H1）だが未導入。約 80MB の Git 本体（GPL-2.0）を取得するため、導入時にライセンス検査（<code>scripts/check-licenses.mjs</code>）の扱いと、配布サイズ・告知の同梱を確認する。<code>resolveGit</code> の <code>bundledPath</code> に渡すだけで使える作りにしてある</td></tr>
-<tr><td>S4-3 作業版 / S4-4 反映 / S4-5 競合解決 / S4-6 セットアップと共有 / S4-7 受け入れテスト</td><td>未着手（S4-0 の結果待ち）。<code>mergeSchedules</code>（3 版のフィールド単位マージ）はドメインの純関数でユーザビリティと独立のため先行できる</td></tr>
-<tr><td>異常終了の復元の基準</td><td>13.3 のとおり <code>.autosave/base.json</code> のまま。版管理の履歴がある場合は最後に保存した版へ置き換えるのが本来で、S4-3 とあわせて行う</td></tr>
-<tr><td>EMU の認証確認（L2）</td><td>ユーザー環境での確認待ち（Phase 0 から継続）。共有先への接続は診断で確認できるが、サインインの導線は S4-6</td></tr></table>
+<tr><td>S4-7 ユーザビリティ受け入れテスト（NF-019）</td><td>未実施。Git 未経験者 3 名が必要</td></tr>
+<tr><td>EMU 実環境での認証確認（L2）</td><td>ユーザー環境での確認待ち。サインインは Git Credential Manager に任せている。認証の代替（Device Flow / PAT）は未実装</td></tr>
+<tr><td>F-516 作業版のバックアップ / F-519 作業版の整理 / F-521 中断からの再開</td><td>R5。反映の途中で落ちても、取り込みの失敗時は <code>merge --abort</code> で戻し、反映は送信まで状態を変えないため、再実行で続けられる（専用の再開画面はなし）</td></tr>
+<tr><td>異常終了の復元の基準</td><td>13.3 のとおり <code>.autosave/base.json</code> のまま（履歴のあるフォルダでは最後に履歴に残した版へ置き換える余地がある）</td></tr>
+<tr><td>競合予告（反映前に、競合しそうな項目を知らせる）</td><td><code>merge-tree</code> ではなく、取り込みの最初の段階で <code>mergeSchedules</code> を実行して競合の有無を出す（同じ計算なので結果が一致する）。取り込みと反映は同じウィザード内で行う</td></tr>
+<tr><td>過去の版の読み取り専用表示（F-504）・版の比較（F-505）</td><td>「この版に戻す」（未記録の変更として取り込む）のみ。読み取り専用で見る画面は未実装（R2 の F-505 とあわせて）</td></tr>
+<tr><td>起動時・定期の最新確認（バックグラウンドの fetch）</td><td>未実装。取り込みは「共有する」「正式版に反映する」を押したときに最新を確認する</td></tr></table>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>

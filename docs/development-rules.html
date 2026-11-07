@@ -32,7 +32,7 @@
 <pre>src/
 ├─ domain/    純TS。日付計算・依存検証・diffSchedule・マイグレーション・コマンド適用
 ├─ shared/    IPC型・zodスキーマ
-├─ main/      Electron main: Git(dugite)・FS・IPCハンドラ
+├─ main/      Electron main: Git（外部の git を実行）・FS・IPCハンドラ
 ├─ preload/   contextBridge
 ├─ renderer/  React UI: components/ interaction/ store/
 └─ viewer/    閲覧専用ビューア（React 非依存。出力する単一 HTML に埋め込む）
@@ -41,7 +41,7 @@ spike/        技術検証の使い捨てコード（本体に混ぜない）</p
 <table><tr><th>ルール</th><th>内容</th></tr>
 <tr><td>依存方向</td><td>domain ← shared ← main / renderer。domain は electron・node:*・react・DOM を import しない。renderer は main を import しない</td></tr>
 <tr><td>強制</td><td>スキャフォールド時に ESLint の import 制限（レイヤ境界）を設定し、lint を品質ゲートに含める</td></tr>
-<tr><td>Git 実行</td><td>同梱 Git と外部 Git の両対応。<code>execFile</code> + 引数配列（シェル経由禁止）、<code>GIT_TERMINAL_PROMPT=0</code>、認証情報をログ・設定・引数に残さない（<a href="architecture.html#git-exec">architecture 3.5</a>）</td></tr>
+<tr><td>Git 実行</td><td>利用者がインストールした外部 Git を使う（同梱 Git は当面なし）。<code>execFile</code> + 引数配列（シェル経由禁止）、<code>GIT_TERMINAL_PROMPT=0</code>、認証情報をログ・設定・引数に残さない（<a href="architecture.html#git-exec">architecture 3.5</a>）</td></tr>
 <tr><td>AI 連携</td><td>Copilot SDK の利用は <code>src/main/ai/</code> に隔離。AI に公開するツールは読み取りと提案作成のみ。AI は日程を直接書き換えない（<a href="architecture.html#ai">architecture 6</a>）</td></tr>
 <tr><td>Electron セキュリティ</td><td>contextIsolation 有効、nodeIntegration 無効、IPC は型付き＋入力検証、FS/Git は main のみ</td></tr>
 <tr><td>依存追加</td><td>理由を architecture.html に記録。d3 のモジュール追加は自由。<strong>商用ライブラリは使用しない</strong>（<a href="architecture.html">architecture 7</a>）。ライセンスは <code>scripts/check-licenses.mjs</code> で検査</td></tr>

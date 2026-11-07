@@ -50,7 +50,7 @@
 <tr><td>2</td><td>編集中にアプリを強制終了しても、最後の約1秒を除いて編集内容が失われず、起動時に復元される</td><td>強制終了テスト（E2E・自動）。F-210, F-211, NF-018</td></tr>
 <tr><td>3</td><td><strong>Git 未経験者3名が、説明なしで「作業版の作成 → 編集 → 保存 → 正式版への反映」を完遂できる。競合解決も完遂できる</strong></td><td>ユーザビリティテスト。NF-019</td></tr>
 <tr><td>4</td><td>利用予定の GitHub（EMU を含む）で、ブラウザ認証・clone・push が通る</td><td>実環境での確認。F-508</td></tr>
-<tr><td>5</td><td>Windows のインストーラで導入でき、Git 未導入の PC でも動く（同梱 Git）</td><td>クリーンな PC で確認。NF-008, F-522</td></tr>
+<tr><td>5</td><td>Windows のインストーラで導入できる。Git 未導入の PC では、Git のインストールを案内する（同梱 Git は当面なし。2026-11-08 決定）</td><td>クリーンな PC で確認。NF-008, F-522</td></tr>
 <tr><td>6</td><td>必須要件の全てに、実装とテストの <code>@req</code> タグがある</td><td><code>node scripts/trace.mjs --report</code></td></tr>
 <tr><td>7</td><td><code>verify.mjs</code> が全て通り、ライセンス検査・Electron のセキュリティ設定の確認が済んでいる</td><td>CI。NF-007, NF-016</td></tr>
 <tr><td>8</td><td>文書とコードが一致している</td><td><code>/doc-audit</code></td></tr></table>
@@ -97,10 +97,10 @@
 <h3>Phase 4: Git（約5週）</h3>
 <table><tr><th>項目</th><th>内容</th></tr>
 <tr><td>要件</td><td>F-501 F-502 F-503 F-504 F-506 F-508 F-511 F-513 F-514 F-515 F-517 F-518 F-522 NF-003 NF-017 NF-019 F-520 F-523（K1 で MVP に追加）</td></tr>
-<tr><td>設計</td><td><strong>S4-0（冒頭）</strong>: 作業版・反映・競合解決の画面を<strong>モック（クリック可能な試作）で作り、Git 未経験者3名に試してもらう</strong>。結果で用語・導線を修正してから実装に入る。Git フローの状態遷移（作業版・反映・中断）、変更の日本語要約の文言規則</td></tr>
-<tr><td>実装</td><td>S4-1 GitService（Git の解決: 外部/同梱、実行、診断）と認証（GCM のブラウザ認証、代替の Device Flow / PAT）。S4-2 保存（commit）と日本語の変更要約、履歴・戻す。S4-3 作業版（作成・切替・現在地の常時表示・退避と復元）と、正式版の直接編集（確認付き。F-520）。S4-4 反映ウィザード（最新の取り込み・競合の事前予告・main へ <code>--no-ff</code>・push の再試行）。S4-5 競合解決（<strong>3版をフィールド単位で比較して、重ならない変更は自動で取り込む <code>mergeSchedules</code>（ドメイン層の純関数）</strong> と、食い違いだけを選ぶ UI。根拠: data-model 11.1）。S4-6 初回セットアップ（clone / 新規 / 開く）、共有時の変更一覧、共有</td></tr>
+<tr><td>設計</td><td><strong>S4-0（冒頭）</strong>: 作業版・反映・競合解決の画面を<strong>モックで作り、Git 未経験者3名に試してもらう</strong>予定だったが、<strong>2026-11-08 にユーザーが UI を確認して問題なしと判断したため省略</strong>（用語は「保存」→「履歴に残す」に変更）。NF-019 の受け入れ確認は S4-7 で行う。Git フローの状態遷移（作業版・反映・中断）、変更の日本語要約の文言規則</td></tr>
+<tr><td>実装</td><td>S4-1 GitService（Git の解決: 外部。同梱は当面なし、実行、診断）と認証（GCM のブラウザ認証、代替の Device Flow / PAT）。S4-2 保存（commit）と日本語の変更要約、履歴・戻す。S4-3 作業版（作成・切替・現在地の常時表示・退避と復元）と、正式版の直接編集（確認付き。F-520）。S4-4 反映ウィザード（最新の取り込み・競合の事前予告・main へ <code>--no-ff</code>・push の再試行）。S4-5 競合解決（<strong>3版をフィールド単位で比較して、重ならない変更は自動で取り込む <code>mergeSchedules</code>（ドメイン層の純関数）</strong> と、食い違いだけを選ぶ UI。根拠: data-model 11.1）。S4-6 初回セットアップ（clone / 新規 / 開く）、共有時の変更一覧、共有</td></tr>
 <tr><td>テスト</td><td>一時リポジトリでの Git 統合テスト（<code>spike/git-flow</code> を取り込む: 作業版・反映・競合・push 拒否・退避・非対話の認証失敗）、<code>diffSchedule</code> を使った要約の単体テスト、Git フローの E2E、<strong>S4-7 ユーザビリティ受け入れテスト（NF-019。Git 未経験者3名）</strong>、EMU 実環境での認証・clone・push</td></tr>
-<tr><td><strong>進捗（2026-11-08）</strong></td><td><strong>S4-1・S4-2 を実装</strong>（GitService、Git の解決と診断、保存、履歴、過去の版に戻す、未保存の変更の表示）。詳細と未実装は <a href="architecture.html#phase4">architecture 14</a>。<strong>S4-0（Git 未経験者 3 名によるモックの確認）が未実施のため、S4-3 以降（作業版・反映・競合解決・セットアップ）は着手していない</strong>。同梱 Git（dugite）は未導入。</td></tr>
+<tr><td><strong>進捗（2026-11-08）</strong></td><td>詳細と結果は <a href="architecture.html#phase4">architecture 14</a>。<strong>S4-1〜S4-6 を実装</strong>（GitService、Git の解決と診断、履歴に残す・履歴・戻す、新規作成・共有先から取得・共有先の設定、作業版の作成/切替/現在地の常時表示/退避と復元、正式版の直接編集の確認、3 版のフィールド単位マージ <code>mergeSchedules</code>、取り込み・競合解決・反映前の確認・反映のウィザード、共有する）。実際の Git（bare リモート + 他の人）での統合テストと、Electron の E2E が通過。<strong>未実施・未実装</strong>: S4-7 のユーザビリティ受け入れテスト（Git 未経験者 3 名）、EMU 実環境での認証確認（L2）、F-516（作業版のバックアップ）・F-519（作業版の整理）・F-521（中断からの再開）は R5、認証の代替（Device Flow / PAT）、同梱 Git。</td></tr>
 <tr><td>完了条件</td><td>受け入れ基準の 3・4 を満たす（Git 未経験者が作業版 → 反映と競合解決を完遂。EMU/GitHub で認証・push が通る）</td></tr></table>
 
 <h3>Phase 5: 配布・仕上げ（約2週）</h3>
@@ -143,15 +143,15 @@
 <tr><td>P5（MVP ゲート）</td><td><code>trace.mjs --strict</code>: 必須要件に実装タグとテストタグが無ければ失敗（実装時に追加）</td></tr></table>
 
 <h2>7. 依存関係・クリティカルパスとリスク</h2>
-<p>クリティカルパス: <strong>ドメイン層 → DrawList（Canvas 表示）→ 編集 → Git → 配布</strong>。Phase 2 の表示と Phase 4 の Git は、S4-0（試作）と EMU 認証の確認を前倒しすれば、一部を並行できる。</p>
+<p>クリティカルパス: <strong>ドメイン層 → DrawList（Canvas 表示）→ 編集 → Git → 配布</strong>。Phase 2 の表示と Phase 4 の Git は、EMU 認証の確認を前倒しすれば、一部を並行できる。</p>
 <table><tr><th>リスク</th><th>影響</th><th>対策</th></tr>
 <tr><td>EMU でブラウザ認証が通らない / 管理者の許可が下りない</td><td>Git 連携が使えない</td><td>P0 で早期に確認。代替（Device Flow / PAT）を用意。管理者への確認事項を P0 で依頼</td></tr>
-<tr><td>Git 初心者向け UI が分かりにくい</td><td>MVP の受け入れ基準 3 を満たせない</td><td>S4-0 のモック試作で早く確かめ、実装前に導線・用語を直す</td></tr>
+<tr><td>Git 初心者向け UI が分かりにくい</td><td>MVP の受け入れ基準 3 を満たせない</td><td>S4-7 の受け入れテストで確かめる（S4-0 のモックは、ユーザーの UI 確認で代替。2026-11-08）</td></tr>
 <tr><td>実機（GPU・画面倍率）で性能が出ない</td><td>表示が重い</td><td>P2 で実機計測。DrawList の集約表示（LOD）・キャッシュを段階的に追加</td></tr>
 <tr><td>Canvas の実装量（入力・テキスト・ヒットテスト）が大きい</td><td>見積りの超過</td><td>DrawList を純関数にして小さく刻む。P2 完了時に見積りを見直す。操作オーバーレイは DOM で実装コストを抑える</td></tr>
 <tr><td>日本語入力（IME）と Canvas の相性</td><td>入力が崩れる</td><td>文字入力は DOM の input（オーバーレイ）で行う</td></tr>
 <tr><td>データ形式の後からの変更</td><td>マイグレーションの手戻り</td><td><code>schemaVersion</code> とマイグレーションを P1 から入れる。形式変更は必ず文書とマイグレーションを伴う</td></tr>
-<tr><td>ライセンス（同梱 Git の GPL、Copilot ランタイム）</td><td>配布できない / 承認遅れ</td><td>同梱 Git は H1 で決定済み（告知を同梱）。Copilot は R4 着手前に I2 を決める</td></tr>
+<tr><td>ライセンス（Copilot ランタイム）</td><td>配布できない / 承認遅れ</td><td>同梱 Git は 2026-11-08 に取りやめ（GPL の同梱なし）。Copilot は R4 着手前に I2 を決める</td></tr>
 <tr><td>範囲の肥大化</td><td>MVP が遅れる</td><td>MVP ゲート（3.3）を基準に、新要求は R2 以降に送る。変更は <code>/spec-change</code> で影響を見える化</td></tr>
 <tr><td>AI 協働での品質のばらつき</td><td>不具合・設計のずれ</td><td>品質ゲート、<code>arch-reviewer</code>、<code>/doc-audit</code>、要件ID追跡、テスト先行</td></tr>
 <tr><td>コード署名の証明書の入手が遅れる</td><td>P5 の遅延、SmartScreen の警告</td><td>署名は可能なら実施（K7）。早めに入手の手続きを始める。署名なしでも配布・更新は動く</td></tr></table>
@@ -160,7 +160,7 @@
 <p>決定済み（2026-11-07）: <strong>K1</strong> MVP は 37 件（F-523・F-520 を含む）／<strong>K2</strong> リリース順は R2 → R3 → R4 → R5／<strong>K3</strong> CSV・Excel の取り込みは R2／<strong>K4</strong> 前提は開発者1人 + AI・ほぼ専任、パイロットは3名・2週間／<strong>K5</strong> 終了日は含む／<strong>K6</strong> 階層の深さは設計上は上限なし（UI は10階層まで）／<strong>K7</strong> 配布は GitHub Releases + 利用者のトークン、署名は可能なら実施、更新は再起動時。</p>
 <table><tr><th>いつまでに</th><th>残る確認</th><th>関連</th></tr>
 <tr><td>Phase 0 の間</td><td>EMU の接続先ホスト（<code>github.com</code> / <code>ghe.com</code>）、OAuth/GitHub App の登録と承認の権限（管理者に確認）</td><td>F-508</td></tr>
-<tr><td>Phase 4 の冒頭（S4-0）</td><td>ユーザビリティ試作に協力してもらう Git 未経験者3名の選定</td><td>NF-019</td></tr>
+<tr><td>Phase 4 の S4-7</td><td>ユーザビリティ受け入れテストに協力してもらう Git 未経験者3名の選定</td><td>NF-019</td></tr>
 <tr><td>Phase 5 まで</td><td>コード署名の証明書の入手（できれば）</td><td>NF-008</td></tr>
 <tr><td>R4 着手前</td><td>Copilot ランタイム同梱の承認（I2）、Copilot の実動作の検証</td><td>I2, F-708</td></tr></table>
 <div class="todo">優先順位・期間・体制に関する希望を追記。</div>

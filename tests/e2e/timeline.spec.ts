@@ -188,7 +188,19 @@ test.describe('フォルダを開く', () => {
   test.beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'pse-open-'));
   });
-  test.afterEach(() => rmSync(dir, { recursive: true, force: true }));
+  test.afterEach(async () => {
+    // 開いたフォルダで Git が動いている間は Windows が消させない。終わるまで待って消す
+    const t0 = Date.now();
+    for (;;) {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+        return;
+      } catch (e) {
+        if (Date.now() - t0 > 15000) throw e;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+  }); // 開いたフォルダで Git が動いている間は Windows が消させない
 
   test('日程データのフォルダを読み込んで、タイムラインに表示する', async () => {
     saveFiles(dir, serializeSchedule(basic()));

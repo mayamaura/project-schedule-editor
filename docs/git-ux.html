@@ -4,11 +4,11 @@
 <nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a class="cur" href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a><a href="roadmap.html">ロードマップ</a><a href="development-rules.html">開発ルール</a><a href="changelog.html">変更履歴</a></nav>
 <main>
 <h1>Git連携・UX</h1>
-<p>方針: <strong>Git の概念を隠し、業務の言葉に翻訳する。</strong>利用者に見せる操作は「保存」「共有」「履歴」「戻す」だけ。破壊的操作は提供しない。</p>
+<p>方針: <strong>Git の概念を隠し、業務の言葉に翻訳する。</strong>利用者に見せる操作は「履歴に残す」「共有する」「履歴」「戻す」（と作業版の操作）だけ。<strong>「保存」は自動保存（F-210）の意味に限り、履歴に残す操作には使わない</strong>（Windows の一般的な「保存」と紛らわしいため。2026-11-08 決定）。破壊的操作は提供しない。</p>
 
 <h2>1. 用語マッピング</h2>
 <table><tr><th>画面上の言葉</th><th>Git の操作</th></tr>
-<tr><td>変更を保存（メモを添える）</td><td><code>add</code> + <code>commit</code></td></tr>
+<tr><td>変更を履歴に残す（メモを添える）</td><td><code>add</code> + <code>commit</code></td></tr>
 <tr><td>共有する（正式版を直接編集しているとき）</td><td><code>pull --no-rebase</code>（取り込み）→ <code>push</code></td></tr>
 <tr><td>正式版の最新を取り込む</td><td><code>fetch</code> + <code>merge</code></td></tr>
 <tr><td>正式版（main）</td><td>main ブランチ</td></tr>
@@ -24,15 +24,15 @@
 <h3>2.1 初回セットアップ（ウィザード）</h3>
 <ol><li>「データの場所」: (a) 共有リポジトリURLから取得 / (b) 既存フォルダを開く / (c) 新規作成</li>
 <li>名前とメールの設定（コミット作者用）</li>
-<li>Git の確認と認証: アプリが使う Git（外部 / 同梱）を自動で選び、<strong>ブラウザでサインイン</strong>（Git Credential Manager）。使えない場合は Device Flow / トークン。接続先ホストの設定（EMU の <code>ghe.com</code> 等）。</li>
+<li>Git の確認と認証: アプリが使う Git（利用者がインストールした外部の Git。見つからなければインストールを案内）を選び、<strong>ブラウザでサインイン</strong>（Git Credential Manager）。使えない場合は Device Flow / トークン。接続先ホストの設定（EMU の <code>ghe.com</code> 等）。</li>
 <li>接続テスト → 完了</li></ol>
 
 <h3>2.2 日常の編集</h3>
-<ol><li>編集すると画面下に「未保存の変更: 3件」。変更した項目は一覧で日本語表示。変更は<strong>自動保存</strong>されており、アプリが落ちても失われない（F-210）。[保存] は「ここまでを記録する」操作。</li>
-<li>[保存] → 変更要約（自動生成）を確認、メモ（任意、既定は要約）→ commit。</li>
-<li>作業版にいるときは、保存を重ねて、まとまったら [正式版に反映する]（<a href="#branch">2.5</a>）。正式版を直接編集しているときの [共有] は 取り込み＋送信。成功/競合/オフライン を平易な文言で通知。</li></ol>
+<ol><li>編集すると画面下に「履歴に未記録の変更: 3件」。変更した項目は一覧で日本語表示。変更は<strong>自動保存</strong>されており、アプリが落ちても失われない（F-210）。[履歴に残す] は「ここまでを記録する」操作（Windows の一般的な「保存」とは別物）。</li>
+<li>[履歴に残す] → 変更要約（自動生成）を確認、メモ（任意、既定は要約）→ commit。</li>
+<li>作業版にいるときは、履歴に残すことを重ねて、まとまったら [正式版に反映する]（<a href="#branch">2.5</a>）。正式版を直接編集しているときの [共有] は 取り込み＋送信。成功/競合/オフライン を平易な文言で通知。</li></ol>
 <p>起動時と一定間隔で fetch し、「他の人が更新しました（2件）→ 取り込む」を通知。<strong>未保存の編集中に自動マージはしない。</strong></p>
-<p>AI 提案を承認して適用した変更も、通常の編集と同じく「保存」を経て初めて commit される。AI が自動で保存・共有することはない（<a href="requirements.html">F-702</a>, F-711）。</p>
+<p>AI 提案を承認して適用した変更も、通常の編集と同じく「履歴に残す」を経て初めて commit される。AI が自動で保存・共有することはない（<a href="requirements.html">F-702</a>, F-711）。</p>
 
 <h3>2.3 競合解決</h3>
 <div class="note">実測（<a href="data-model.html#phase1-merge">data-model 11.1</a>）: Git の行単位のマージは、同じイベントの隣り合うフィールドの編集や、末尾への追加どうしで、意味の上では衝突していなくても競合する。そのため、競合は Git の競合マーカーで見せず、3版を項目・フィールド単位で比較し、<strong>重ならない変更は自動で取り込んで</strong>、同じ項目の同じフィールドが食い違うときだけ下の手順で選んでもらう。</div>
@@ -59,7 +59,7 @@
 <li>切替時に保存前の変更があれば、自動で退避し、元の版に戻ったときに復元する（確認メッセージで知らせる）。</li>
 <li>正式版にいるときは「作業版を作って編集しますか？」と控えめに案内（F-520 の直接編集は確認付きで可能）。</li></ul>
 <h4>2.5.3 作業版での編集・保存</h4>
-<ul><li>編集・[保存]・履歴・戻すは、作業版の中で完結し、<strong>他の人には見えない</strong>。</li>
+<ul><li>編集・[履歴に残す]・履歴・戻すは、作業版の中で完結し、<strong>他の人には見えない</strong>。</li>
 <li>[バックアップ]（任意）で作業版をリモートに送れる（PC 故障への備え。F-516）。</li></ul>
 <h4>2.5.4 正式版に反映する（ウィザード）</h4>
 <ol>
