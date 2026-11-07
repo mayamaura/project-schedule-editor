@@ -1,6 +1,6 @@
 # プロジェクトスケジュールエディタ — AI 作業ルール
 
-Electron 製デスクトップアプリ。縦=プロジェクト、横=日付の Excel 風 UI で日程を編集し、データは専用 Git リポジトリ（GitHub）で管理する。
+Electron 製デスクトップアプリ。縦=プロジェクト、横=日付の Excel 風（見た目のみ。操作は Excel と異なる）UI で日程を編集し、データは専用 Git リポジトリ（GitHub）で管理する。
 人間向けの詳細は `docs/development-rules.html`。このファイルはその要約（AI 用）。
 
 ## 唯一の正（Source of Truth）
@@ -23,7 +23,7 @@ Electron 製デスクトップアプリ。縦=プロジェクト、横=日付の
 3. **要件IDで追跡する。** 実装・テストには `@req F-201` の形でタグを付ける。新機能は requirements.html に要件IDがあることが前提。無ければ先に追加（`/spec-change`）。
 4. **完了 = `node scripts/verify.mjs` が通ること。** 通っていないものを「完了」と報告しない。失敗したら出力をそのまま伝える。
 5. **破壊的操作をしない。** force push / reset --hard / `--no-verify` / 履歴書き換えは禁止。コミット・push はユーザーが依頼したときだけ。
-6. **新しい依存ライブラリは勝手に足さない。** 追加時は architecture.html に理由を追記し、ユーザーに報告する（d3 の追加モジュールは自由）。
+6. **新しい依存ライブラリは勝手に足さない。** 追加時は architecture.html に理由を追記し、ユーザーに報告する（d3 の追加モジュールは自由）。**商用（有償・商用ライセンス必須）ライブラリは使わない**。許容は MIT/ISC/BSD/Apache-2.0 等で、`scripts/check-licenses.mjs` が検査する。
 
 ## アーキテクチャ制約（要点）
 - `src/domain/`: 純 TypeScript。`electron` / `node:*` / `react` / DOM を import しない。日付計算・依存検証・`diffSchedule`・マイグレーション・コマンド適用はここ。

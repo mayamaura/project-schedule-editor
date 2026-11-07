@@ -11,7 +11,7 @@
 <tr><td>ルール（常時読込）</td><td><code>CLAUDE.md</code></td><td>AI が毎回従う絶対ルール・アーキテクチャ制約</td></tr>
 <tr><td>検査スクリプト</td><td><code>scripts/check-docs.mjs</code></td><td>文書の整合性（ナビ・リンク・要件ID参照・決定参照・changelog更新）</td></tr>
 <tr><td></td><td><code>scripts/trace.mjs</code></td><td>コード/テストの <code>@req</code> タグと要件IDの対応。<code>--report</code> で必須要件の実装・テスト状況</td></tr>
-<tr><td></td><td><code>scripts/verify.mjs</code></td><td>品質ゲート。上記 + typecheck / lint / test（package.json に定義があれば）</td></tr>
+<tr><td></td><td><code>scripts/verify.mjs</code></td><td>品質ゲート。上記 + licenses（node_modules があれば）+ typecheck / lint / test（package.json に定義があれば）</td></tr>
 <tr><td>自動フック（Claude Code）</td><td><code>.claude/settings.json</code></td><td>編集直後に軽量チェック、終了時に品質ゲート。失敗すると AI が修正を続ける</td></tr>
 <tr><td>Git フック</td><td><code>.githooks/pre-commit</code></td><td>コミット前に品質ゲート（人間・AI 共通）</td></tr>
 <tr><td>作業手順（スキル）</td><td><code>.claude/skills/*</code></td><td><code>/spec-change</code> <code>/implement-feature</code> <code>/doc-audit</code> <code>/tech-spike</code></td></tr>
@@ -41,7 +41,7 @@ spike/        技術検証の使い捨てコード（本体に混ぜない）</p
 <tr><td>強制</td><td>スキャフォールド時に ESLint の import 制限（レイヤ境界）を設定し、lint を品質ゲートに含める</td></tr>
 <tr><td>AI 連携</td><td>Copilot SDK の利用は <code>src/main/ai/</code> に隔離。AI に公開するツールは読み取りと提案作成のみ。AI は日程を直接書き換えない（<a href="architecture.html#ai">architecture 6</a>）</td></tr>
 <tr><td>Electron セキュリティ</td><td>contextIsolation 有効、nodeIntegration 無効、IPC は型付き＋入力検証、FS/Git は main のみ</td></tr>
-<tr><td>依存追加</td><td>理由を architecture.html に記録。d3 のモジュール追加は自由</td></tr>
+<tr><td>依存追加</td><td>理由を architecture.html に記録。d3 のモジュール追加は自由。<strong>商用ライブラリは使用しない</strong>（<a href="architecture.html">architecture 7</a>）。ライセンスは <code>scripts/check-licenses.mjs</code> で検査</td></tr>
 <tr><td>設計変更</td><td>方針を変える場合は先に文書（architecture.html）を更新・合意してから実装</td></tr></table>
 
 <h2>4. 実装ルール</h2>

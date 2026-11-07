@@ -9,10 +9,11 @@
 <h2>1. エンティティ</h2>
 <table><tr><th>エンティティ</th><th>主な属性</th></tr>
 <tr><td>Project</td><td>id, name, parentId, order, status, assignee, tags[], color, note</td></tr>
-<tr><td>Event</td><td>id, projectId, name, start, end, type, color, note</td></tr>
-<tr><td>Milestone</td><td>id, projectId, name, date, type, note</td></tr>
+<tr><td>Event</td><td>id, projectId, name, start, end, type, color, style?, note</td></tr>
+<tr><td>Milestone</td><td>id, projectId, name, date, type, style?, note</td></tr>
 <tr><td>Dependency</td><td>id, from{kind,id}, to{kind,id}, type(FS/SS/FF/SF), lagDays</td></tr>
-<tr><td>Type（種別マスタ）</td><td>id, name, color, shape</td></tr>
+<tr><td>Type（種別マスタ）</td><td>id, name, color, eventStyle, milestoneStyle</td></tr>
+<tr><td>Template（標準日程）</td><td>id, name, defaultAnchor, dayMode, adjust, events, milestones, dependencies（相対日数）</td></tr>
 <tr><td>View</td><td>id, name, shared, visibleProjectIds, expanded, zoom, dependencyFilter, columns</td></tr>
 <tr><td>Calendar</td><td>weekend設定, holidays[], 稼働日</td></tr>
 <tr><td>Meta</td><td>schemaVersion, appVersion</td></tr></table>
@@ -32,8 +33,12 @@
 │   └─ 7c21….json           #   (events, milestones を内包)
 ├─ dependencies/
 │   └─ a81b….json           # 1依存 = 1ファイル（または projects 側に持たせる）
-└─ views/                   # 共有ビューのみ
-    └─ overview.json</pre>
+├─ views/                   # 共有ビューのみ
+│   └─ overview.json
+├─ templates/               # 標準日程（チーム共有）
+│   └─ tpl-release-std.json
+└─ ai-prompts/              # AI への共有指示・観点
+    └─ pt-release-risk.json</pre>
 <h3>方式比較</h3>
 <table><tr><th>方式</th><th>利点</th><th>欠点</th></tr>
 <tr><td><strong>A. 1プロジェクト1ファイル（推奨）</strong></td><td>別プロジェクトの同時編集は競合しない。履歴がプロジェクト単位で追える</td><td>ファイル数が増える（数千まで許容）</td></tr>
@@ -106,7 +111,7 @@
 <h2>5. スキーマ進化</h2>
 <ul><li><code>schemaVersion</code> を保持。起動時に古ければマイグレーションし、「データ形式を更新しました」を1コミットとして記録。</li>
 <li>新しいバージョンのデータを古いアプリが開いた場合は読み取り専用で警告。</li></ul>
-<h2>6. AI 提案（ChangeSet）</h2>
+<h2 id="ai-changeset">6. AI 提案（ChangeSet）</h2>
 <p>AI が返す日程変更案の形式。<strong>ドメインのコマンド列</strong>であり、UI の編集操作と同じ経路で適用される。<strong>Git には保存しない</strong>（ローカルのアプリデータ領域、F-710）。承認・適用された結果だけが通常のデータ変更として保存・commit される。</p>
 <pre>{
   "id": "cs-20261107-001",
@@ -132,5 +137,43 @@
 }</pre>
 <ul><li>保存先（決定・E8）: 個人用はローカルのアプリデータ、チーム共有用（<code>shared: true</code>）は Git の <code>ai-prompts/&lt;id&gt;.json</code>（1テンプレート1ファイル。他のデータと同じ出力規則）。</li>
 <li>指示文は AI への<strong>追加の指示</strong>であり、基本プロンプト（安全ルール）や承認制を変更できない。</li></ul>
+<h2>7. 表示スタイル</h2>
+<p>イベント・マイルストーンの表示方法（F-102）。種別マスタ（<code>types.json</code>）に既定を持ち、項目の <code>style</code> で上書きする。値は列挙（未知の値は既定にフォールバックして警告）。</p>
+<table><tr><th>対象</th><th>値</th><th>既定</th></tr>
+<tr><td>イベント</td><td><code>bar</code> / <code>roundBar</code> / <code>line</code>（細線＋端点）/ <code>band</code>（背景帯）/ <code>outline</code> / <code>striped</code></td><td><code>bar</code></td></tr>
+<tr><td>マイルストーン</td><td><code>diamond</code> / <code>circle</code> / <code>triangle</code> / <code>square</code> / <code>star</code> / <code>flag</code> / <code>labelOnly</code></td><td><code>diamond</code></td></tr></table>
+<pre>// types.json（抜粋）
+{ "phase":   { "name": "フェーズ", "color": "#2364aa", "eventStyle": "bar" },
+  "release": { "name": "リリース", "color": "#c0392b", "milestoneStyle": "flag" } }
+// 項目側の上書き
+"e2": { "name": "試作", "start": "2027-01-05", "end": "2027-03-31", "type": "phase", "style": "striped" }</pre>
+
+<h2>8. 標準日程（Template）</h2>
+<p>よく使う日程のひな形。<strong>基準（0日）からの相対日数</strong>で保持し、展開時に起点マイルストーンの日付を与えて実日付に変換する（F-801〜F-808）。チーム共有のため Git の <code>templates/&lt;id&gt;.json</code>（1標準日程1ファイル、他と同じ出力規則）に保存する。</p>
+<pre>{
+  "id": "tpl-release-std",
+  "name": "標準リリース日程",
+  "defaultAnchor": "m-release",
+  "dayMode": "calendar",          // "calendar"（暦日）| "working"（稼働日）
+  "adjust": "none",               // 非稼働日の補正: "none" | "earlier" | "later"
+  "events": {
+    "t1": { "name": "設計", "startOffset": -120, "endOffset": -75, "type": "phase" },
+    "t2": { "name": "試作", "startOffset": -70,  "endOffset": -20, "type": "phase" }
+  },
+  "milestones": {
+    "m-review":  { "name": "設計レビュー", "dateOffset": -74, "type": "review" },
+    "m-release": { "name": "リリース",     "dateOffset": 0,   "type": "release" }
+  },
+  "dependencies": {
+    "d1": { "from": { "kind": "event", "id": "t1" }, "to": { "kind": "event", "id": "t2" }, "type": "FS", "lagDays": 4 }
+  }
+}</pre>
+<h3>展開の計算</h3>
+<ol>
+<li>展開時に、起点マイルストーン <em>M</em>（既定は <code>defaultAnchor</code>、標準日程内の任意のマイルストーンを選べる）と、その実日付 <em>D</em> を指定する。</li>
+<li>各項目の実日付 = <em>D</em> ＋（項目のオフセット − <em>M</em> のオフセット）。<code>dayMode</code> が <code>working</code> のときはオフセットを稼働日数として数える。</li>
+<li>非稼働日に当たった場合は <code>adjust</code> に従って前倒し/後ろ倒し（既定は補正なし）。</li>
+<li>結果は新規 ID を持つ<strong>コマンド列（addProject / addEvent / addMilestone / addDependency）</strong>として生成し、<code>diffSchedule</code> でプレビュー、承認後に1コマンドとして適用する（Undo 1単位）。AI 提案（<a href="#ai-changeset">ChangeSet</a>）と同じ経路。</li>
+<li>展開後のプロジェクトは標準日程への参照を持たない（独立）。</li></ol>
 <div class="todo">属性の追加（予算・工数・進捗率など）、データ形式の希望を追記。</div>
 </main></body></html>

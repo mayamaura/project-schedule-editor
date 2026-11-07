@@ -6,6 +6,7 @@
 <h1>仕様変更履歴</h1>
 <p>仕様文書（requirements / data-model / architecture / ui-design / git-ux / open-questions）を変更したら、この表の<strong>先頭</strong>に追記する（pre-commit が検査）。</p>
 <table><tr><th>日付</th><th>変更内容</th><th>影響文書</th><th>要件ID</th></tr>
+<tr><td>2026-11-07</td><td>F-102: 表示方法を選択可能に。F-202: 作成を右クリックメニュー経由に変更。「Excel 風」は見た目のみと明記し F-203 を修正。右クリックメニュー(F-209)、標準日程(F-801〜F-808)、AI モデル選択(F-713)、ライセンス方針(NF-016: 商用ライブラリ不使用)を追加。E4・E6 を決定。標準日程・操作の確認事項 F1〜F6 を追加</td><td>requirements, ui-design, data-model, architecture, open-questions, index, development-rules, CLAUDE.md</td><td>F-101, F-102, F-201, F-202, F-203, F-209, F-710, F-713, F-801〜F-808, NF-016</td></tr>
 <tr><td>2026-11-07</td><td>E8 を決定: AI への指示・観点は、個人用=ローカル、チーム共有用=Git の ai-prompts/</td><td>open-questions, requirements, data-model</td><td>F-712</td></tr>
 <tr><td>2026-11-07</td><td>AI 関連の決定: 全員 Copilot 契約済み(E1)、メモ・担当者も送信可(E2)、AI 編集は常に承認必須(E3)、AI への指示・観点をアプリ上で編集可能に(E5)、AI は MVP 後(E7)。指示・観点の保存先を E8 として新規質問</td><td>open-questions, requirements, architecture, data-model, ui-design</td><td>F-702, F-703, F-707, F-708, F-712</td></tr>
 <tr><td>2026-11-07</td><td>AI アシスタント（GitHub Copilot SDK）の要件を追加: 編集提案・評価・矛盾指摘、ルールベース整合性チェック。AI は提案のみで適用は承認制。SDK の提供条件は要検証</td><td>requirements, architecture, data-model, ui-design, git-ux, open-questions, development-rules, index, CLAUDE.md</td><td>F-701〜F-712, NF-012〜NF-015</td></tr>

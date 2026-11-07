@@ -10,6 +10,7 @@ const extra = process.argv.slice(2).filter((a) => a === '--staged' || a === '--w
 const steps = [
   ['check-docs', 'node', ['scripts/check-docs.mjs', ...extra]],
   ['trace', 'node', ['scripts/trace.mjs']],
+  ['licenses', 'node', ['scripts/check-licenses.mjs']], // node_modules が無ければ即スキップ
 ];
 const pkgPath = join(ROOT, 'package.json');
 if (existsSync(pkgPath)) {
