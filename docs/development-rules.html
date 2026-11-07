@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>開発ルール</title><link rel="stylesheet" href="style.css"></head><body>
-<nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a><a class="cur" href="development-rules.html">開発ルール</a><a href="changelog.html">変更履歴</a></nav>
+<nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a><a href="roadmap.html">ロードマップ</a><a class="cur" href="development-rules.html">開発ルール</a><a href="changelog.html">変更履歴</a></nav>
 <main>
 <h1>開発ルール（AI との協働ハーネス）</h1>
 <p>設計・実装・テストを AI（Claude Code）と進めるためのルールと、それを機械的に守らせる仕組み。AI 向けの要約は リポジトリ直下の <code>CLAUDE.md</code>。</p>
@@ -21,6 +21,7 @@
 <ul>
 <li>仕様の正は <code>docs/*.html</code>。コードより文書が先。</li>
 <li>仕様に影響する変更は、関連する<strong>全文書を同じ作業で更新</strong>し、<a href="changelog.html">変更履歴</a>に追記する（仕様文書の変更だけをコミットしようとすると pre-commit が拒否する）。</li>
+<li>全ての要件は<a href="roadmap.html">ロードマップ</a>のフェーズ・リリースに割り当てる（機械検査）。着手するフェーズの詳細設計を先に文書へ反映してから実装する。</li>
 <li>要件IDは再利用しない（削除は欠番）。他文書の ID 参照は存在するものだけ（機械検査）。</li>
 <li>決定事項は <a href="open-questions.html">未決事項</a>の回答欄に「決定:」で記録。未決の★に依存する実装は、先にユーザーへ確認。</li>
 <li>新規ページを追加したら全ページのナビに追加（機械検査）。</li>

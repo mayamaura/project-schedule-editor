@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>要件定義</title><link rel="stylesheet" href="style.css"></head><body>
-<nav><a href="index.html">概要</a><a class="cur" href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a><a href="development-rules.html">開発ルール</a><a href="changelog.html">変更履歴</a></nav>
+<nav><a href="index.html">概要</a><a class="cur" href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a><a href="roadmap.html">ロードマップ</a><a href="development-rules.html">開発ルール</a><a href="changelog.html">変更履歴</a></nav>
 <main>
 <h1>要件定義</h1>
 <p>優先度: <span class="must">M</span>=必須(MVP) / <span class="should">S</span>=重要(次段階) / <span class="could">C</span>=任意。依頼文から読み取れたものに加え、必要と思われるものを「<strong>提案</strong>」として記載（要判断）。</p>
@@ -33,7 +33,7 @@
 
 <h3>1.3 階層・依存関係</h3>
 <table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
-<tr><td>F-301</td><td>プロジェクトは単一親・任意深さの木構造</td><td class="must">M</td><td>決定（A8）。深さ上限の目安は未定</td></tr>
+<tr><td>F-301</td><td>プロジェクトは単一親・任意深さの木構造</td><td class="must">M</td><td>決定（A8, K6）。設計上は上限なし。UI は10階層まで想定</td></tr>
 <tr><td>F-302</td><td>依存関係を 矢印線で表示。端点はイベント/マイルストーン（プロジェクト間依存はそれらの端点で表現）</td><td class="must">M</td><td>決定（A1）</td></tr>
 <tr><td>F-303</td><td>依存タイプ: FS / SS / FF / SF とラグ(日数)</td><td class="should">S</td><td>MVP は FS のみでも可</td></tr>
 <tr><td>F-304</td><td>依存線の表示切替: 全表示 / 選択項目に関係するもののみ / 非表示 / 種別・階層で絞込</td><td class="must">M</td><td>依頼の要件</td></tr>
@@ -68,10 +68,10 @@
 <tr><td>F-517</td><td><strong>正式版に反映する</strong>（= main へマージ）: まとまった作業版を、1つの手順（ウィザード）で正式版に反映して共有する。①正式版の最新を取得 ②作業版に取り込み（競合は<strong>作業版側で</strong>解決。F-506）③確認（F-518）④反映して送信。送信時に他の人が先に更新していた場合は、自動で①からやり直して案内する</td><td class="must">M</td><td>正式版に競合を持ち込まない設計。決定（G3）: 作業版の保存履歴をそのまま残す</td></tr>
 <tr><td>F-518</td><td>反映前の確認: 正式版との差分を日程のタイムライン上と変更一覧で表示（F-509 の diffSchedule を再利用）。新たな不整合（F-704）と、競合しそうな項目を事前に知らせる</td><td class="must">M</td><td>競合予告は <code>git merge-tree --write-tree</code>（作業ツリーを変更せず実行できることを検証済み。architecture 9.2）</td></tr>
 <tr><td>F-519</td><td>作業版の整理: 反映後に「続ける / 整理する」を選べる。不要な作業版は「整理」（一覧から非表示）で片付け、後から復元できる。履歴を即時に消す操作は提供しない</td><td class="should">S</td><td>破壊的操作を出さない原則</td></tr>
-<tr><td>F-520</td><td>正式版の直接編集: 軽微な修正のため、確認ダイアログ付きで正式版を直接編集できる（作業版の利用を促す表示を併記）</td><td class="should">S</td><td>決定（G4）: 確認付きで可能</td></tr>
+<tr><td>F-520</td><td>正式版の直接編集: 軽微な修正のため、確認ダイアログ付きで正式版を直接編集できる（作業版の利用を促す表示を併記）</td><td class="must">M</td><td>決定（G4）: 確認付きで可能。MVP に含める（決定 K1）</td></tr>
 <tr><td>F-521</td><td>中断からの再開: 反映や競合解決の途中でアプリが落ちても、再起動後に途中の状態を検出し、「続きから再開」か「最初からやり直し」を選べる</td><td class="should">S</td><td>F-210/211 と対</td></tr>
 <tr><td>F-522</td><td><strong>Git 実行ファイルの選択</strong>: 「同梱 Git」と「外部（システム）の Git」の両方を使える。設定は 自動（外部の Git が見つかれば優先、なければ同梱）/ 外部 Git（パスを指定）/ 同梱 Git。使用中の Git のパスとバージョン、認証方式を設定画面に表示する。最低バージョン未満の場合は警告し、同梱 Git への切替を案内する</td><td class="must">M</td><td>決定（2026-11-07）。方式は <a href="architecture.html#git-exec">architecture 3.5</a>。既定の選び方は決定済み（H2）</td></tr>
-<tr><td>F-523</td><td>Git 環境の診断と接続テスト: Git の検出・バージョン、GCM の有無、リモートへの接続、SSO 承認の状態を確認し、問題と対処を平易な日本語で表示する。初回セットアップ（F-501）で実行し、設定画面からいつでも再実行できる</td><td class="should">S</td><td></td></tr></table>
+<tr><td>F-523</td><td>Git 環境の診断と接続テスト: Git の検出・バージョン、GCM の有無、リモートへの接続、SSO 承認の状態を確認し、問題と対処を平易な日本語で表示する。初回セットアップ（F-501）で実行し、設定画面からいつでも再実行できる</td><td class="must">M</td><td>MVP に含める（決定 K1）</td></tr></table>
 
 <h3>1.6 入出力・その他</h3>
 <table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
@@ -123,7 +123,7 @@
 <tr><td>NF-005</td><td>マージしやすさ</td><td>共同編集（Git 経由）での競合が最小になるデータ形式（<a href="data-model.html">データモデル</a>）</td></tr>
 <tr><td>NF-006</td><td>スキーマ互換</td><td>スキーマバージョン付き。旧版データの自動マイグレーション。新しいデータを旧アプリが壊さない</td></tr>
 <tr><td>NF-007</td><td>セキュリティ</td><td>Electron: contextIsolation 有効、nodeIntegration 無効、preload 経由のIPCのみ。認証情報は OS 資格情報ストア</td></tr>
-<tr><td>NF-008</td><td>配布</td><td>インストーラ(NSIS等)、コード署名、自動更新（要判断。GitHub Releases 経由を想定）。Git は同梱と外部の両方に対応（F-522）。同梱 Git があるため、Git 未導入の利用者でもインストール不要で動作する。配布サイズ: 同梱 Git 約45MB、（AI 機能を含める場合）Copilot ランタイムが展開後 約181MB 加わる（<a href="architecture.html#spike-results">architecture 9</a>）</td></tr>
+<tr><td>NF-008</td><td>配布</td><td>インストーラ(NSIS等)、コード署名、自動更新（決定 K7: GitHub Releases 経由。非公開リポジトリでも利用者の GitHub トークンで取得。コード署名は可能なら実施。更新は「再起動して更新」を案内）。Git は同梱と外部の両方に対応（F-522）。同梱 Git があるため、Git 未導入の利用者でもインストール不要で動作する。配布サイズ: 同梱 Git 約45MB、（AI 機能を含める場合）Copilot ランタイムが展開後 約181MB 加わる（<a href="architecture.html#spike-results">architecture 9</a>）</td></tr>
 <tr><td>NF-009</td><td>国際化</td><td>日本語UI優先。文言は外出し（将来の多言語化余地）</td></tr>
 <tr><td>NF-010</td><td>アクセシビリティ</td><td>キーボードのみで主要操作可能。色だけに依存しない表示（形・パターン）。タイムラインは Canvas のためスクリーンリーダに直接は読まれない。代替として、選択項目の内容を読み上げ用の隠しテキスト（aria-live）で通知し、同じデータを一覧（表）で見られる表示を用意する</td></tr>
 <tr><td>NF-011</td><td>テスト</td><td>ドメインロジック（日付計算・依存検証・差分）は単体テスト必須。E2E は主要フローのみ</td></tr>

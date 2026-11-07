@@ -51,13 +51,17 @@ for (const f of files) {
 // 5. 決定事項の参照（Ax）が open-questions.html に存在
 const oq = read('open-questions.html');
 for (const f of files) {
-  for (const [, n] of read(f).matchAll(/（([A-Z]\d+)）/g)) {
+  for (const [, n] of read(f).matchAll(/（([A-K]\d+)）/g)) {
     if (!new RegExp(`<td>★?${n}</td>`).test(oq)) errors.push(`${f}: 存在しない質問番号 ${n}`);
   }
 }
 for (const [, row] of oq.matchAll(/<tr>(<td>★[A-Z]\d+<\/td>.*?)<\/tr>/g)) {
   if (!row.includes('決定:')) warns.push(`open-questions.html: 未決の★項目 ${row.match(/[A-Z]\d+/)[0]}`);
 }
+
+// 5.5 全要件（廃止を除く）が roadmap.html のどこかのフェーズに割り当てられている
+const road = read('roadmap.html');
+for (const r of reqs.values()) if (!r.deprecated && !road.includes(r.id)) errors.push(`roadmap.html: 要件 ${r.id} がどのフェーズにも割り当てられていない`);
 
 // 6. 仕様文書を変更したら changelog.html も更新する
 const mode = process.argv.includes('--staged') ? 'staged' : process.argv.includes('--worktree') ? 'worktree' : null;

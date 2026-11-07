@@ -17,7 +17,7 @@ export function requirements() {
     const id = row.match(/^<td>((?:NF|F)-\d+)<\/td>/)?.[1];
     if (!id) continue;
     if (reqs.has(id)) dups.push(id);
-    reqs.set(id, { id, pri: row.match(/class="(must|should|could)"/)?.[1] ?? null });
+    reqs.set(id, { id, pri: row.match(/class="(must|should|could)"/)?.[1] ?? null, deprecated: row.includes('（廃止）') });
   }
   return { reqs, dups };
 }

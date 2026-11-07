@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>未決事項・追加定義</title><link rel="stylesheet" href="style.css"></head><body>
-<nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a class="cur" href="open-questions.html">未決事項・追加定義</a><a href="development-rules.html">開発ルール</a><a href="changelog.html">変更履歴</a></nav>
+<nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a class="cur" href="open-questions.html">未決事項・追加定義</a><a href="roadmap.html">ロードマップ</a><a href="development-rules.html">開発ルール</a><a href="changelog.html">変更履歴</a></nav>
 <main>
 <h1>未決事項・追加で定義すべき要件</h1>
 <p>設計への影響が大きい順。★は「実装前に必ず決めたい」項目。回答済み（2026-11-07）。回答欄の内容は各文書に反映済み。</p>
@@ -69,6 +69,17 @@
 <tr><td>J1</td><td>出力機能（特に HTML 出力）を MVP に含めるか</td><td>MVP の次段階で、出力の中では HTML を最優先（推奨。F-607 は DrawList とビューアの共有が前提のため、描画の土台ができれば小さく作れる）/ MVP に含める</td><td><strong>決定:</strong> 推奨案。MVP の次段階。出力の中では HTML を最優先</td></tr>
 <tr><td>J2</td><td>HTML 出力で、メモ・担当者を含める既定</td><td>既定は含めない（出力時に選択して含める）（推奨。HTML は暗号化されず転送されやすいため）/ 既定で含める</td><td><strong>決定:</strong> 推奨案。既定は含めない（出力時に選択して含める）</td></tr>
 <tr><td>J3</td><td>PDF・SVG で大きな範囲（例: 8年 × 500行）を出力するとき</td><td>用紙サイズを選び「1ページに収める（縮小）」と「期間・行で分割して複数ページ」を選べる（推奨）/ 縮小のみ</td><td><strong>決定:</strong> 推奨案。「1ページに収める（縮小）」と「期間・行で分割」を選べる</td></tr></table>
+
+<h2>K. ロードマップ・MVP</h2>
+<p>案は <a href="roadmap.html">roadmap.html</a>。回答済み（2026-11-07）。</p>
+<table><tr><th>#</th><th>質問</th><th>選択肢/推奨</th><th>回答</th></tr>
+<tr><td>★K1</td><td>MVP の範囲の承認</td><td>必須要件 M の全35件 ＋ <strong>前倒し推奨: F-523（Git 環境の診断）・F-520（正式版の直接編集）</strong>の計37件（推奨）/ M の35件のみ / 範囲を変更</td><td><strong>決定:</strong> 推奨案。MVP は M の35件＋F-523・F-520 の計<strong>37件</strong>（F-523・F-520 は S → M に格上げ）</td></tr>
+<tr><td>K2</td><td>MVP 後のリリース順</td><td>R2 標準日程・比較 → R3 出力（HTML 最優先）→ R4 AI → R5 運用の質（推奨）/ 別の順</td><td><strong>決定:</strong> 推奨案。R2 標準日程・比較 → R3 出力（HTML 最優先）→ R4 AI → R5 運用の質</td></tr>
+<tr><td>K3</td><td>既存日程の取り込み（CSV・Excel。F-602）の時期</td><td>R2 に前倒し（推奨。MVP のパイロットの初期データは、開発者がスクリプトで投入）/ R5 / MVP の前</td><td><strong>決定:</strong> 推奨案。CSV・Excel の取り込み（F-602）は R2 に前倒し。MVP のパイロットの初期データは開発者がスクリプトで投入</td></tr>
+<tr><td>★K4</td><td>体制・稼働の前提と、MVP のパイロット</td><td>見積りの前提は「開発者1人が AI と協働し、ほぼ専任」（推奨の前提）。実際の人数・稼働を教えてください。パイロットは 3名・2週間を想定</td><td><strong>決定:</strong> 推奨案。見積りの前提は「開発者1人が AI と協働し、ほぼ専任」。パイロットは3名・2週間</td></tr>
+<tr><td>★K5</td><td><strong>終了日を含むか</strong>（Phase 1 着手前に必須）</td><td>含む（推奨。「〜12/15」は 12/15 を含む、という日本の業務慣習に合う）/ 含まない（半開区間。内部計算は簡単だが表示と入力で変換が要る）</td><td><strong>決定:</strong> <strong>終了日は含む</strong>（「〜12/15」は 12/15 を含む）</td></tr>
+<tr><td>K6</td><td>プロジェクト階層の深さの上限（F-301）</td><td>設計上は上限なし。UI は 10 階層まで想定（推奨）/ 上限を設ける（例: 5）</td><td><strong>決定:</strong> 推奨案。設計上は上限なし。UI は10階層まで想定</td></tr>
+<tr><td>K7</td><td>配布（NF-008）: アプリのリポジトリの公開/非公開、コード署名の可否、更新の適用タイミング</td><td>GitHub Releases + 利用者の GitHub トークンで取得（非公開でも可）。署名は可能なら実施。更新は「再起動して更新」を案内（推奨）。Phase 4 の途中までに決定</td><td><strong>決定:</strong> 推奨案。GitHub Releases + 利用者の GitHub トークンで取得（非公開でも可）。署名は可能なら実施。更新は「再起動して更新」を案内</td></tr></table>
 
 <h2>B. 見落としやすい要件（提案）</h2>
 <table><tr><th>領域</th><th>検討事項</th></tr>

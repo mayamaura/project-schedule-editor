@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ロードマップ</title><link rel="stylesheet" href="style.css"></head><body>
+<nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a><a class="cur" href="roadmap.html">ロードマップ</a><a href="development-rules.html">開発ルール</a><a href="changelog.html">変更履歴</a></nav>
+<main>
+<h1>ロードマップ（MVP と設計・実装・テスト）</h1>
+<p>文書ステータス: <strong>v0.2（2026-11-07）</strong>。MVP の範囲・リリース順・前提は <a href="open-questions.html">未決事項 K</a> で確定済み（変更は <code>/spec-change</code>）。全ての要件は、この文書のどこかのフェーズに割り当てる（<code>check-docs</code> が機械検査する。要件を追加したら、ここも更新する）。</p>
+
+<h2>1. 進め方の原則</h2>
+<ul>
+<li><strong>縦切り（スライス）で進める。</strong>各フェーズを、動いて見せられる小さな単位（約1週間）に分け、毎回「設計 → テスト先行 → 実装 → 検証 → 文書の整合 → デモ」を回す。</li>
+<li><strong>リスクの高いものを先に。</strong>EMU 認証、実機での描画性能、Git 初心者向け UI の使いやすさは、早い段階で実環境・実利用者で確かめる。</li>
+<li><strong>土台から積む。</strong>ドメイン層（純 TypeScript）→ 表示（Canvas）→ 編集 → Git → 配布。下の層が固まるまで、上の層の見た目は作り込まない。</li>
+<li><strong>品質ゲートを毎回通す。</strong><code>scripts/verify.mjs</code>（文書整合・要件ID追跡・ライセンス・型・lint・テスト）が通らないものは「完了」としない。ゲートはフェーズごとに強化する（6.2）。</li>
+<li><strong>仕様は先に文書、実装は後。</strong>フェーズの冒頭で、そのフェーズの詳細設計を文書に反映する（<code>/spec-change</code>）。フェーズの終わりに <code>/doc-audit</code> で文書とコードを突き合わせる。</li>
+<li><strong>AI（Claude Code）との協働の標準サイクル:</strong> <code>/implement-feature</code>（要件ID単位）→ <code>arch-reviewer</code>（レイヤ・セキュリティ違反の確認）→ コミット。</li>
+</ul>
+<div class="note">期間は<strong>概算</strong>（開発者1人が AI と協働し、ほぼ専任で進める前提。不確実性は ±50%）。確度が低いため、<strong>Phase 2 の完了時に実績で見直す</strong>。体制・稼働の前提は確定（K4: 開発者1人が AI と協働・ほぼ専任。パイロットは3名・2週間）。</div>
+
+<h2>2. 全体像</h2>
+<table><tr><th>フェーズ</th><th>目的</th><th>概算（累計）</th><th>成果（デモできるもの）</th></tr>
+<tr><td><strong>Phase 0</strong> 基盤</td><td>開発の土台と CI。EMU 認証の早期確認</td><td>1週（1週）</td><td>空の Electron アプリが CI でビルド・テストされる</td></tr>
+<tr><td><strong>Phase 1</strong> ドメイン</td><td>データ・コマンド・検証・差分の中核（純 TS）</td><td>3週（4週）</td><td>サンプルデータの読み書き・編集・差分がテストで動く</td></tr>
+<tr><td><strong>Phase 2</strong> 表示</td><td>Canvas のタイムライン表示（読み取り専用）</td><td>4週（8週）</td><td>実データ（25,000イベント）が滑らかに表示・ズーム・スクロール</td></tr>
+<tr><td><strong>Phase 3</strong> 編集</td><td>編集操作・Undo・自動保存と復元</td><td>4週（12週）</td><td>日程を編集でき、落ちても失われない</td></tr>
+<tr><td><strong>Phase 4</strong> Git</td><td>保存・作業版・反映・競合解決</td><td>5週（17週）</td><td>Git 未経験者が作業版で編集し、正式版に反映できる</td></tr>
+<tr><td><strong>Phase 5</strong> 配布</td><td>インストーラ・自動更新・実機チューニング・パイロット</td><td>2週（19週）</td><td><strong>MVP リリース</strong>（社内パイロット開始）</td></tr>
+<tr><td>R2 標準日程・比較</td><td>標準日程、カレンダー、版の比較、CSV・Excel の取り込み</td><td>6週（25週）</td><td>標準日程からプロジェクトを作れる</td></tr>
+<tr><td>R3 出力</td><td>HTML（最優先）・PDF・SVG・PNG</td><td>4週（29週）</td><td>閲覧専用の単一 HTML を配布できる</td></tr>
+<tr><td>R4 AI</td><td>Copilot SDK による提案・評価・指摘</td><td>6週（35週）</td><td>AI に日程の編集提案・矛盾指摘を依頼できる</td></tr>
+<tr><td>R5 運用の質</td><td>補助機能・取り込み・フィルタなど</td><td>随時</td><td>—</td></tr></table>
+<pre>週     1  4        8        12       17  19        25     29        35
+       ├P0┤P1──┤P2─────┤P3─────┤P4───────┤P5┤
+                                              ▲MVP     R2────┤R3───┤R4──────┤ R5…
+ 並行: EMU 認証の確認(P0〜P1)／実機での描画性能(P2)／Git UI のユーザビリティ試作(P4 冒頭)</pre>
+
+<h2>3. MVP の定義（確定）</h2>
+<p><strong>MVP = 「日程を1人で編集でき、Git（作業版 → 正式版）で複数人と共有できる」最小のアプリ。</strong>Phase 0〜5 の完了。</p>
+<h3>3.1 含む（必須要件 M の全37件。K1 で F-523・F-520 を M に格上げ）</h3>
+<table><tr><th>領域</th><th>要件</th></tr>
+<tr><td>表示</td><td>F-101 F-102 F-103 F-104 F-105 F-106 F-107 F-302 F-304 F-401</td></tr>
+<tr><td>編集・保護</td><td>F-201 F-202 F-204 F-205 F-206 F-208 F-209 F-210 F-211 F-301 F-305</td></tr>
+<tr><td>Git・共有</td><td>F-501 F-502 F-503 F-504 F-506 F-508 F-509 F-511 F-513 F-514 F-515 F-517 F-518 F-520 F-522 F-523</td></tr></table>
+<div class="note"><strong>K1 の決定:</strong> <strong>F-523</strong>（Git 環境の診断: EMU・GCM の認証トラブルを利用者が自力で解決するため。導入の成否に直結）と <strong>F-520</strong>（正式版の直接編集・確認付き: 軽微な修正で作業版を作らずに済むようにするため）を、S から M に格上げして MVP に含める。</div>
+<h3>3.2 含まない（MVP の次以降）</h3>
+<p>標準日程（R2）、版の比較・履歴の変更要約（R2）、出力（R3）、AI（R4）、フィルタ・ビュー保存・CSV 取り込みなど（R5）。</p>
+<h3>3.3 受け入れ基準（MVP ゲート）</h3>
+<table><tr><th>#</th><th>基準</th><th>確認方法</th></tr>
+<tr><td>1</td><td>500プロジェクト × 50イベント × 8年のサンプルで、表示・スクロール・ズームが滑らか（実機で 60fps に近く）</td><td>実機計測（画面倍率 125〜200% を含む）。NF-001</td></tr>
+<tr><td>2</td><td>編集中にアプリを強制終了しても、最後の約1秒を除いて編集内容が失われず、起動時に復元される</td><td>強制終了テスト（E2E・自動）。F-210, F-211, NF-018</td></tr>
+<tr><td>3</td><td><strong>Git 未経験者3名が、説明なしで「作業版の作成 → 編集 → 保存 → 正式版への反映」を完遂できる。競合解決も完遂できる</strong></td><td>ユーザビリティテスト。NF-019</td></tr>
+<tr><td>4</td><td>利用予定の GitHub（EMU を含む）で、ブラウザ認証・clone・push が通る</td><td>実環境での確認。F-508</td></tr>
+<tr><td>5</td><td>Windows のインストーラで導入でき、Git 未導入の PC でも動く（同梱 Git）</td><td>クリーンな PC で確認。NF-008, F-522</td></tr>
+<tr><td>6</td><td>必須要件の全てに、実装とテストの <code>@req</code> タグがある</td><td><code>node scripts/trace.mjs --report</code></td></tr>
+<tr><td>7</td><td><code>verify.mjs</code> が全て通り、ライセンス検査・Electron のセキュリティ設定の確認が済んでいる</td><td>CI。NF-007, NF-016</td></tr>
+<tr><td>8</td><td>文書とコードが一致している</td><td><code>/doc-audit</code></td></tr></table>
+
+<h2>4. フェーズ詳細</h2>
+
+<h3>Phase 0: 基盤（約1週）</h3>
+<table><tr><th>項目</th><th>内容</th></tr>
+<tr><td>要件</td><td>NF-002 NF-007 NF-009 NF-011 NF-016</td></tr>
+<tr><td>設計</td><td>ディレクトリ構成（<a href="development-rules.html">開発ルール</a>）の確定、IPC の型定義方針、文言の外出し（NF-009）。<strong>EMU 認証スパイクの手順</strong>（ユーザーの環境で確認する項目を依頼書にまとめる）</td></tr>
+<tr><td>実装</td><td>S0-1 electron-vite + TypeScript strict のスキャフォールド（<code>package.json</code> に <code>typecheck</code> / <code>lint</code> / <code>test</code> を定義）。S0-2 ESLint のレイヤ境界ルール（<code>src/domain</code> は electron / node / react / DOM を import しない、renderer は main を import しない）、Vitest、GitHub Actions（verify）。S0-3 electron-builder で署名なしビルド、Playwright for Electron の smoke E2E、Electron のセキュリティ設定（contextIsolation 有効・nodeIntegration 無効・CSP）。S0-4（並行）EMU のブラウザ認証（GCM、<code>github.com</code> / <code>ghe.com</code>）をユーザー環境で確認</td></tr>
+<tr><td>テスト</td><td>smoke E2E（ウィンドウが起動する）、ライセンス検査の有効化、レイヤ違反を意図的に混ぜて lint が落ちることの確認</td></tr>
+<tr><td>完了条件</td><td>空のアプリが CI でビルド・lint・テスト・E2E smoke を通る。EMU 認証の可否が分かる（NG なら代替認証への切替を決める）</td></tr>
+<tr><td>ブロッカー</td><td>EMU の接続先ホスト名、OAuth/GitHub App の登録権限（管理者に確認）</td></tr></table>
+
+<h3>Phase 1: ドメイン層（約3週）</h3>
+<table><tr><th>項目</th><th>内容</th></tr>
+<tr><td>要件</td><td>F-301 F-509 NF-004 NF-005 NF-006。（F-206 のコマンド基盤、F-208 の検証ルールもここで作る）</td></tr>
+<tr><td>設計</td><td>型・zod スキーマの確定、JSON 出力規則、ID・並び順（fractional index）、<strong>終了日は含む（決定 K5）</strong>、コマンド一覧（add/update/delete × Event/Milestone/Project/Dependency）、マイグレーション方針、<code>diffSchedule</code> の変更種類</td></tr>
+<tr><td>実装</td><td>S1-1 型・スキーマ・JSON 整形（キー昇順・LF）・FileRepository（原子的書き込み）。S1-2 日付ユーティリティ（月曜起点の週、暦月）とカレンダー。S1-3 コマンド適用・Undo/Redo・検証（終了≧開始、循環依存）。S1-4 <code>diffSchedule</code>。S1-5 スキーマ版管理・マイグレーションの骨組み、500×50×8年のサンプルデータ生成</td></tr>
+<tr><td>テスト</td><td><strong>テスト先行</strong>の単体テスト（Vitest）: 日付の境界（月跨ぎ・年跨ぎ・閏年・週の起点）、コマンドと Undo の往復、循環検出、<code>diffSchedule</code> の全変更種類、不正入力。強制終了テスト（<code>spike/autosave-atomic</code> を取り込む）。ドメイン層のカバレッジ閾値 90%</td></tr>
+<tr><td>完了条件</td><td>サンプルデータを読み書き・編集・差分取得でき、全テストが通る。カバレッジ 90%。出力 JSON が Git で差分・マージしやすい（書式が安定している）</td></tr></table>
+
+<h3>Phase 2: 表示（約4週）</h3>
+<table><tr><th>項目</th><th>内容</th></tr>
+<tr><td>要件</td><td>F-101 F-102 F-103 F-104 F-105 F-106 F-107 F-302 F-304 F-401 NF-001 NF-010（基本）</td></tr>
+<tr><td>設計</td><td><strong>DrawList の仕様</strong>（矩形・点・線・ラベルの表現、レイヤ、サブレーンのレイアウト）、スクロール・ズームの状態モデル（<a href="ui-design.html">年月週 / 年月</a>）、ヒットテストの索引、Canvas の運用（dirty + rAF、DPR 対応）。文書（architecture 1.5）に反映</td></tr>
+<tr><td>実装</td><td>S2-1 <code>buildDrawList</code> + <code>draw</code> の最小版（行・バー・マイルストーン）。S2-2 日付ヘッダ（年月週 / 年月）、ズーム・スクロール、今日線・週末・祝日。S2-3 左ペインのツリー（仮想化・展開/折りたたみ）、サブレーン（F-103）、プロジェクトの表示選択（F-401）。S2-4 表示スタイル（F-102）・色・種別、依存線と表示切替（F-302, F-304）。S2-5 ヒットテスト・ホバー・性能（25,000イベント）。<strong>既存フォルダを開いて実データを表示</strong>（F-501 の「開く」）</td></tr>
+<tr><td>テスト</td><td><code>buildDrawList</code>・レイアウト・ヒットテストの単体テスト（DOM 不要）、表示の E2E（<code>window.__timeline</code> から DrawList を取得）、<strong>性能ベンチ（25,000イベント）を CI に記録</strong>（閾値超過は警告）、<strong>実機計測</strong>（画面倍率 125〜200%・複数の PC）、キーボード操作と読み上げ用テキストの基本</td></tr>
+<tr><td>完了条件</td><td>サンプルと実データが、実機で滑らかに表示・ズーム・スクロールできる（60fps 目標）。<strong>見積りの見直し</strong></td></tr></table>
+
+<h3>Phase 3: 編集（約4週）</h3>
+<table><tr><th>項目</th><th>内容</th></tr>
+<tr><td>要件</td><td>F-201 F-202 F-204 F-205 F-206 F-208 F-209 F-210 F-211 F-305 NF-018（NF-004 の続き）</td></tr>
+<tr><td>設計</td><td>操作のステートマシン（idle / 選択 / ドラッグ / リサイズ / 範囲選択 / パン）、コマンド一覧の確定、右クリックメニューの項目、詳細パネル、AutosaveService（Renderer → Main の IPC、束ね、フラッシュ）、<code>.autosave/</code> の仕様</td></tr>
+<tr><td>実装</td><td>S3-1 コマンド経由の編集・選択・ドラッグ移動/リサイズ・Undo/Redo（確定時に1コマンド）。S3-2 右クリックメニューと作成（F-202）、詳細パネル（F-204）。S3-3 プロジェクト操作（追加・削除・並べ替え・親子付け替え）。S3-4 依存の作成と、依存違反・入力エラーの警告表示（F-208, F-305）。S3-5 自動保存と復元（F-210, F-211）</td></tr>
+<tr><td>テスト</td><td>コマンド・Undo の単体テスト、操作ステートマシンの単体テスト、編集の E2E、<strong>強制終了 → 起動 → 復元の E2E</strong>（自動）、ドラッグ中のフレーム時間の計測（16ms 以内）、自動保存の書き込み時間</td></tr>
+<tr><td>完了条件</td><td>主要な編集が一通りでき、アプリを強制終了しても編集が復元される（最後の約1秒を除く）</td></tr></table>
+
+<h3>Phase 4: Git（約5週）</h3>
+<table><tr><th>項目</th><th>内容</th></tr>
+<tr><td>要件</td><td>F-501 F-502 F-503 F-504 F-506 F-508 F-511 F-513 F-514 F-515 F-517 F-518 F-522 NF-003 NF-017 NF-019 F-520 F-523（K1 で MVP に追加）</td></tr>
+<tr><td>設計</td><td><strong>S4-0（冒頭）</strong>: 作業版・反映・競合解決の画面を<strong>モック（クリック可能な試作）で作り、Git 未経験者3名に試してもらう</strong>。結果で用語・導線を修正してから実装に入る。Git フローの状態遷移（作業版・反映・中断）、変更の日本語要約の文言規則</td></tr>
+<tr><td>実装</td><td>S4-1 GitService（Git の解決: 外部/同梱、実行、診断）と認証（GCM のブラウザ認証、代替の Device Flow / PAT）。S4-2 保存（commit）と日本語の変更要約、履歴・戻す。S4-3 作業版（作成・切替・現在地の常時表示・退避と復元）と、正式版の直接編集（確認付き。F-520）。S4-4 反映ウィザード（最新の取り込み・競合の事前予告・main へ <code>--no-ff</code>・push の再試行）。S4-5 競合解決 UI（項目単位）。S4-6 初回セットアップ（clone / 新規 / 開く）、共有時の変更一覧、共有</td></tr>
+<tr><td>テスト</td><td>一時リポジトリでの Git 統合テスト（<code>spike/git-flow</code> を取り込む: 作業版・反映・競合・push 拒否・退避・非対話の認証失敗）、<code>diffSchedule</code> を使った要約の単体テスト、Git フローの E2E、<strong>S4-7 ユーザビリティ受け入れテスト（NF-019。Git 未経験者3名）</strong>、EMU 実環境での認証・clone・push</td></tr>
+<tr><td>完了条件</td><td>受け入れ基準の 3・4 を満たす（Git 未経験者が作業版 → 反映と競合解決を完遂。EMU/GitHub で認証・push が通る）</td></tr></table>
+
+<h3>Phase 5: 配布・仕上げ（約2週）</h3>
+<table><tr><th>項目</th><th>内容</th></tr>
+<tr><td>要件</td><td>NF-008（NF-002 の仕上げ）。F-107 の実機での最終確認</td></tr>
+<tr><td>設計</td><td>配布方式（NSIS インストーラ、コード署名（可能なら実施）、GitHub Releases による自動更新。決定 K7: 非公開でも利用者の GitHub トークンで取得し、「再起動して更新」を案内）、更新の適用タイミング、バージョン差への対応（古いアプリは新しいデータを読み取り専用）、ログと診断情報の出力先</td></tr>
+<tr><td>実装</td><td>S5-1 実機でのパフォーマンス調整。S5-2 インストーラ・（署名）・自動更新（<code>electron-updater</code> + GitHub Releases + CI での公開）。S5-3 ログ・診断情報（利用者がサポートに渡せる形）。S5-4 利用者向けの使い方（HTML）、社内パイロットの準備</td></tr>
+<tr><td>テスト</td><td>クリーンな Windows でのインストール・起動・更新の確認、Git 未導入 PC での動作、受け入れ基準 1〜8 の通し確認、<code>trace --report</code>（必須要件の実装・テストのタグ 100%）、<code>/doc-audit</code></td></tr>
+<tr><td>完了条件</td><td>MVP ゲート（3.3）を全て満たし、<strong>社内パイロット（K4）を開始</strong>できる</td></tr></table>
+
+<h2>5. MVP 後のリリース</h2>
+<p>順序は案（K2）。各リリースも「詳細設計 → テスト先行 → 実装 → 検証 → 文書整合」の同じサイクルで進める。</p>
+<table><tr><th>リリース</th><th>要件</th><th>主なテスト・完了条件</th></tr>
+<tr><td><strong>R2 標準日程・比較</strong>（約6週）</td><td>F-801 F-802 F-803 F-804 F-805 F-807 F-808 F-809（標準日程）、F-603（カレンダー）、F-704（整合性チェック）、F-505（版の比較）、F-510（履歴の変更要約）、F-512（依存違反の新規発生の警告）、F-602（CSV・Excel の取り込み。決定 K3）</td><td>月末・閏年・年跨ぎ・稼働日のオフセット計算の単体テスト（テスト先行。F-809 の規則）、展開のプレビューと Undo の E2E。標準日程から実際にプロジェクトを作れる</td></tr>
+<tr><td><strong>R3 出力</strong>（約4週）</td><td>F-607（HTML。最優先）、F-608（HTML のオプション）、F-601（PNG・SVG）、F-606（PDF・印刷）</td><td>NF-020 の検証（<code>file://</code> で開き、外部通信 0 件、25,000 イベントでのスクロール・ズーム、<code>&lt;/script&gt;</code> を含むデータで壊れない）。<code>src/viewer/</code> と DrawList の共有。サイズ目標 10MB 以下</td></tr>
+<tr><td><strong>R4 AI</strong>（約6週）</td><td>F-701 F-702 F-703 F-705 F-706 F-707 F-708 F-709 F-710 F-711 F-712 F-713、F-604（担当・状態。AI の評価に必要）、NF-012 NF-013 NF-014 NF-015</td><td><strong>着手前に Copilot SDK の実動作を検証</strong>（契約・認証、組み込みツールの無効化、EMU、<code>gitHubToken</code>）。I2（ランタイム同梱の承認）を決める。SDK のモックで、ツール・変更セットの検証・権限ハンドラを単体テスト。プロンプトインジェクションの確認</td></tr>
+<tr><td><strong>R5 運用の質</strong>（随時）</td><td>F-203（キーボード操作）、F-207（一括移動）、F-303（依存タイプ）、F-306（影響範囲の強調）、F-402（フィルタ）、F-403（ビュー保存）、F-516（作業版のバックアップ）、F-519（作業版の整理）、F-521（中断からの再開）</td><td>利用状況とパイロットの声で優先順位を決める</td></tr>
+<tr><td>バックログ（任意 C）</td><td>F-404 F-605 F-609 F-806</td><td>必要になったら検討</td></tr></table>
+
+<h2>6. 横断: テストと品質ゲートのロードマップ</h2>
+<h3>6.1 テストの導入計画</h3>
+<table><tr><th>テスト</th><th>ツール</th><th>導入</th><th>ゲート</th></tr>
+<tr><td>ドメイン単体</td><td>Vitest</td><td>P0（枠）→ P1</td><td>CI 必須。P1 でカバレッジ 90%</td></tr>
+<tr><td>DrawList・ヒットテスト単体</td><td>Vitest</td><td>P2</td><td>CI 必須</td></tr>
+<tr><td>性能ベンチ（25,000 イベント）</td><td>spike/render-bench を発展</td><td>P2</td><td>CI で記録、前回比の悪化を警告（退行検知）</td></tr>
+<tr><td>実機の性能確認</td><td>手動 + 計測スクリプト</td><td>P2、P5</td><td>MVP ゲート（基準 1）</td></tr>
+<tr><td>E2E</td><td>Playwright for Electron</td><td>P0 smoke → P2 表示 → P3 編集 → P4 Git</td><td>CI 必須（主要フローのみ）</td></tr>
+<tr><td>強制終了・自動保存</td><td>spike/autosave-atomic を発展</td><td>P1（書き込み）、P3（E2E）</td><td>CI（毎晩 or 毎回）</td></tr>
+<tr><td>Git 統合</td><td>Vitest + 一時リポジトリ（spike/git-flow を発展）</td><td>P4</td><td>CI 必須</td></tr>
+<tr><td>ユーザビリティ</td><td>Git 未経験者3名の観察テスト</td><td>P4 冒頭（試作）と P4 末（受け入れ）</td><td>MVP ゲート（基準 3）</td></tr>
+<tr><td>セキュリティ確認</td><td>チェックリスト（Electron の設定、CSP、IPC の入力検証、ライセンス）</td><td>P0 から、各リリース前</td><td>MVP ゲート（基準 7）</td></tr>
+<tr><td>HTML 出力・AI</td><td>Playwright（<code>file://</code>）／SDK のモック</td><td>R3／R4</td><td>各リリース</td></tr></table>
+<p>任意: 日付計算・差分の性質（往復して元に戻る、など）の検証に property-based testing（fast-check, MIT）を使う案。<strong>新しい依存なので、導入時に承認を得る</strong>。</p>
+<h3>6.2 品質ゲート（<code>verify.mjs</code>）の進化</h3>
+<table><tr><th>時点</th><th>追加するチェック</th></tr>
+<tr><td>現在</td><td>文書の整合（全要件がロードマップに割り当て済みか、を含む）、要件ID追跡、ライセンス</td></tr>
+<tr><td>P0</td><td>typecheck、lint（レイヤ境界）、test（<code>package.json</code> に定義すれば自動で実行）</td></tr>
+<tr><td>P1</td><td>ドメイン層のカバレッジ閾値</td></tr>
+<tr><td>P2</td><td>性能ベンチの記録と退行検知（警告）</td></tr>
+<tr><td>P5（MVP ゲート）</td><td><code>trace.mjs --strict</code>: 必須要件に実装タグとテストタグが無ければ失敗（実装時に追加）</td></tr></table>
+
+<h2>7. 依存関係・クリティカルパスとリスク</h2>
+<p>クリティカルパス: <strong>ドメイン層 → DrawList（Canvas 表示）→ 編集 → Git → 配布</strong>。Phase 2 の表示と Phase 4 の Git は、S4-0（試作）と EMU 認証の確認を前倒しすれば、一部を並行できる。</p>
+<table><tr><th>リスク</th><th>影響</th><th>対策</th></tr>
+<tr><td>EMU でブラウザ認証が通らない / 管理者の許可が下りない</td><td>Git 連携が使えない</td><td>P0 で早期に確認。代替（Device Flow / PAT）を用意。管理者への確認事項を P0 で依頼</td></tr>
+<tr><td>Git 初心者向け UI が分かりにくい</td><td>MVP の受け入れ基準 3 を満たせない</td><td>S4-0 のモック試作で早く確かめ、実装前に導線・用語を直す</td></tr>
+<tr><td>実機（GPU・画面倍率）で性能が出ない</td><td>表示が重い</td><td>P2 で実機計測。DrawList の集約表示（LOD）・キャッシュを段階的に追加</td></tr>
+<tr><td>Canvas の実装量（入力・テキスト・ヒットテスト）が大きい</td><td>見積りの超過</td><td>DrawList を純関数にして小さく刻む。P2 完了時に見積りを見直す。操作オーバーレイは DOM で実装コストを抑える</td></tr>
+<tr><td>日本語入力（IME）と Canvas の相性</td><td>入力が崩れる</td><td>文字入力は DOM の input（オーバーレイ）で行う</td></tr>
+<tr><td>データ形式の後からの変更</td><td>マイグレーションの手戻り</td><td><code>schemaVersion</code> とマイグレーションを P1 から入れる。形式変更は必ず文書とマイグレーションを伴う</td></tr>
+<tr><td>ライセンス（同梱 Git の GPL、Copilot ランタイム）</td><td>配布できない / 承認遅れ</td><td>同梱 Git は H1 で決定済み（告知を同梱）。Copilot は R4 着手前に I2 を決める</td></tr>
+<tr><td>範囲の肥大化</td><td>MVP が遅れる</td><td>MVP ゲート（3.3）を基準に、新要求は R2 以降に送る。変更は <code>/spec-change</code> で影響を見える化</td></tr>
+<tr><td>AI 協働での品質のばらつき</td><td>不具合・設計のずれ</td><td>品質ゲート、<code>arch-reviewer</code>、<code>/doc-audit</code>、要件ID追跡、テスト先行</td></tr>
+<tr><td>コード署名の証明書の入手が遅れる</td><td>P5 の遅延、SmartScreen の警告</td><td>署名は可能なら実施（K7）。早めに入手の手続きを始める。署名なしでも配布・更新は動く</td></tr></table>
+
+<h2>8. 決定事項と、着手前に残る確認</h2>
+<p>決定済み（2026-11-07）: <strong>K1</strong> MVP は 37 件（F-523・F-520 を含む）／<strong>K2</strong> リリース順は R2 → R3 → R4 → R5／<strong>K3</strong> CSV・Excel の取り込みは R2／<strong>K4</strong> 前提は開発者1人 + AI・ほぼ専任、パイロットは3名・2週間／<strong>K5</strong> 終了日は含む／<strong>K6</strong> 階層の深さは設計上は上限なし（UI は10階層まで）／<strong>K7</strong> 配布は GitHub Releases + 利用者のトークン、署名は可能なら実施、更新は再起動時。</p>
+<table><tr><th>いつまでに</th><th>残る確認</th><th>関連</th></tr>
+<tr><td>Phase 0 の間</td><td>EMU の接続先ホスト（<code>github.com</code> / <code>ghe.com</code>）、OAuth/GitHub App の登録と承認の権限（管理者に確認）</td><td>F-508</td></tr>
+<tr><td>Phase 4 の冒頭（S4-0）</td><td>ユーザビリティ試作に協力してもらう Git 未経験者3名の選定</td><td>NF-019</td></tr>
+<tr><td>Phase 5 まで</td><td>コード署名の証明書の入手（できれば）</td><td>NF-008</td></tr>
+<tr><td>R4 着手前</td><td>Copilot ランタイム同梱の承認（I2）、Copilot の実動作の検証</td><td>I2, F-708</td></tr></table>
+<div class="todo">優先順位・期間・体制に関する希望を追記。</div>
+</main></body></html>

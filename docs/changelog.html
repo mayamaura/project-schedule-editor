@@ -1,11 +1,13 @@
 <!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>変更履歴</title><link rel="stylesheet" href="style.css"></head><body>
-<nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a><a href="development-rules.html">開発ルール</a><a class="cur" href="changelog.html">変更履歴</a></nav>
+<nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a><a href="roadmap.html">ロードマップ</a><a href="development-rules.html">開発ルール</a><a class="cur" href="changelog.html">変更履歴</a></nav>
 <main>
 <h1>仕様変更履歴</h1>
 <p>仕様文書（requirements / data-model / architecture / ui-design / git-ux / open-questions）を変更したら、この表の<strong>先頭</strong>に追記する（pre-commit が検査）。</p>
 <table><tr><th>日付</th><th>変更内容</th><th>影響文書</th><th>要件ID</th></tr>
+<tr><td>2026-11-07</td><td>K1〜K7 を決定: <strong>MVP は 37 件</strong>（F-523・F-520 を S → M に格上げ）、リリース順 R2→R3→R4→R5、CSV・Excel の取り込みを R2 に前倒し（R2 は約6週）、前提は開発者1人+AI・パイロット3名2週、<strong>終了日は含む</strong>、階層は設計上上限なし（UI は10階層）、配布は GitHub Releases+利用者トークン・署名は可能なら・再起動時に更新</td><td>open-questions, requirements, data-model, roadmap</td><td>F-301, F-520, F-523, F-602, NF-008</td></tr>
+<tr><td>2026-11-07</td><td>ロードマップ（roadmap.html）を追加: MVP の定義（案）、Phase 0〜5 の設計・実装・テスト、MVP 後のリリース（R2〜R5）、テストと品質ゲートの導入計画、リスク。全要件のフェーズへの割り当てを機械検査（check-docs）。確認事項 K1〜K7 を追加</td><td>roadmap（新規）, open-questions, index, development-rules, CLAUDE.md</td><td>全要件</td></tr>
 <tr><td>2026-11-07</td><td>J1〜J3 を推奨案で決定（出力は MVP の次段階で HTML を最優先、メモ・担当者は既定で含めない、大きな範囲は縮小/分割を選択）</td><td>open-questions, requirements, architecture, ui-design</td><td>F-606, F-607, F-608</td></tr>
 <tr><td>2026-11-07</td><td>出力機能を拡充（I4 決定）: ベクタ形式（SVG・ベクタ PDF）を追加し、<strong>閲覧専用の単一 HTML 出力（ズーム・スクロール可、外部通信なし）を最優先</strong>で追加。DrawList を共通の中間表現にし、ビューア（src/viewer/）が描画コードを共有。出力用スナップショット形式、HTML の安全性（CSP・エスケープ）、出力ダイアログとビューアの画面案を追加。確認事項 J1〜J3 を追加</td><td>requirements, architecture, data-model, ui-design, open-questions, index, development-rules, CLAUDE.md</td><td>F-601, F-606〜F-609, NF-020</td></tr>
 <tr><td>2026-11-07</td><td>描画方式を<strong>変更</strong>: React + SVG/DOM → <strong>React + Canvas（タイムライン本体）+ DOM/SVG オーバーレイ + d3</strong>（I1。技術検証でラベル付き SVG は約2,000件で限界、Canvas は25,000件でも60fps）。DrawList（純関数）と draw の分離、ヒットテスト、アクセシビリティ代替、E2E の方針、出力の方針を追加。検証コード spike/ は残す（I3）。画像・PDF 出力の形式を I4 として新規質問</td><td>architecture, requirements, open-questions, development-rules, CLAUDE.md</td><td>NF-010, F-601</td></tr>

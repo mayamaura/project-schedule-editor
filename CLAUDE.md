@@ -15,12 +15,13 @@ Electron 製デスクトップアプリ。縦=プロジェクト、横=日付の
 | Git の UX・競合解決 | docs/git-ux.html |
 | 決定済み/未決の事項 | docs/open-questions.html |
 | 仕様変更の履歴 | docs/changelog.html |
+| MVP・フェーズ計画・要件の割り当て | docs/roadmap.html |
 | 開発・テスト・レビューのルール | docs/development-rules.html |
 
 ## 絶対ルール
 1. **仕様とコードを食い違わせない。** 仕様に影響する変更は、関連する全文書を同じ作業内で更新し、`docs/changelog.html` に追記する。コードと文書が矛盾していたら黙って片方に合わせず、ユーザーに報告する。
 2. **未決事項を勝手に決めない。** `open-questions.html` で「決定:」が無い項目に依存する場合は、実装前にユーザーに確認する。
-3. **要件IDで追跡する。** 実装・テストには `@req F-201` の形でタグを付ける。新機能は requirements.html に要件IDがあることが前提。無ければ先に追加（`/spec-change`）。
+3. **要件IDで追跡する。** 実装・テストには `@req F-201` の形でタグを付ける。新機能は requirements.html に要件IDがあることが前提。無ければ先に追加（`/spec-change`）。**新しい要件は docs/roadmap.html のフェーズ（またはリリース）に必ず割り当てる**（`check-docs` が検査する）。
 4. **完了 = `node scripts/verify.mjs` が通ること。** 通っていないものを「完了」と報告しない。失敗したら出力をそのまま伝える。
 5. **破壊的操作をしない。** force push / reset --hard / `--no-verify` / 履歴書き換えは禁止。コミット・push はユーザーが依頼したときだけ。
 6. **新しい依存ライブラリは勝手に足さない。** 追加時は architecture.html に理由を追記し、ユーザーに報告する（d3 の追加モジュールは自由）。**商用（有償・商用ライセンス必須）ライブラリは使わない**。許容は MIT/ISC/BSD/Apache-2.0 等で、`scripts/check-licenses.mjs` が検査する。
