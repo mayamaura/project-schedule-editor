@@ -13,7 +13,7 @@
 <tr><td>Milestone</td><td>id, projectId, name, date, type, style?, note</td></tr>
 <tr><td>Dependency</td><td>id, from{kind,id}, to{kind,id}, type(FS/SS/FF/SF), lagDays</td></tr>
 <tr><td>Type（種別マスタ）</td><td>id, name, color, eventStyle, milestoneStyle</td></tr>
-<tr><td>Template（標準日程）</td><td>id, name, defaultAnchor, dayMode, adjust, events, milestones, dependencies（相対日数）</td></tr>
+<tr><td>Template（標準日程）</td><td>id, name, defaultAnchor, dayMode, adjust, events, milestones, dependencies（基準からの相対オフセット: ヶ月・日）</td></tr>
 <tr><td>View</td><td>id, name, shared, visibleProjectIds, expanded, zoom, dependencyFilter, columns</td></tr>
 <tr><td>Calendar</td><td>weekend設定, holidays[], 稼働日</td></tr>
 <tr><td>Meta</td><td>schemaVersion, appVersion</td></tr></table>
@@ -149,31 +149,40 @@
 "e2": { "name": "試作", "start": "2027-01-05", "end": "2027-03-31", "type": "phase", "style": "striped" }</pre>
 
 <h2>8. 標準日程（Template）</h2>
-<p>よく使う日程のひな形。<strong>基準（0日）からの相対日数</strong>で保持し、展開時に起点マイルストーンの日付を与えて実日付に変換する（F-801〜F-808）。チーム共有のため Git の <code>templates/&lt;id&gt;.json</code>（1標準日程1ファイル、他と同じ出力規則）に保存する。</p>
+<p>よく使う日程のひな形。<strong>基準マイルストーン（オフセット 0）からの相対オフセット</strong>（ヶ月・日。負=基準より前、正=後）で保持し、展開時に起点の日付を与えて実日付に変換する（F-801〜F-808）。チーム共有のため Git の <code>templates/&lt;id&gt;.json</code>（1標準日程1ファイル、他と同じ出力規則）に保存する。</p>
 <pre>{
   "id": "tpl-release-std",
   "name": "標準リリース日程",
-  "defaultAnchor": "m-release",
-  "dayMode": "calendar",          // "calendar"（暦日）| "working"（稼働日）
-  "adjust": "none",               // 非稼働日の補正: "none" | "earlier" | "later"
+  "defaultAnchor": "m-release",     // 基準マイルストーン（オフセット 0）。必須
+  "dayMode": "calendar",            // 日の数え方: "calendar"（暦日）| "working"（稼働日）
+  "adjust": "none",                 // 非稼働日の補正: "none" | "earlier" | "later"
   "events": {
-    "t1": { "name": "設計", "startOffset": -120, "endOffset": -75, "type": "phase" },
-    "t2": { "name": "試作", "startOffset": -70,  "endOffset": -20, "type": "phase" }
+    "t1": { "name": "設計",   "type": "phase",
+            "start": { "months": -4 },                "end": { "months": -2, "days": -15 } },
+    "t2": { "name": "試作",   "type": "phase",
+            "start": { "months": -2, "days": -10 },   "end": { "months": -1 } },
+    "t3": { "name": "保守",   "type": "phase",
+            "start": { "months": 1 },                 "end": { "months": 6 } }
   },
   "milestones": {
-    "m-review":  { "name": "設計レビュー", "dateOffset": -74, "type": "review" },
-    "m-release": { "name": "リリース",     "dateOffset": 0,   "type": "release" }
+    "m-review":  { "name": "設計レビュー",   "type": "review",  "date": { "months": -2, "days": -14 } },
+    "m-release": { "name": "リリース",       "type": "release", "date": {} },
+    "m-post":    { "name": "納品後レビュー", "type": "review",  "date": { "months": 1 } }
   },
   "dependencies": {
     "d1": { "from": { "kind": "event", "id": "t1" }, "to": { "kind": "event", "id": "t2" }, "type": "FS", "lagDays": 4 }
   }
 }</pre>
+<ul><li><strong>オフセット</strong>は <code>{ "months": 整数, "days": 整数 }</code>（どちらも省略可、省略は 0。符号は負=前、正=後）。画面では 日/週/ヶ月 の単位で入力でき、週は日（×7）に換算して保存する。</li>
+<li>起点より前（負）の項目も後（正）の項目も、同じ標準日程に定義できる。</li></ul>
 <h3>展開の計算</h3>
 <ol>
-<li>展開時に起点を指定する（F-802）。(a) <strong>マイルストーン起点</strong>: 標準日程内の任意のマイルストーン <em>M</em>（既定は <code>defaultAnchor</code>）とその実日付 <em>D</em>。(b) <strong>開始日起点</strong>: 標準日程全体の開始日（最小オフセット <em>s</em> の項目の日付）となる実日付 <em>D</em> のみ。</li>
-<li>各項目の実日付 = <em>D</em> ＋（項目のオフセット − 基準オフセット）。基準オフセットは (a) では <em>M</em> のオフセット、(b) では <em>s</em>。<code>dayMode</code> が <code>working</code> のときはオフセットを稼働日数として数える。</li>
+<li>展開時に起点を指定する（F-802）。(a) <strong>マイルストーン起点</strong>: 標準日程内の任意のマイルストーン <em>M</em>（既定は <code>defaultAnchor</code>）とその実日付 <em>D<sub>M</sub></em>。(b) <strong>開始日起点</strong>: 標準日程全体の開始日となる実日付 <em>D<sub>s</sub></em> のみ。</li>
+<li>まず<strong>基準マイルストーン（オフセット 0）の実日付 <em>D<sub>0</sub></em></strong> を求める。(a) では <em>D<sub>0</sub></em> = <em>D<sub>M</sub></em> に <em>M</em> のオフセットを逆向きに適用した日付（<em>M</em> が基準なら <em>D<sub>0</sub></em> = <em>D<sub>M</sub></em>）。(b) では、最も早い項目の日付が <em>D<sub>s</sub></em> になるよう <em>D<sub>0</sub></em> を決める。</li>
+<li>各項目の実日付 = <em>D<sub>0</sub></em> にその項目のオフセットを適用した日付。適用順は「<strong>ヶ月を暦月で加減算 → 日を加減算</strong>」。ヶ月の加減算で存在しない日付になる場合は<strong>月末に丸める</strong>（3/31 −1ヶ月 = 2/28、閏年は 2/29。月末の扱いは決定済み: F7）。<code>dayMode</code> が <code>working</code> のとき、日の部分は稼働日数で数える。</li>
 <li>非稼働日に当たった場合は <code>adjust</code> に従って前倒し/後ろ倒し（既定は補正なし）。</li>
 <li>結果は新規 ID を持つ<strong>コマンド列（addProject / addEvent / addMilestone / addDependency）</strong>として生成し、<code>diffSchedule</code> でプレビュー、承認後に1コマンドとして適用する（Undo 1単位）。AI 提案（<a href="#ai-changeset">ChangeSet</a>）と同じ経路。</li>
 <li>展開後のプロジェクトは標準日程への参照を持たない（独立）。</li></ol>
+<div class="note">月の加減算は暦月で行うため加法的でない（「3/31 の1ヶ月前」の1ヶ月後は 2/28 → 3/28 で元に戻らない）。起点に基準以外のマイルストーンを選ぶと、<em>D<sub>0</sub></em> の逆算で月末付近に数日のずれが出る場合がある。ずれは<strong>プレビューで確認・調整</strong>できるようにする。単体テスト（月末・閏年・年またぎ・稼働日）は必須。</div>
 <div class="todo">属性の追加（予算・工数・進捗率など）、データ形式の希望を追記。</div>
 </main></body></html>
