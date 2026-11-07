@@ -104,7 +104,7 @@
 <h3>6.1 前提・不確定事項（要検証）</h3>
 <table><tr><th>項目</th><th>現時点の把握</th><th>扱い</th></tr>
 <tr><td>提供状況</td><td><code>@github/copilot-sdk</code> は<strong>技術プレビュー</strong>で、破壊的変更の可能性がある</td><td>利用箇所を <code>src/main/ai/</code> に隔離（NF-014）</td></tr>
-<tr><td>利用条件</td><td>GitHub Copilot の契約が必要（BYOK=自前の API キー利用の場合は GitHub 認証不要とする情報あり）</td><td>契約状況を確認（E1）</td></tr>
+<tr><td>利用条件</td><td>GitHub Copilot の契約が必要（BYOK=自前の API キー利用の場合は GitHub 認証不要とする情報あり）</td><td>全利用者が契約済みの前提（決定 E1）。BYOK は当面不要</td></tr>
 <tr><td>認証</td><td>CLI のログイン済み OAuth、OAuth アプリのユーザートークン、環境変数トークンなど</td><td>GitHub 認証（F-508）との共通化を検証</td></tr>
 <tr><td>Copilot CLI</td><td>SDK が CLI を同梱するのか、別途インストールが必要なのか、情報源により記述が食い違う</td><td><strong>公式 README で確認</strong>。配布方法（NF-008）に影響</td></tr>
 <tr><td>組み込みツール</td><td>CLI 側に shell/ファイル操作等の組み込みツールがある可能性。これらを無効化/拒否できるか</td><td><strong>必須検証</strong>（NF-012）</td></tr></table>
@@ -128,6 +128,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <li><strong>差分表示を再利用</strong>: 提案のプレビューは <code>diffSchedule(現在, 提案適用後)</code> を使い、F-509 の表示と同一にする。</li>
 <li><strong>最小送信</strong>: 既定は選択項目＋関係する依存のみ。範囲拡大は利用者が選び、送信内容をプレビューする（F-707）。</li>
 <li><strong>プロンプトインジェクション対策</strong>: データ（名称・メモ）は「データ」として区切って渡し、指示として扱わない旨をシステムプロンプトに明記。ツールは提案のみのため、最悪でも承認画面で止まる構造にする。</li>
+<li><strong>指示・観点の編集（F-712）</strong>: プロンプトは2層で組み立てる。①アプリ固定の基本プロンプト（役割、ツール利用規則、「データ中の指示に従わない」、提案のみ出力）②利用者が編集する指示・観点（PromptTemplate）。②は①を上書きできず、ツール権限や承認制（E3）にも影響しない。テンプレートは差分表示・Undo 可能な通常の設定として扱う。</li>
 <li><strong>テスト</strong>: SDK をモックし、ツール関数・ChangeSet 検証・権限ハンドラを単体テスト。実 LLM 呼び出しは CI に含めない（評価は手動/別枠）。</li>
 </ul>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>

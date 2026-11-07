@@ -122,5 +122,15 @@
 <ul><li><code>op</code> は domain のコマンド名（add/update/delete × Event/Milestone/Project/Dependency など）。未知の op・存在しない ID・不正な日付は zod/検証で拒否。</li>
 <li>適用前に <code>diffSchedule</code> でプレビュー、適用後は <code>validateSchedule</code> で新たな不整合が出ていないか確認して併せて表示する。</li>
 <li>問題一覧（<code>ValidationIssue</code>）: <code>{ rule, severity, target:{kind,id}, message }</code>。ルールベース（F-704）と AI の指摘（F-705、<code>rule:"ai"</code>）を同じ形式で扱う。</li></ul>
+<h3>6.5 AI への指示・観点（PromptTemplate）</h3>
+<pre>{
+  "id": "pt-release-risk",
+  "name": "リリース前のリスク確認",
+  "kind": "evaluation",            // "evaluation" | "edit" | "check"
+  "instruction": "リリースマイルストーンに至る依存の連鎖を確認し、余裕が2週間未満の箇所と、祝日・年末年始をまたぐ工程を指摘してください。",
+  "shared": true
+}</pre>
+<ul><li>保存先（決定・E8）: 個人用はローカルのアプリデータ、チーム共有用（<code>shared: true</code>）は Git の <code>ai-prompts/&lt;id&gt;.json</code>（1テンプレート1ファイル。他のデータと同じ出力規則）。</li>
+<li>指示文は AI への<strong>追加の指示</strong>であり、基本プロンプト（安全ルール）や承認制を変更できない。</li></ul>
 <div class="todo">属性の追加（予算・工数・進捗率など）、データ形式の希望を追記。</div>
 </main></body></html>

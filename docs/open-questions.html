@@ -21,13 +21,14 @@
 
 <h2>E. AI 連携（GitHub Copilot SDK）</h2>
 <table><tr><th>#</th><th>質問</th><th>選択肢/推奨</th><th>回答</th></tr>
-<tr><td>★E1</td><td>利用者全員が GitHub Copilot の契約（ライセンス）を持っているか。BYOK（自前の API キー）は許容するか</td><td>全員契約あり / 一部のみ（AI は使える人だけ）/ BYOK も許容。※SDK は技術プレビューで提供条件が変わる可能性</td><td></td></tr>
-<tr><td>★E2</td><td>AI（外部サービス）に送ってよいデータの範囲</td><td>プロジェクト名・日付・メモ・担当者名のうちどこまで。推奨: 既定は選択項目のみ、範囲拡大は利用者が確認</td><td></td></tr>
-<tr><td>★E3</td><td>AI の編集の適用方式</td><td>常に「提案 → 差分確認 → 承認」（推奨）/ 小規模なら自動適用も許す</td><td></td></tr>
+<tr><td>★E1</td><td>利用者全員が GitHub Copilot の契約（ライセンス）を持っているか。BYOK（自前の API キー）は許容するか</td><td>全員契約あり / 一部のみ（AI は使える人だけ）/ BYOK も許容。※SDK は技術プレビューで提供条件が変わる可能性</td><td><strong>決定:</strong> 全利用者が Copilot 契約済みの前提。BYOK は当面不要</td></tr>
+<tr><td>★E2</td><td>AI（外部サービス）に送ってよいデータの範囲</td><td>プロジェクト名・日付・メモ・担当者名のうちどこまで。推奨: 既定は選択項目のみ、範囲拡大は利用者が確認</td><td><strong>決定:</strong> メモ・担当者名を含めて送信してよい。ただし送信前に内容を確認できる（F-707）</td></tr>
+<tr><td>★E3</td><td>AI の編集の適用方式</td><td>常に「提案 → 差分確認 → 承認」（推奨）/ 小規模なら自動適用も許す</td><td><strong>決定:</strong> 常に「提案 → 差分確認 → 承認」を必須とする。自動適用は提供しない</td></tr>
 <tr><td>E4</td><td>AI のモデル選択</td><td>Copilot の既定に任せる（推奨）/ 利用者が選べる</td><td></td></tr>
-<tr><td>★E5</td><td>評価したい観点</td><td>期間の妥当性・余裕・並行度・祝日影響・担当者の負荷・リスクなど。<strong>担当・工数・リソースをデータに持つか</strong>で評価の深さが決まる</td><td></td></tr>
+<tr><td>★E5</td><td>評価したい観点</td><td>期間の妥当性・余裕・並行度・祝日影響・担当者の負荷・リスクなど。<strong>担当・工数・リソースをデータに持つか</strong>で評価の深さが決まる</td><td><strong>決定:</strong> 観点は固定せず、<strong>アプリ上で AI への指示・観点を編集できる</strong>ようにして柔軟な活用を促す（F-712）</td></tr>
 <tr><td>E6</td><td>会話履歴・提案ログの扱い</td><td>ローカルのみ・削除可能（推奨）/ チームで共有（Git 管理）</td><td></td></tr>
-<tr><td>E7</td><td>AI を MVP に含めるか</td><td>MVP 後（推奨。SDK が技術プレビューのため）/ MVP に含める</td><td></td></tr></table>
+<tr><td>E7</td><td>AI を MVP に含めるか</td><td>MVP 後（推奨。SDK が技術プレビューのため）/ MVP に含める</td><td><strong>決定:</strong> MVP 後に実装する</td></tr>
+<tr><td>E8</td><td>AI への指示・観点（F-712）の保存先と共有範囲</td><td>個人用=ローカル、チーム共有用=Git の <code>ai-prompts/</code>（推奨）/ 全てローカル / 全て Git</td><td><strong>決定:</strong> 推奨案。個人用=ローカル、チーム共有用=Git の <code>ai-prompts/</code></td></tr></table>
 
 <h2>B. 見落としやすい要件（提案）</h2>
 <table><tr><th>領域</th><th>検討事項</th></tr>
