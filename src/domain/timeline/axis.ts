@@ -10,8 +10,7 @@ export interface Viewport {
   readonly width: number;
 }
 
-/** ズーム範囲（仮定）: 0.5 なら8年が約1,460px、48 なら約1週間が336px。 */
-export const MIN_PX_PER_DAY = 0.5;
+/** ズームの上限（仮定）: 48 なら約1週間が336px。下限（MIN_PX_PER_DAY）は日付ヘッダの値が消えない幅で、下で定義する。 */
 export const MAX_PX_PER_DAY = 48;
 
 export const dayToX = (day: number, v: Viewport): number => (day - v.leftDay) * v.pxPerDay;
@@ -56,6 +55,19 @@ export interface Header {
 }
 
 export const HEADER_FONT_SIZE = 11;
+
+/**
+ * 縮小の下限: 年月表示の月の値（最も長い 'YY/M 形式）が、最も短い月（28日）の列に収まる幅。
+ * これより縮小できないので、ヘッダの日付の値は消えない。
+ */
+export const MIN_PX_PER_DAY = Math.ceil(((estimateTextWidth("'99/12", HEADER_FONT_SIZE) + 6) / 28) * 100) / 100;
+/** 年月週表示で、週の値（日。2桁）が全ての週の列に収まる最小の幅。これ未満では年月表示に切り替える。 */
+export const WEEK_MODE_MIN_PX_PER_DAY = Math.ceil(((estimateTextWidth('30', HEADER_FONT_SIZE) + 6) / 7) * 100) / 100;
+
+/** 選んだ表示方法と現在のズームから、実際に使う表示方法を決める（年月週を選んでいても、週の値が消える縮小では年月）。 */
+export function effectiveHeaderMode(chosen: HeaderMode, pxPerDay: number): HeaderMode {
+  return chosen === 'weekMonth' && pxPerDay >= WEEK_MODE_MIN_PX_PER_DAY ? 'weekMonth' : 'month';
+}
 
 const cell = (x0: number, x1: number, label: string): HeaderCell => ({ x0, x1, label, showLabel: x1 - x0 >= estimateTextWidth(label, HEADER_FONT_SIZE) + 6 });
 

@@ -334,7 +334,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <h3>12.3 ビューポートとズーム（仮定）</h3>
 <table><tr><th>項目</th><th>仮定</th></tr>
 <tr><td>状態</td><td><code>leftDay</code>（左端の日付。小数可）、<code>pxPerDay</code>（1日の幅）、<code>scrollY</code>、表示サイズ。Renderer の ref に持ち、変化したときだけ再描画（dirty + rAF）</td></tr>
-<tr><td>ズーム範囲</td><td><code>pxPerDay</code> = 0.5〜48。0.5 なら 8年 ≒ 1,460px、48 なら1週間 ≒ 336px。ズームは<strong>カーソル下の日付を固定</strong>して拡縮</td></tr>
+<tr><td>ズーム範囲</td><td><code>pxPerDay</code> = 約 1.52〜48（<code>MIN_PX_PER_DAY</code> は年月表示の月の値が最も短い月の列に収まる幅から算出。<strong>これ以上は縮小できず、日付の値は消えない</strong>）。48 なら1週間 ≒ 336px。ズームは<strong>カーソル下の日付を固定</strong>して拡縮。<strong>表示方法の自動切替</strong>: 年月週を選んでいても、週の値が全ての列に収まらない縮小（<code>pxPerDay</code> &lt; 約 2.6。<code>WEEK_MODE_MIN_PX_PER_DAY</code>）では年月で表示し、拡大して全ての週の値が出せる幅になれば年月週に戻る（<code>effectiveHeaderMode</code>。選択自体は変えない）</td></tr>
 <tr><td>操作</td><td>Ctrl+ホイール = ズーム、Shift+ホイール = 横スクロール、ホイール = 縦スクロール、空白のドラッグ = パン、＋/− ボタン、「今日」ボタン、ヘッダ形式のトグル</td></tr>
 <tr><td>初期表示</td><td>データ全体の日付範囲に合わせる（<code>spanOf</code>）。データが無ければ今日の前後</td></tr></table>
 <h3>12.4 レイアウトとサブレーン（F-103。仮定）</h3>

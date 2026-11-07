@@ -17,6 +17,7 @@ import {
   darkTheme,
   dragCommand,
   draw,
+  effectiveHeaderMode,
   fromDays,
   hitTest,
   lightTheme,
@@ -140,10 +141,12 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
       canvas.style.height = `${H}px`;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // 週の値が消えるほど縮小したら年月に自動で切り替え、拡大して全部出せるようになれば年月週に戻る
+    const mode = effectiveHeaderMode(L.headerMode, vp.pxPerDay);
     const t0 = performance.now();
     const list = buildDrawList(preview.current ?? L.schedule, L.layout, {
       viewport: { ...vp, width: W, height: H - HEADER_HEIGHT },
-      headerMode: L.headerMode,
+      headerMode: mode,
       today: todayString(),
       selection: L.selected ? new Set([L.selected.id]) : new Set(),
       hover: hover.current,
@@ -161,7 +164,7 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
     ds['deps'] = String(list.stats.deps);
     ds['leftDay'] = String(vp.leftDay);
     ds['pxPerDay'] = String(vp.pxPerDay);
-    ds['headerMode'] = L.headerMode;
+    ds['headerMode'] = mode;
     const probe = list.hitBoxes[0];
     ds['probe'] = probe ? `${Math.round(probe.x + probe.w / 2)},${Math.round(probe.y + probe.h / 2 + HEADER_HEIGHT)}` : '';
     ds['buildMs'] = (t1 - t0).toFixed(2);

@@ -1,7 +1,7 @@
 // @req F-104, F-107
 import { describe, expect, it } from 'vitest';
 import { toDays } from '../../../src/domain/date';
-import { MAX_PX_PER_DAY, MIN_PX_PER_DAY, buildHeader, clampPxPerDay, dayToX, estimateTextWidth, panX, xToDay, zoomAt, type Viewport } from '../../../src/domain/timeline/axis';
+import { MAX_PX_PER_DAY, MIN_PX_PER_DAY, WEEK_MODE_MIN_PX_PER_DAY, buildHeader, clampPxPerDay, dayToX, effectiveHeaderMode, estimateTextWidth, panX, xToDay, zoomAt, type Viewport } from '../../../src/domain/timeline/axis';
 
 const D = toDays;
 const vp = (left: string, px = 10, width = 770): Viewport => ({ leftDay: D(left), pxPerDay: px, width });
@@ -118,5 +118,34 @@ describe('日付ヘッダ: 年月（月の境界は実際の月初。下段な�
     const h = buildHeader('month', vp('2026-01-01', 0.5, 1500));
     expect(h.top.length).toBeGreaterThanOrEqual(96);
     expect(h.top.filter((c) => c.label.startsWith("'")).length).toBeGreaterThanOrEqual(8); // 各年の1月
+  });
+});
+
+// @req F-104, F-107
+describe('日付の値が消えないズーム範囲と、ヘッダの自動切替', () => {
+  const vp = (px: number): Viewport => ({ leftDay: toDays('2026-01-01'), pxPerDay: px, width: 1400 });
+  const allShown = (mode: 'weekMonth' | 'month', px: number): boolean => {
+    const h = buildHeader(mode, vp(px));
+    return [...h.top, ...h.bottom].every((c) => c.showLabel);
+  };
+
+  it('最小ズームでも、年月表示の月の値は全て表示される（どの月・年でも）', () => {
+    for (const start of ['2026-01-01', '2027-02-01', '2028-02-01', '2026-12-01']) {
+      const h = buildHeader('month', { leftDay: toDays(start), pxPerDay: MIN_PX_PER_DAY, width: 3000 });
+      expect(h.top.every((c) => c.showLabel)).toBe(true);
+    }
+  });
+  it('年月週の週の値が全て出る最小ズームが定まっていて、それ未満では消える', () => {
+    expect(allShown('weekMonth', WEEK_MODE_MIN_PX_PER_DAY)).toBe(true);
+    expect(allShown('weekMonth', WEEK_MODE_MIN_PX_PER_DAY * 0.9)).toBe(false);
+  });
+  it('年月週を選んでいても、週の値が消えるほど縮小したら年月、戻せる幅まで拡大したら年月週', () => {
+    expect(effectiveHeaderMode('weekMonth', WEEK_MODE_MIN_PX_PER_DAY)).toBe('weekMonth');
+    expect(effectiveHeaderMode('weekMonth', WEEK_MODE_MIN_PX_PER_DAY - 0.01)).toBe('month');
+    expect(effectiveHeaderMode('month', 48)).toBe('month'); // 年月を選んでいれば拡大しても年月のまま
+  });
+  it('縮小の下限は年月の値が消える手前（zoomAt が超えない）', () => {
+    expect(zoomAt(vp(MIN_PX_PER_DAY), 0.1, 100).pxPerDay).toBe(MIN_PX_PER_DAY);
+    expect(MIN_PX_PER_DAY).toBeLessThan(WEEK_MODE_MIN_PX_PER_DAY);
   });
 });

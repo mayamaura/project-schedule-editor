@@ -80,9 +80,22 @@ test('日付ヘッダの切替（年月週 ⇔ 年月）。左端の日付とズ
   await expect(canvas).toHaveAttribute('data-header-mode', 'month');
   expect(await num('leftDay')).toBe(left);
   expect(await num('pxPerDay')).toBe(px);
+  // 縮小した状態では、年月週を選んでも週の値が出せないので年月のまま
   await page.getByTestId('mode-week').click();
   await settle();
+  await expect(canvas).toHaveAttribute('data-header-mode', 'month');
+  // 拡大して週の値が全て出せる幅になると、選んでいた年月週に自動で戻る
+  await page.getByTestId('zoom-in').click();
+  await page.getByTestId('zoom-in').click();
+  await settle();
   await expect(canvas).toHaveAttribute('data-header-mode', 'weekMonth');
+  // 再び縮小すると自動で年月になり、縮小は年月の値が消える手前で止まる
+  for (let i = 0; i < 12; i++) await page.getByTestId('zoom-out').click();
+  await settle();
+  await expect(canvas).toHaveAttribute('data-header-mode', 'month');
+  expect(await num('pxPerDay')).toBeGreaterThanOrEqual(1.5);
+  // 元のズームに戻す（以降のテストの前提）
+  while ((await num('pxPerDay')) < px - 1e-6) await page.getByTestId('zoom-in').click();
 });
 
 test('ズーム: ボタンと Ctrl+ホイール（カーソル下の日付が動かない）', async () => {
