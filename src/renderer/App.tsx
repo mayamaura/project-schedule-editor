@@ -56,9 +56,8 @@ export function App() {
     setLoaded({ history: new History(schedule), path: null, label: t('app.sampleLoaded', counts(schedule)), errors: 0, warnings: 0 });
   };
 
-  const openFolder = async (): Promise<void> => {
-    const r = await window.api.invoke('repo:open');
-    if (!r) return;
+  type Opened = { path: string; files: Record<string, string>; crashed: boolean; base: Record<string, string> | null };
+  const applyOpened = (r: Opened): void => {
     const parsed = parseSchedule(r.files);
     if (parsed.status === 'ok') {
       setProblems([]);
@@ -83,6 +82,21 @@ export function App() {
       // 読み込めなかった理由を全て表示する（データを黙って捨てない）
       setProblems(parsed.errors);
       setMessage(t('app.readError', { count: String(parsed.errors.length) }));
+    }
+  };
+
+  const openFolder = async (): Promise<void> => {
+    const r = await window.api.invoke('repo:open');
+    if (r) applyOpened(r);
+  };
+
+  // 新規作成（F-501）: 空のフォルダに空の日程データを作って開く
+  const createFolder = async (): Promise<void> => {
+    const r = await window.api.invoke('repo:create');
+    if (r.status === 'ok') applyOpened(r);
+    else if (r.status === 'not-empty') {
+      setProblems([]);
+      setMessage(t('app.createNotEmpty'));
     }
   };
 
@@ -179,6 +193,9 @@ export function App() {
           {t('app.version', { version })}
         </span>
         <span className="spacer" />
+        <button type="button" data-testid="create" onClick={() => void createFolder()}>
+          {t('app.create')}
+        </button>
         <button type="button" data-testid="open" onClick={() => void openFolder()}>
           {t('app.open')}
         </button>

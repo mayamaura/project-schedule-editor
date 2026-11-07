@@ -2,9 +2,11 @@
 export const ja = {
   'app.title': 'プロジェクトスケジュールエディタ',
   'app.version': 'バージョン {version}',
+  'app.create': '新規作成',
+  'app.createNotEmpty': 'このフォルダは空ではないため、新規作成できません。空のフォルダを選ぶか、既にあるデータは「フォルダを開く」から開いてください。',
   'app.open': 'フォルダを開く',
   'app.sample': 'サンプルを表示',
-  'app.empty': '日程データのフォルダを開くか、サンプルを表示してください。',
+  'app.empty': '「新規作成」で空のフォルダに日程を作るか、既にあるデータのフォルダを開いてください（サンプルの表示もできます）。',
   'edit.newEvent': '新しいイベント',
   'edit.newMilestone': '新しいマイルストーン',
   'edit.newProject': '新しいプロジェクト',

@@ -3,8 +3,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { emptySchedule } from '../../src/domain/model';
 import { parseSchedule, serializeSchedule } from '../../src/domain/serialize';
-import { beginSession, endSession, loadFiles, recover, saveFiles, writeAtomic, writeTransaction } from '../../src/main/fileRepository';
+import { beginSession, createEmpty, endSession, loadFiles, recover, saveFiles, writeAtomic, writeTransaction } from '../../src/main/fileRepository';
 import { basic } from '../domain/fixtures';
 
 let root: string;
@@ -194,5 +195,23 @@ describe('セッション（異常終了の検出。F-210/F-211）', () => {
     beginSession(root);
     writeFileSync(join(root, '.autosave', 'base.json'), '{broken');
     expect(beginSession(root)).toEqual({ crashed: true, base: null });
+  });
+});
+
+describe('新規作成（F-501）', () => {
+  it('空のフォルダには空の日程データを作り、読み込める', () => {
+    const files = serializeSchedule(emptySchedule());
+    expect(createEmpty(root, files)).toEqual({ ok: true });
+    const parsed = parseSchedule(loadFiles(root));
+    expect(parsed.status).toBe('ok');
+  });
+  it('.git だけがあるフォルダは空として扱う', () => {
+    mkdirSync(join(root, '.git'));
+    expect(createEmpty(root, serializeSchedule(emptySchedule()))).toEqual({ ok: true });
+  });
+  it('中身があるフォルダには作らず、何も書かない', () => {
+    writeFileSync(join(root, 'memo.txt'), 'x');
+    expect(createEmpty(root, serializeSchedule(emptySchedule()))).toEqual({ ok: false, reason: 'not-empty' });
+    expect(existsSync(join(root, 'schedule.json'))).toBe(false);
   });
 });

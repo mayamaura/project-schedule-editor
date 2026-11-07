@@ -18,6 +18,15 @@ export const ipcSchemas = {
       })
       .nullable(),
   },
+  /** フォルダを選んで新規作成する（F-501）。空のフォルダに空の日程データと保存の履歴を用意して開く。 */
+  'repo:create': {
+    input: z.undefined(),
+    output: z.discriminatedUnion('status', [
+      z.object({ status: z.literal('cancelled') }),
+      z.object({ status: z.literal('not-empty') }),
+      z.object({ status: z.literal('ok'), path: z.string(), files: z.record(z.string(), z.string()), crashed: z.boolean(), base: z.record(z.string(), z.string()).nullable() }),
+    ]),
+  },
   /** 開いているフォルダへ自動保存する（F-210）。パスは Main が保持するものを使い、Renderer からは受け取らない。 */
   'repo:save': { input: z.object({ files: z.record(z.string(), z.string()) }), output: z.object({ written: z.number() }) },
   /** 版管理の状態（F-502/F-514）。Git が使えなければ available=false。head は最後に保存した版の日程データ。 */

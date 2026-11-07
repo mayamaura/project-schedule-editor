@@ -214,3 +214,16 @@ export function endSession(root: string): void {
     /* 無ければ何もしない */
   }
 }
+
+export type CreateResult = { readonly ok: true } | { readonly ok: false; readonly reason: 'not-empty' };
+
+/**
+ * 新規作成（F-501）。空のフォルダ（.git だけは許す）に、渡されたファイル一式（空の日程データ）を書く。
+ * 他のファイルがあるフォルダには何も書かない（既存のファイルを巻き込まないため）。
+ */
+export function createEmpty(root: string, files: Files): CreateResult {
+  mkdirSync(root, { recursive: true });
+  if (readdirSync(root).some((name) => name !== '.git')) return { ok: false, reason: 'not-empty' };
+  writeTransaction(root, files);
+  return { ok: true };
+}
