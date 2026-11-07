@@ -1,14 +1,16 @@
-// @req F-101, F-104, F-105, F-107, F-304
+// @req F-101, F-104, F-105, F-107, F-201, F-304
 // タイムライン画面: 左ペイン（プロジェクトツリー。DOM）と右のタイムライン（Canvas）。docs/architecture.html 12.6。
 // 状態（左端の日付・ズーム・縦スクロール）は ref に持ち、変化したときだけ rAF で再描画する（React の再レンダーを避ける）。
-// Phase 2 は閲覧専用（編集は Phase 3）。
+// 編集: バー/◆のドラッグは ref + rAF でプレビューし、確定時に 1 コマンドを onCommit する（Undo 1 単位）。
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   HEADER_HEIGHT,
+  applyCommand,
   buildDrawList,
   buildLayout,
   clampPxPerDay,
   darkTheme,
+  dragCommand,
   draw,
   fromDays,
   hitTest,
@@ -19,6 +21,7 @@ import {
   visibleRowRange,
   zoomAt,
   type Canvas2D,
+  type Command,
   type DrawList,
   type HeaderMode,
   type Id,
@@ -52,7 +55,7 @@ interface Selected {
 
 const DRAG_THRESHOLD_PX = 4;
 
-export function TimelineView({ schedule }: { schedule: Schedule }) {
+export function TimelineView({ schedule, docKey, onCommit }: { schedule: Schedule; docKey: unknown; onCommit: (c: Command) => void }) {
   const dark = usePrefersDark();
   const theme = dark ? darkTheme : lightTheme;
   const [headerMode, setHeaderMode] = useState<HeaderMode>('weekMonth');
@@ -72,8 +75,9 @@ export function TimelineView({ schedule }: { schedule: Schedule }) {
   const shownScrollY = useRef(0);
 
   // 最新の入力を ref に持つ（rAF のコールバックが古い値を見ないように）
+  const preview = useRef<Schedule | null>(null);
   const latest = useRef({ schedule, layout, headerMode, deps, theme, selected });
-  latest.current = { schedule, layout, headerMode, deps, theme, selected };
+  latest.current = { schedule: preview.current ?? schedule, layout, headerMode, deps, theme, selected };
 
   const render = useCallback((): void => {
     pending.current = 0;
@@ -141,7 +145,7 @@ export function TimelineView({ schedule }: { schedule: Schedule }) {
     request();
   }, [request, schedule, layout, headerMode, deps, theme, selected]);
 
-  // データが変わったら、全体の日付範囲に合わせて表示し直す
+  // 文書が差し替わったら（編集ではなく）、全体の日付範囲に合わせて表示し直す
   useEffect(() => {
     const span = spanOf(schedule);
     const v = view.current;
@@ -153,7 +157,7 @@ export function TimelineView({ schedule }: { schedule: Schedule }) {
     }
     setSelected(null);
     request();
-  }, [schedule, request]);
+  }, [docKey, request]);
 
   // 表示サイズへの追従
   useLayoutEffect(() => {
@@ -189,7 +193,7 @@ export function TimelineView({ schedule }: { schedule: Schedule }) {
   }, [request]);
 
   // ドラッグでパン / クリックで選択 / ホバー
-  const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const drag = useRef<{ x: number; y: number; moved: boolean; edit?: { id: Id; part: 'body' | 'start' | 'end'; x0: number; cmd: Command | null } } | null>(null);
   const pointer = (e: React.PointerEvent): { x: number; y: number } => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -199,7 +203,9 @@ export function TimelineView({ schedule }: { schedule: Schedule }) {
   const onPointerDown = (e: React.PointerEvent): void => {
     if (e.button !== 0) return;
     const p = pointer(e);
-    drag.current = { x: p.x, y: p.y, moved: false };
+    const h = hitAt(p.x, p.y);
+    const edit = h && (h.kind === 'event' || h.kind === 'milestone') ? { id: h.id, part: h.kind === 'event' ? h.part : 'body' as const, x0: p.x, cmd: null } : undefined;
+    drag.current = { x: p.x, y: p.y, moved: false, edit };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent): void => {
@@ -208,6 +214,14 @@ export function TimelineView({ schedule }: { schedule: Schedule }) {
     if (d) {
       if (!d.moved && Math.hypot(p.x - d.x, p.y - d.y) < DRAG_THRESHOLD_PX) return;
       d.moved = true;
+      if (d.edit) {
+        const delta = Math.round((p.x - d.edit.x0) / view.current.pxPerDay);
+        d.edit.cmd = dragCommand(schedule, d.edit.id, d.edit.part, delta);
+        const r = d.edit.cmd ? applyCommand(schedule, d.edit.cmd) : null;
+        preview.current = r?.ok ? r.schedule : null;
+        request();
+        return;
+      }
       const v = view.current;
       view.current = { ...panX(v, p.x - d.x), scrollY: v.scrollY - (p.y - d.y), height: v.height };
       d.x = p.x;
@@ -226,6 +240,12 @@ export function TimelineView({ schedule }: { schedule: Schedule }) {
   const onPointerUp = (e: React.PointerEvent): void => {
     const d = drag.current;
     drag.current = null;
+    if (d?.edit && d.moved) {
+      preview.current = null;
+      if (d.edit.cmd) onCommit(d.edit.cmd);
+      else request();
+      return;
+    }
     if (!d || d.moved) return;
     const p = pointer(e);
     const h = hitAt(p.x, p.y);

@@ -11,6 +11,7 @@ export * from './serialize';
 export * from './timeline/axis';
 export * from './timeline/draw';
 export * from './timeline/drawlist';
+export * from './timeline/edit';
 export * from './timeline/hittest';
 export * from './timeline/layout';
 export * from './validate';

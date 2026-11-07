@@ -1,11 +1,11 @@
-// @req F-501, F-101, F-211
+// @req F-501, F-101, F-211, F-206
 import { useEffect, useState } from 'react';
-import { generateSample, parseSchedule, type Schedule, type ParseIssue } from '@domain/index';
+import { History, generateSample, parseSchedule, type Command, type Schedule, type ParseIssue } from '@domain/index';
 import { t } from './i18n';
 import { TimelineView } from './timeline/TimelineView';
 
 interface Loaded {
-  readonly schedule: Schedule;
+  readonly history: History;
   readonly label: string;
   readonly errors: number;
   readonly warnings: number;
@@ -25,6 +25,7 @@ export function App() {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [problems, setProblems] = useState<readonly ParseIssue[]>([]);
   const [message, setMessage] = useState('');
+  const [, bump] = useState(0);
 
   useEffect(() => {
     void window.api.invoke('app:getVersion').then(setVersion);
@@ -34,7 +35,7 @@ export function App() {
     const schedule = generateSample();
     setProblems([]);
     setMessage('');
-    setLoaded({ schedule, label: t('app.sampleLoaded', counts(schedule)), errors: 0, warnings: 0 });
+    setLoaded({ history: new History(schedule), label: t('app.sampleLoaded', counts(schedule)), errors: 0, warnings: 0 });
   };
 
   const openFolder = async (): Promise<void> => {
@@ -45,7 +46,7 @@ export function App() {
       setProblems([]);
       setMessage('');
       setLoaded({
-        schedule: parsed.schedule,
+        history: new History(parsed.schedule),
         label: t('app.loaded', { path: r.path, ...counts(parsed.schedule) }),
         errors: parsed.issues.filter((i) => i.severity === 'error').length,
         warnings: parsed.issues.filter((i) => i.severity === 'warning').length,
@@ -59,6 +60,29 @@ export function App() {
       setMessage(t('app.readError', { count: String(parsed.errors.length) }));
     }
   };
+
+  const h = loaded?.history;
+  const commit = (c: Command): void => {
+    if (h?.execute(c).ok) bump((n) => n + 1);
+  };
+  const undo = (): void => {
+    if (h?.undo()) bump((n) => n + 1);
+  };
+  const redo = (): void => {
+    if (h?.redo()) bump((n) => n + 1);
+  };
+  useEffect(() => {
+    const on = (e: KeyboardEvent): void => {
+      if (!(e.ctrlKey || e.metaKey) || (e.target as HTMLElement).closest('input,textarea,select')) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) undo();
+      else if (k === 'y' || (k === 'z' && e.shiftKey)) redo();
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', on);
+    return () => window.removeEventListener('keydown', on);
+  });
 
   return (
     <main className="app">
@@ -95,9 +119,14 @@ export function App() {
             <span>{loaded.label}</span>
             {loaded.errors + loaded.warnings > 0 ? <span className="issues">{t('app.issues', { errors: String(loaded.errors), warnings: String(loaded.warnings) })}</span> : null}
             <span className="spacer" />
-            <span>{t('app.readOnly')}</span>
+            <button type="button" data-testid="undo" disabled={!h?.canUndo} onClick={undo}>
+              {t('app.undo')}
+            </button>
+            <button type="button" data-testid="redo" disabled={!h?.canRedo} onClick={redo}>
+              {t('app.redo')}
+            </button>
           </div>
-          <TimelineView schedule={loaded.schedule} />
+          <TimelineView schedule={loaded.history.present} docKey={loaded.history} onCommit={commit} />
         </>
       ) : (
         <p className="empty" data-testid="empty">
