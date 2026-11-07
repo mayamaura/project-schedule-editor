@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Git連携・UX</title><link rel="stylesheet" href="style.css"></head><body>
+<nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a class="cur" href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a></nav>
+<main>
+<h1>Git連携・UX</h1>
+<p>方針: <strong>Git の概念を隠し、業務の言葉に翻訳する。</strong>利用者に見せる操作は「保存」「共有」「履歴」「戻す」だけ。破壊的操作は提供しない。</p>
+
+<h2>1. 用語マッピング</h2>
+<table><tr><th>画面上の言葉</th><th>Git の操作</th></tr>
+<tr><td>変更を保存（メモを添える）</td><td><code>add</code> + <code>commit</code></td></tr>
+<tr><td>共有する</td><td><code>pull --no-rebase</code>（取り込み）→ <code>push</code></td></tr>
+<tr><td>最新を取り込む</td><td><code>fetch</code> + <code>merge</code></td></tr>
+<tr><td>履歴</td><td><code>log</code></td></tr>
+<tr><td>この版に戻す</td><td>過去版の内容を新しいコミットとして適用（<code>revert</code> 相当。履歴は消さない）</td></tr>
+<tr><td>案（シナリオ）</td><td><code>branch</code></td></tr>
+<tr><td>競合</td><td>merge conflict →「他の人の変更とぶつかっています」</td></tr></table>
+
+<h2>2. 主要フロー</h2>
+<h3>2.1 初回セットアップ（ウィザード）</h3>
+<ol><li>「データの場所」: (a) 共有リポジトリURLから取得 / (b) 既存フォルダを開く / (c) 新規作成</li>
+<li>名前とメールの設定（コミット作者用）</li>
+<li>認証（トークン貼り付け等。OS 資格情報ストアに保存）</li>
+<li>接続テスト → 完了</li></ol>
+
+<h3>2.2 日常の編集</h3>
+<ol><li>編集すると画面下に「未保存の変更: 3件」。変更した項目は一覧で日本語表示。</li>
+<li>[保存] → 変更要約（自動生成）を確認、メモ（任意、既定は要約）→ commit。</li>
+<li>[共有] → 取り込み＋送信。成功/競合/オフライン を平易な文言で通知。</li></ol>
+<p>起動時と一定間隔で fetch し、「他の人が更新しました（2件）→ 取り込む」を通知。<strong>未保存の編集中に自動マージはしない。</strong></p>
+
+<h3>2.3 競合解決</h3>
+<ol><li>「ぶつかった項目」を一覧（プロジェクト名＋項目名）。</li>
+<li>各項目で「あなた: 3/15」「相手(山田, 11/6): 3/20」を並べて表示し、どちらか／手入力を選択。<br>タイムライン上で両案を並べたプレビューも表示。</li>
+<li>全項目解決で merge commit。途中でやめる場合は「やめる」で元の状態に完全復帰。</li></ol>
+<p>両者が同じプロジェクトを削除/編集した、親子付け替えが衝突した、など<strong>構造的な競合</strong>の扱いはデータモデルと併せて詳細設計が必要。</p>
+
+<h3>2.4 履歴・比較・復元</h3>
+<ul><li>履歴: 日時・作者・メモ・変更要約の一覧。選択で<strong>その時点のスケジュールを読み取り専用で表示</strong>。</li>
+<li>比較: 任意の2版をタイムライン上で差分表示（追加=緑、変更=旧位置の影+矢印、削除=打消し線）。</li>
+<li>復元: 「この版の日程を現在に反映」→ 通常の未保存変更として取り込み、確認後に保存。</li></ul>
+
+<h2>3. 安全策</h2>
+<table><tr><th>方針</th><th>内容</th></tr>
+<tr><td>破壊的操作の不提供</td><td>force push、reset --hard、履歴書き換え、ブランチ強制削除は UI に出さない</td></tr>
+<tr><td>失敗時の復元</td><td>マージ前に自動で退避タグ/参照を作成し、「元に戻す」で復帰可能</td></tr>
+<tr><td>エラー文言</td><td>Git の生エラーは「詳細を表示」に隔離。原因と次の行動を日本語で提示（認証失敗→トークン再設定、等）</td></tr>
+<tr><td>データ検証</td><td>取り込み後に全ファイルをスキーマ検証。壊れたデータは読み込み前に警告</td></tr>
+<tr><td>上級者向け</td><td>設定に「Git の詳細を表示」スイッチ（コマンドログ、リポジトリ場所を開く）</td></tr></table>
+
+<h2>4. 運用モデルの選択肢（要判断）</h2>
+<table><tr><th>案</th><th>内容</th><th>向き</th></tr>
+<tr><td>A. 単一ブランチ(main)で全員が共有</td><td>最もシンプル。競合は項目単位UIで解決</td><td>小〜中規模チーム（推奨）</td></tr>
+<tr><td>B. 案（ブランチ）で検討→採用</td><td>「何ケース」かの日程シナリオを比較。採用時にマージ</td><td>日程調整が多い運用</td></tr>
+<tr><td>C. 編集権限/承認フロー</td><td>PR/レビューを経て反映</td><td>厳格な統制が必要な場合</td></tr></table>
+<div class="todo">想定する同時編集者数、リモートの種類（GitHub / GitLab / 社内サーバ / 共有フォルダのみ）、運用ルールを追記。</div>
+</main></body></html>

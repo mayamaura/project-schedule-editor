@@ -1,0 +1,22 @@
+:root{--fg:#1f2933;--bg:#fff;--mut:#616e7c;--acc:#2364aa;--line:#d9e2ec;--soft:#f5f7fa;--warn:#fff4d6}
+@media(prefers-color-scheme:dark){:root{--fg:#e4e7eb;--bg:#161b22;--mut:#9aa5b1;--acc:#6cb2ff;--line:#30363d;--soft:#1f252d;--warn:#3b3217}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 "Yu Gothic UI","Meiryo",system-ui,sans-serif}
+nav{background:var(--soft);border-bottom:1px solid var(--line);padding:.6rem 1rem;display:flex;flex-wrap:wrap;gap:.3rem 1.2rem;position:sticky;top:0}
+nav a{color:var(--acc);text-decoration:none;font-size:.9rem}
+nav a.cur{font-weight:bold;border-bottom:2px solid var(--acc)}
+main{max-width:60rem;margin:0 auto;padding:1rem 1.2rem 4rem}
+h1{border-bottom:3px solid var(--acc);padding-bottom:.3rem}
+h2{margin-top:2.5rem;border-left:5px solid var(--acc);padding-left:.6rem}
+h3{margin-top:1.8rem}
+table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.92rem}
+th,td{border:1px solid var(--line);padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:var(--soft)}
+code,pre{font-family:Consolas,monospace;background:var(--soft);font-size:.88rem}
+code{padding:.1rem .3rem;border-radius:3px}
+pre{padding:.8rem 1rem;overflow:auto;border:1px solid var(--line);border-radius:6px}
+.note{background:var(--warn);border-left:5px solid #e0a800;padding:.6rem 1rem;margin:1rem 0}
+.must{color:#c0392b;font-weight:bold}.should{color:#d68910;font-weight:bold}.could{color:var(--mut);font-weight:bold}
+.todo{background:var(--soft);border:1px dashed var(--mut);padding:.6rem 1rem;margin:1rem 0}
+.todo::before{content:"✏ 追記欄:";font-weight:bold;display:block}
+@media(max-width:600px){main{padding:.6rem}table{display:block;overflow:auto}}

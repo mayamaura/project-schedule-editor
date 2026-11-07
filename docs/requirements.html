@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>要件定義</title><link rel="stylesheet" href="style.css"></head><body>
+<nav><a href="index.html">概要</a><a class="cur" href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a></nav>
+<main>
+<h1>要件定義</h1>
+<p>優先度: <span class="must">M</span>=必須(MVP) / <span class="should">S</span>=重要(次段階) / <span class="could">C</span>=任意。依頼文から読み取れたものに加え、必要と思われるものを「<strong>提案</strong>」として記載（要判断）。</p>
+
+<h2>1. 機能要件</h2>
+<h3>1.1 スケジュール表示</h3>
+<table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
+<tr><td>F-101</td><td>左に プロジェクトツリー（名称・列）、右に 日付軸のタイムラインを持つ Excel ライクな2ペイン表示</td><td class="must">M</td><td>縦横スクロール同期、ヘッダ固定</td></tr>
+<tr><td>F-102</td><td>1行に複数のイベント（バー）とマイルストーン（◆）を表示</td><td class="must">M</td><td>同一行で重なる場合の扱い（F-103）</td></tr>
+<tr><td>F-103</td><td>同一行でイベントが重なった場合、サブレーン展開（行高が自動で増える）または重ね表示を選べる</td><td class="should">S</td><td>要判断: 既定の挙動</td></tr>
+<tr><td>F-104</td><td>ズーム切替（日/週/月/四半期/年）、今日線、週末・祝日の背景表示</td><td class="must">M</td><td></td></tr>
+<tr><td>F-105</td><td>プロジェクト階層の展開/折りたたみ。折りたたみ時、親行に子の期間を集約表示（サマリーバー）</td><td class="must">M</td><td>集約は自動計算か手動か要判断</td></tr>
+<tr><td>F-106</td><td>イベント/マイルストーンに 色・ラベル・種別（フェーズ、リリース等）を設定</td><td class="must">M</td><td>種別マスタは設定で編集可能</td></tr>
+<tr><td>F-107</td><td>多数行（500行程度）・数年範囲でも滑らかにスクロール</td><td class="must">M</td><td>仮想化必須（NF-001）</td></tr></table>
+
+<h3>1.2 編集</h3>
+<table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
+<tr><td>F-201</td><td>バーのドラッグで移動、端のドラッグで開始/終了日変更。◆のドラッグで日付変更</td><td class="must">M</td><td>日単位スナップ</td></tr>
+<tr><td>F-202</td><td>空白セルのダブルクリック/ドラッグでイベント作成、◆作成</td><td class="must">M</td><td></td></tr>
+<tr><td>F-203</td><td>セル選択・矢印キー移動・コピー&amp;ペースト・Delete など Excel 風のキーボード操作</td><td class="should">S</td><td>範囲選択の意味（日付範囲→イベント化？）要判断</td></tr>
+<tr><td>F-204</td><td>詳細パネルで 名称・日付・メモ・担当・状態 を数値/日付入力で編集</td><td class="must">M</td><td></td></tr>
+<tr><td>F-205</td><td>プロジェクトの追加・削除・並べ替え・親子付け替え（ドラッグ&amp;ドロップ）</td><td class="must">M</td><td></td></tr>
+<tr><td>F-206</td><td>Undo / Redo（無制限に近い深さ）</td><td class="must">M</td><td>Git 履歴とは別の編集中履歴</td></tr>
+<tr><td>F-207</td><td>複数選択して一括移動（日数シフト）</td><td class="should">S</td><td>子孫ごと移動する option</td></tr>
+<tr><td>F-208</td><td>入力検証（終了≧開始、依存の循環検出など）と分かりやすいエラー表示</td><td class="must">M</td><td></td></tr></table>
+
+<h3>1.3 階層・依存関係</h3>
+<table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
+<tr><td>F-301</td><td>プロジェクトは任意深さの親子構造を持つ</td><td class="must">M</td><td>深さ上限の目安を決める</td></tr>
+<tr><td>F-302</td><td>依存関係を 矢印線で表示。端点はプロジェクト/イベント/マイルストーンのいずれか（要判断）</td><td class="must">M</td><td>端点粒度は設計に大きく影響 → <a href="open-questions.html">未決事項</a></td></tr>
+<tr><td>F-303</td><td>依存タイプ: FS / SS / FF / SF とラグ(日数)</td><td class="should">S</td><td>MVP は FS のみでも可</td></tr>
+<tr><td>F-304</td><td>依存線の表示切替: 全表示 / 選択項目に関係するもののみ / 非表示 / 種別・階層で絞込</td><td class="must">M</td><td>依頼の要件</td></tr>
+<tr><td>F-305</td><td>依存違反（後続が先行より前）の警告表示</td><td class="should">S</td><td>自動再スケジュールするかは要判断</td></tr>
+<tr><td>F-306</td><td>選択項目の上流/下流（影響範囲）をハイライト</td><td class="should">S</td><td>影響調査に有用</td></tr></table>
+
+<h3>1.4 ビュー・フィルタ</h3>
+<table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
+<tr><td>F-401</td><td>表示するプロジェクトの選択（チェック、サブツリー単位）</td><td class="must">M</td><td>依頼の要件</td></tr>
+<tr><td>F-402</td><td>フィルタ: 名称検索、タグ、担当、状態、期間</td><td class="should">S</td><td></td></tr>
+<tr><td>F-403</td><td>ビューの保存・切替（名前付き）。チームで共有するビューと個人用ビューの区別</td><td class="should">S</td><td>共有ビューは Git 管理、個人用はローカル</td></tr>
+<tr><td>F-404</td><td>列の表示切替（開始・終了・担当・状態など左ペインの列）</td><td class="could">C</td><td></td></tr></table>
+
+<h3>1.5 Git 連携（詳細は <a href="git-ux.html">Git連携・UX</a>）</h3>
+<table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
+<tr><td>F-501</td><td>データリポジトリの 新規作成 / clone / 既存フォルダを開く</td><td class="must">M</td><td>初回セットアップウィザード</td></tr>
+<tr><td>F-502</td><td>「変更を保存」（= commit）。変更内容を日本語で要約表示（例:「A案件のリリース日を 3/1→3/15」）</td><td class="must">M</td><td>差分は JSON でなく業務語で見せる</td></tr>
+<tr><td>F-503</td><td>「共有する」（= pull + push）を1ボタンで。失敗時は平易な説明と選択肢</td><td class="must">M</td><td></td></tr>
+<tr><td>F-504</td><td>履歴一覧、過去時点の閲覧（読み取り専用）、特定版に戻す（新しい変更として）</td><td class="must">M</td><td>履歴を書き換える操作は出さない</td></tr>
+<tr><td>F-505</td><td>2つの版の比較（どの日程がどう動いたかをタイムライン上で差分表示）</td><td class="should">S</td><td>本アプリの大きな価値。仕組みは <a href="data-model.html">データモデル 4.5</a></td></tr>
+<tr><td>F-509</td><td>日程変更の検出: 両版の JSON をパースし ID 単位で比較し、追加/削除/日付変更(日数差)/親子移動/属性/依存の変更を抽出する</td><td class="must">M</td><td>F-502, 503, 505, 506 の共通基盤</td></tr>
+<tr><td>F-510</td><td>履歴の各コミットに変更要約を表示。「後ろ倒しになった項目」の一覧（変動日数順）、期間・プロジェクト・作者での絞込</td><td class="should">S</td><td></td></tr>
+<tr><td>F-511</td><td>共有時、取り込む他者の変更を取り込み前に一覧表示</td><td class="must">M</td><td></td></tr>
+<tr><td>F-512</td><td>変更による依存違反の新規発生を警告として表示</td><td class="should">S</td><td>F-305 と連動</td></tr>
+<tr><td>F-506</td><td>競合解決UI（項目単位で「自分の/相手の」を選ぶ）</td><td class="must">M</td><td>最大のUX課題</td></tr>
+<tr><td>F-507</td><td>ブランチ相当の「シナリオ（案）」機能: 別案を作って比較・採用</td><td class="could">C</td><td>用語は「案」。後回し可</td></tr>
+<tr><td>F-508</td><td>リモート認証（HTTPS トークン / SSH）設定の支援</td><td class="must">M</td><td>OS資格情報ストア利用</td></tr></table>
+
+<h3>1.6 入出力・その他</h3>
+<table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
+<tr><td>F-601</td><td>画像(PNG/SVG)・PDF出力、印刷（期間・対象を指定）</td><td class="should">S</td><td>報告資料用途で必須になりがち</td></tr>
+<tr><td>F-602</td><td>CSV/Excel の取り込み・書き出し</td><td class="should">S</td><td>既存Excel資産の移行</td></tr>
+<tr><td>F-603</td><td>祝日・稼働日カレンダー設定</td><td class="should">S</td><td>日本の祝日対応</td></tr>
+<tr><td>F-604</td><td>担当者・タグ・状態（未着手/進行中/完了/保留）の管理</td><td class="should">S</td><td>提案</td></tr>
+<tr><td>F-605</td><td>ベースライン（計画値）と現在日程の比較表示</td><td class="could">C</td><td>Git履歴から代替可能か検討</td></tr></table>
+<div class="todo">機能要件の追記。</div>
+
+<h2>2. 非機能要件</h2>
+<table><tr><th>ID</th><th>要件</th><th>目標（案）</th></tr>
+<tr><td>NF-001</td><td>性能</td><td>500行×5年・イベント5,000件で 60fps に近いスクロール、ドラッグ中の遅延 &lt;16ms 目標</td></tr>
+<tr><td>NF-002</td><td>対応OS</td><td>Windows 10/11 必須、macOS 任意（要判断）</td></tr>
+<tr><td>NF-003</td><td>オフライン</td><td>編集・commit はオフライン可。共有時のみネット必要</td></tr>
+<tr><td>NF-004</td><td>データ安全性</td><td>クラッシュ時も未保存編集を復元（自動一時保存）。Git操作は破壊的操作（force push, reset --hard）を提供しない</td></tr>
+<tr><td>NF-005</td><td>マージしやすさ</td><td>同時編集の衝突が最小になるデータ形式（<a href="data-model.html">データモデル</a>）</td></tr>
+<tr><td>NF-006</td><td>スキーマ互換</td><td>スキーマバージョン付き。旧版データの自動マイグレーション。新しいデータを旧アプリが壊さない</td></tr>
+<tr><td>NF-007</td><td>セキュリティ</td><td>Electron: contextIsolation 有効、nodeIntegration 無効、preload 経由のIPCのみ。認証情報は OS 資格情報ストア</td></tr>
+<tr><td>NF-008</td><td>配布</td><td>インストーラ(NSIS等)、コード署名、自動更新（要判断）。Git同梱によりユーザーに Git インストール不要</td></tr>
+<tr><td>NF-009</td><td>国際化</td><td>日本語UI優先。文言は外出し（将来の多言語化余地）</td></tr>
+<tr><td>NF-010</td><td>アクセシビリティ</td><td>キーボードのみで主要操作可能。色だけに依存しない表示（形・パターン）</td></tr>
+<tr><td>NF-011</td><td>テスト</td><td>ドメインロジック（日付計算・依存検証・差分）は単体テスト必須。E2E は主要フローのみ</td></tr></table>
+<div class="todo">非機能要件の追記。</div>
+</main></body></html>

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>未決事項・追加定義</title><link rel="stylesheet" href="style.css"></head><body>
+<nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a class="cur" href="open-questions.html">未決事項・追加定義</a></nav>
+<main>
+<h1>未決事項・追加で定義すべき要件</h1>
+<p>設計への影響が大きい順。★は「実装前に必ず決めたい」項目。回答は各行の右欄に追記してください。</p>
+
+<h2>A. 設計を左右する重要事項</h2>
+<table><tr><th>#</th><th>質問</th><th>選択肢/推奨</th><th>回答</th></tr>
+<tr><td>★A1</td><td>依存関係の端点は何か</td><td>プロジェクト間のみ / イベント・マイルストーン間（推奨: 後者。前者も内包できる）</td><td></td></tr>
+<tr><td>★A2</td><td>日程の自動連動（スケジューリング）をするか。先行を動かすと後続が自動で動くか</td><td>しない・違反を警告のみ（推奨・MVP）/ 手動で「連動移動」/ 常時自動</td><td></td></tr>
+<tr><td>★A3</td><td>親の期間は子から自動集計か、独立した値か</td><td>自動集計表示（推奨）/ 独立入力 / 両方</td><td></td></tr>
+<tr><td>★A4</td><td>同時編集者の人数と運用</td><td>1人 / 数人 / 十数人以上。→ <a href="git-ux.html">運用モデル</a>の選択に直結</td><td></td></tr>
+<tr><td>★A5</td><td>リモートリポジトリの種類</td><td>GitHub / GitLab / Azure DevOps / 社内サーバ / 共有フォルダ（bare repo）/ ローカルのみ</td><td></td></tr>
+<tr><td>★A6</td><td>想定規模</td><td>プロジェクト数・イベント数・期間（例: 200行/3,000イベント/5年）→ 描画方式の判断材料</td><td></td></tr>
+<tr><td>★A7</td><td>対象OS</td><td>Windows のみ / Windows+macOS(+Linux)</td><td></td></tr>
+<tr><td>A8</td><td>プロジェクトの親子は単一親（木）か、複数親（DAG）か</td><td>単一親（推奨）</td><td></td></tr>
+<tr><td>A9</td><td>日付の粒度</td><td>日単位のみ（推奨）/ 時刻あり / 半日</td><td></td></tr>
+<tr><td>A10</td><td>1行内でイベントが重なる場合の表示</td><td>行を自動で縦に展開（推奨）/ 重ね表示 / 禁止</td><td></td></tr></table>
+
+<h2>B. 見落としやすい要件（提案）</h2>
+<table><tr><th>領域</th><th>検討事項</th></tr>
+<tr><td>業務属性</td><td>担当者/チーム、状態、進捗率、予算・工数、リンク（チケット・文書URL）、コメント/メモ、タグ</td></tr>
+<tr><td>カレンダー</td><td>祝日（日本）、会社休日、稼働日ベースの期間計算、会計年度/期の表示（4月始まり等）</td></tr>
+<tr><td>アクセス制御</td><td>閲覧のみユーザー、プロジェクト単位の編集権限（Git 単体では困難。リモート側の権限で代替するか）</td></tr>
+<tr><td>変更の追跡</td><td>誰がいつ変えたかの表示（git blame 相当）、変更理由の入力を必須にするか</td></tr>
+<tr><td>通知</td><td>他者の更新通知、期限接近の通知（要るか）</td></tr>
+<tr><td>出力</td><td>PDF/画像/PowerPoint/Excel、印刷レイアウト（用紙サイズ、期間範囲）、スナップショットHTML書き出し</td></tr>
+<tr><td>取り込み</td><td>既存Excel/CSV/MS Project/Googleスプレッドシートからの移行</td></tr>
+<tr><td>閲覧専用共有</td><td>アプリを持たない人向けに、静的HTML/PDFを自動生成して配布するか</td></tr>
+<tr><td>ベースライン</td><td>計画 vs 実績/現在の比較。Git タグで「承認版」を打つ運用にするか</td></tr>
+<tr><td>設定の保存先</td><td>個人設定（ローカル）とチーム設定（Git）の線引き</td></tr>
+<tr><td>多言語・ロケール</td><td>日本語のみか。曜日・年号表示、週の開始曜日</td></tr>
+<tr><td>アクセシビリティ</td><td>色覚多様性、キーボード操作、スクリーンリーダ対応の範囲</td></tr>
+<tr><td>配布・更新</td><td>インストーラ/ポータブル、コード署名（SmartScreen 回避）、自動更新の方式と配布元、社内配布制約</td></tr>
+<tr><td>障害対応</td><td>ログ、クラッシュレポート、データ破損時の復旧手順、バックアップ</td></tr>
+<tr><td>セキュリティ</td><td>データの機密度、認証情報の保管、社内プロキシ/証明書環境でのGit通信</td></tr>
+<tr><td>ライセンス</td><td>使用ライブラリのライセンス（商用ライブラリを許容するか）、社外公開の有無</td></tr>
+<tr><td>将来の拡張</td><td>Web閲覧版、API、他システム連携（Jira / Redmine 等）の可能性</td></tr></table>
+
+<h2>C. 決めておくと進行が楽になること</h2>
+<ul>
+<li><strong>MVP の範囲</strong>: 「表示+編集+保存/共有」まで、を最初のリリースとする案（比較・案機能・出力は次段階）。</li>
+<li><strong>サンプルデータ</strong>: 実際の（匿名化した）案件データを数十件提供してもらえると、UI/性能検証が現実的になる。</li>
+<li><strong>受け入れ基準</strong>: 「Git 未経験者が説明なしに保存→共有→競合解決を完遂できる」など、検証可能な基準。</li>
+<li><strong>参考にしたい既存ツール</strong>: 好きな点・嫌いな点（Excel、MS Project、Notion タイムライン等）。</li>
+</ul>
+
+<h2>D. 推奨する進め方</h2>
+<ol>
+<li>本ドキュメントに追記 → A の★項目を確定</li>
+<li>技術スパイク（描画性能 / dugite 認証 / 競合解決の最小プロトタイプ）</li>
+<li>データモデル確定 → ドメイン層＋テスト実装</li>
+<li>UI（表示 → 編集 → 依存 → ビュー）→ Git UI の順に実装</li>
+</ol>
+<div class="todo">その他、思いついた要件を自由に追記。</div>
+</main></body></html>

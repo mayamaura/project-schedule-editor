@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>データモデル</title><link rel="stylesheet" href="style.css"></head><body>
+<nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a class="cur" href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a></nav>
+<main>
+<h1>データモデル</h1>
+<p>Git で差分・マージしやすいことを最優先に設計する。<strong>ファイル形式がそのまま UX（競合の起きやすさ）を決める</strong>ため、早期に確定したい。</p>
+
+<h2>1. エンティティ</h2>
+<table><tr><th>エンティティ</th><th>主な属性</th></tr>
+<tr><td>Project</td><td>id, name, parentId, order, status, assignee, tags[], color, note</td></tr>
+<tr><td>Event</td><td>id, projectId, name, start, end, type, color, note</td></tr>
+<tr><td>Milestone</td><td>id, projectId, name, date, type, note</td></tr>
+<tr><td>Dependency</td><td>id, from{kind,id}, to{kind,id}, type(FS/SS/FF/SF), lagDays</td></tr>
+<tr><td>Type（種別マスタ）</td><td>id, name, color, shape</td></tr>
+<tr><td>View</td><td>id, name, shared, visibleProjectIds, expanded, zoom, dependencyFilter, columns</td></tr>
+<tr><td>Calendar</td><td>weekend設定, holidays[], 稼働日</td></tr>
+<tr><td>Meta</td><td>schemaVersion, appVersion</td></tr></table>
+<ul>
+<li><strong>ID</strong>: UUID（または短い乱数ID）。名前や順序をキーにしない（名前変更・並べ替えで競合させない）。</li>
+<li><strong>日付</strong>: ISO 8601 の日付のみ（<code>2026-11-07</code>）。時刻・タイムゾーンを持たない。終了日は「含む」か「含まない」かを仕様で固定（提案: <em>含む</em>）。</li>
+<li><strong>順序</strong>: 配列インデックスでなく fractional index（文字列）にすると、並べ替えが1要素の変更で済み競合しにくい。</li>
+</ul>
+
+<h2>2. Git 上のファイル構成（案）</h2>
+<pre>schedule-data/
+├─ schedule.json            # schemaVersion、設定
+├─ calendar.json
+├─ types.json
+├─ projects/
+│   ├─ 3f9a….json           # 1プロジェクト = 1ファイル
+│   └─ 7c21….json           #   (events, milestones を内包)
+├─ dependencies/
+│   └─ a81b….json           # 1依存 = 1ファイル（または projects 側に持たせる）
+└─ views/                   # 共有ビューのみ
+    └─ overview.json</pre>
+<h3>方式比較</h3>
+<table><tr><th>方式</th><th>利点</th><th>欠点</th></tr>
+<tr><td><strong>A. 1プロジェクト1ファイル（推奨）</strong></td><td>別プロジェクトの同時編集は競合しない。履歴がプロジェクト単位で追える</td><td>ファイル数が増える（数千まで許容）</td></tr>
+<tr><td>B. 全体を1つの JSON</td><td>実装が単純</td><td>誰かが編集するたび競合しやすい。<span class="must">非推奨</span></td></tr>
+<tr><td>C. 1イベント1ファイル</td><td>最も競合しにくい</td><td>ファイルが膨大、読み込みコスト大</td></tr>
+<tr><td>D. SQLite</td><td>高速</td><td>バイナリで差分・マージ不可。<span class="must">不可</span></td></tr></table>
+<div class="note">整形ルール: キー順固定・インデント2・末尾改行・配列は ID 順。アプリが書き出す形式を一意に固定して、無意味な差分を出さない。親子は <code>parentId</code> を子側に持たせる（親ファイルに子リストを持たない）。</div>
+
+<h2>3. ファイル例</h2>
+<pre>{
+  "id": "3f9a1c",
+  "name": "新製品A開発",
+  "parentId": "root-01",
+  "order": "a0",
+  "status": "inProgress",
+  "events": {
+    "e1": { "name": "設計", "start": "2026-11-01", "end": "2026-12-15", "type": "phase" },
+    "e2": { "name": "試作", "start": "2027-01-05", "end": "2027-03-31", "type": "phase" }
+  },
+  "milestones": {
+    "m1": { "name": "設計レビュー", "date": "2026-12-16", "type": "review" }
+  }
+}</pre>
+<p>events / milestones は配列ではなく <strong>ID をキーにしたオブジェクト</strong>とする（キー順は ID 昇順で固定）。要素の追加・削除が他の行に波及せず、末尾カンマ起因の偽の競合が起きにくい。</p>
+
+<h2>3.5 形式の決定: JSON（確定）</h2>
+<table><tr><th>項目</th><th>決定</th></tr>
+<tr><td>形式</td><td><strong>JSON</strong>。YAML は日付の型自動変換・出力の揺れ・パース差異のリスクがあるため不採用</td></tr>
+<tr><td>出力規則</td><td>キー昇順、インデント2、1フィールド1行、末尾改行、LF 固定（<code>.gitattributes</code> で <code>eol=lf</code>）</td></tr>
+<tr><td>日付</td><td>文字列 <code>YYYY-MM-DD</code>（型変換されない）</td></tr>
+<tr><td>読み込み</td><td>zod でスキーマ検証してから使用</td></tr></table>
+
+<h2>4. 競合の単位とマージ方針</h2>
+<ul>
+<li>通常の Git 3-way マージ（テキスト）でほぼ解決できるよう、1フィールド=1行で出力。</li>
+<li>それでも衝突した場合、アプリが JSON を 3 つ（base/ours/theirs）読み、<strong>エンティティ・フィールド単位</strong>で比較して業務語で提示（<a href="git-ux.html">Git連携・UX</a>）。</li>
+<li>将来案: カスタム merge driver でアプリ外 Git クライアントでも自動マージ（優先度低）。</li>
+</ul>
+
+<h2>4.5 日程変更の検出と表示</h2>
+<p>「いつ・誰が・どの日程をどう変えたか」をアプリ上で表示する機能の仕組み。<strong>行単位の <code>git diff</code> テキストは解析しない</strong>（整形や行位置に依存して壊れやすいため）。</p>
+<h3>検出方式</h3>
+<ol>
+<li><code>git diff --name-status &lt;旧&gt; &lt;新&gt;</code> で変更のあったファイルだけを特定（追加 A / 変更 M / 削除 D）。</li>
+<li>各ファイルを <code>git show &lt;版&gt;:&lt;パス&gt;</code> で両版取得し、JSON としてパース・スキーマ検証。</li>
+<li>ドメイン層の純関数 <code>diffSchedule(old, new): Change[]</code> が、ID をキーにエンティティ・フィールド単位で比較。</li>
+<li>名称変更や並べ替えでも ID が同じなら「同一物の変更」として追跡する。</li>
+</ol>
+<h3>変更の種類（Change）</h3>
+<table><tr><th>種類</th><th>例</th><th>表示</th></tr>
+<tr><td>追加 / 削除</td><td>イベント・マイルストーン・プロジェクト・依存の追加/削除</td><td>緑 / 打消し線</td></tr>
+<tr><td>日付変更</td><td>マイルストーン 3/1→3/15（+14日）、イベント開始・終了の変更（期間の伸縮も算出）</td><td>旧位置に影、新位置に実体、矢印と日数差</td></tr>
+<tr><td>移動（親子）</td><td>親プロジェクトの付け替え</td><td>旧親→新親を文で表示</td></tr>
+<tr><td>属性変更</td><td>名称・状態・担当・種別・色</td><td>変更前→変更後</td></tr>
+<tr><td>依存の変更</td><td>依存の追加/削除、タイプ・ラグの変更</td><td>線を緑/赤で強調</td></tr>
+<tr><td>波及</td><td>変更により依存違反が新たに発生した（警告）</td><td>警告アイコンと一覧</td></tr></table>
+<h3>表示場面</h3>
+<ul>
+<li><strong>保存時</strong>: 現在の編集内容と最新コミットの差分を要約（例:「新製品A: リリース 3/1 → 3/15（+14日）」）。</li>
+<li><strong>共有時</strong>: 取り込む他者の変更を、取り込み前に一覧表示。</li>
+<li><strong>履歴</strong>: 各コミットの変更要約。コミットを選ぶとタイムライン上で差分表示。</li>
+<li><strong>2版比較</strong>: 任意の2つの版（コミット/日付/タグ）をタイムライン上で重ねて比較。</li>
+<li><strong>競合解決</strong>: base / 自分 / 相手の3版を同じ diff 関数で比較し、項目単位の選択に使う。</li>
+<li><strong>編集中</strong>: 直前の保存版からの変更箇所をバー上に印（任意）で表示。</li>
+</ul>
+<h3>フィルタ・集計</h3>
+<p>期間・プロジェクト・変更種類・作者で絞り込み、「日程が後ろ倒しになった項目」を一覧（変動日数の降順）する。</p>
+<div class="note">同じ <code>diffSchedule</code> を、保存・共有・履歴・比較・競合解決のすべてで再利用する。純TypeScript のため単体テストを必須とする。性能は変更ファイルのみ読むため、リポジトリ全体が大きくても影響しない。</div>
+
+<h2>5. スキーマ進化</h2>
+<ul><li><code>schemaVersion</code> を保持。起動時に古ければマイグレーションし、「データ形式を更新しました」を1コミットとして記録。</li>
+<li>新しいバージョンのデータを古いアプリが開いた場合は読み取り専用で警告。</li></ul>
+<div class="todo">属性の追加（予算・工数・進捗率など）、データ形式の希望を追記。</div>
+</main></body></html>

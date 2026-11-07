@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>アーキテクチャ・技術選定</title><link rel="stylesheet" href="style.css"></head><body>
+<nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a class="cur" href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a></nav>
+<main>
+<h1>アーキテクチャ・技術選定</h1>
+
+<h2>1. 描画ライブラリ: d3.js への意見</h2>
+<p>結論: <strong>d3.js 全体をレンダラとして使うのは推奨しない。</strong>d3 は「データ→SVG」の低レベル道具で、<em>仮想スクロール・セル選択・ドラッグ編集・Undo・キーボード操作</em>といったエディタ機能を全て自前で作る必要がある。代わりに <strong>d3 の部品（d3-scale / d3-time / d3-array）だけ使い、描画と状態管理は UI フレームワークに任せる</strong>構成を推奨する。</p>
+<table><tr><th>選択肢</th><th>柔軟性</th><th>編集機能</th><th>大規模</th><th>評価</th></tr>
+<tr><td><strong>React + 自前 SVG/DOM + d3-scale/time（推奨）</strong></td><td>◎</td><td>自作（イベント処理は React と相性良）</td><td>仮想化で ○</td><td>MVP〜数百行で最適。デバッグしやすい</td></tr>
+<tr><td>React + Canvas 自前描画（+ d3-scale）</td><td>◎</td><td>当たり判定を自作</td><td>◎（数千行・数万要素）</td><td>性能が足りない場合の移行先。まず SVG/DOM で始め、描画層を差替え可能に分離</td></tr>
+<tr><td>d3.js を全面採用</td><td>◎</td><td>全て自作</td><td>SVG は要素数に限界</td><td>React と DOM 所有権が競合しやすい。単独採用は非推奨</td></tr>
+<tr><td>vis-timeline</td><td>○</td><td>ドラッグ編集・グループ(階層)・range/point 内蔵</td><td>○</td><td>1行に複数イベント+マイルストーンは標準対応で近い。ただし依存矢印・Excel風セル操作・独自の見た目が弱く、後で壁に当たりやすい</td></tr>
+<tr><td>Frappe Gantt / dhtmlx / Bryntum / SVAR Gantt 等</td><td>△</td><td>◎</td><td>◎</td><td>「1行1タスク」前提。本件の1行複数イベントと合わない。商用はライセンス費用</td></tr>
+<tr><td>AG Grid / Handsontable + オーバーレイ</td><td>△</td><td>表は強い</td><td>◎</td><td>日付軸のバー描画は結局自作。ライセンス注意</td></tr></table>
+<div class="note"><strong>推奨構成:</strong> React + TypeScript、左ペイン=仮想化ツリーグリッド（自作 or TanStack Virtual）、右ペイン=SVG（後に Canvas 差替え可）。座標計算は d3-scale、日付処理は d3-time ＋ date-fns。<br>
+最初に <strong>技術スパイク</strong>（500行・5,000イベントでスクロール/ドラッグを SVG と Canvas で比較）を行い、描画方式を確定することを推奨。</div>
+
+<h2>2. 全体構成</h2>
+<pre>┌───────────── Electron ─────────────┐
+│ Main process (Node)                 │
+│  ├ GitService  ← dugite / isomorphic-git
+│  ├ FileRepository (JSON 読み書き・検証)
+│  ├ Settings / 資格情報(OS keychain)
+│  └ IPC ハンドラ（型付き）
+│            ▲ contextBridge / preload
+│ Renderer (React + TS)               │
+│  ├ Domain (純TS: 日付計算, 依存検証, diffSchedule(日程変更検出), マイグレーション) ← 単体テストの中心
+│  ├ Store (Zustand 等 + Undo/Redo)
+│  ├ TimelineView (SVG/Canvas)
+│  ├ TreeGrid
+│  └ GitPanel (保存/共有/履歴/競合)
+└────────────────────────────────────┘</pre>
+<ul>
+<li><strong>Domain 層は Electron/DOM 非依存</strong>の純 TypeScript にして、テスト容易性と将来の Web 版展開に備える。</li>
+<li>ファイル I/O と Git は Main 側のみ。Renderer は IPC 経由。</li>
+<li>編集中の状態は Renderer のストアが正。ファイルへは「保存」時（または自動保存）にエンティティ単位で書き出し。</li>
+</ul>
+
+<h2>3. Git 実装方式</h2>
+<table><tr><th>方式</th><th>利点</th><th>欠点</th></tr>
+<tr><td><strong>dugite（Git バイナリ同梱）（推奨）</strong></td><td>ユーザーに Git インストール不要。本物の git で挙動・性能・マージが信頼できる（GitHub Desktop が採用）</td><td>配布サイズ増（~数十MB）、OS別バイナリ管理</td></tr>
+<tr><td>isomorphic-git</td><td>純JSで軽量、導入簡単</td><td>マージ/競合処理が限定的、巨大リポジトリで遅い、一部機能未対応</td></tr>
+<tr><td>simple-git 等（システムの git を呼ぶ）</td><td>実装容易</td><td>利用者に Git のインストールを要求 → 本件の目的に反する</td></tr>
+<tr><td>libgit2 (nodegit)</td><td>高機能</td><td>ビルド/メンテ状況に難。非推奨</td></tr></table>
+<p>データ量は小さいため性能差は問題にならない。<strong>信頼性重視で dugite</strong>。スパイクで認証（HTTPS トークン / SSH）まで通ることを確認する。</p>
+
+<h2>4. その他の選定（案）</h2>
+<table><tr><th>領域</th><th>選定案</th><th>理由</th></tr>
+<tr><td>言語</td><td>TypeScript (strict)</td><td>データモデルを型で守る</td></tr>
+<tr><td>ビルド</td><td>electron-vite + electron-builder</td><td>設定が少なく Vite の HMR が使える</td></tr>
+<tr><td>UI</td><td>React 18+</td><td>d3 部品と併用しやすい。Svelte/Vue も可（好みで変更可）</td></tr>
+<tr><td>状態管理</td><td>Zustand ＋ immer（patch 履歴で Undo/Redo）</td><td>軽量</td></tr>
+<tr><td>スキーマ検証</td><td>zod</td><td>読み込み時の検証・型生成</td></tr>
+<tr><td>テスト</td><td>Vitest（単体）/ Playwright for Electron（E2E）</td><td></td></tr>
+<tr><td>Lint/整形</td><td>ESLint + Prettier</td><td></td></tr>
+<tr><td>リポジトリ構成</td><td>アプリのリポジトリとデータのリポジトリは分離</td><td>データは別 Git。アプリ更新とデータ履歴を混ぜない</td></tr></table>
+
+<h2>5. リスクと対策</h2>
+<table><tr><th>リスク</th><th>対策</th></tr>
+<tr><td>描画性能が不足</td><td>描画層を分離、Canvas 移行を前提にスパイクで検証</td></tr>
+<tr><td>非エンジニアが競合で詰まる</td><td>競合の発生自体を減らすデータ形式＋項目単位の解決UI＋「やり直す」安全弁</td></tr>
+<tr><td>Git 認証設定が難しい</td><td>ウィザード化。まずは HTTPS+トークンに絞る案</td></tr>
+<tr><td>Excel 風の期待値が高い</td><td>初期に「何を Excel 同様にするか」を明文化（<a href="ui-design.html">UI設計</a>）</td></tr></table>
+<div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
+</main></body></html>
