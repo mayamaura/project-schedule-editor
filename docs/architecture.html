@@ -405,7 +405,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <ul>
 <li>状態の変更は全て <code>Command</code> → <code>History.execute</code>（<code>src/domain/history.ts</code>）。UI は <code>commit(コマンド)</code> を呼び、成功なら <code>null</code>、拒否なら理由の文字列を受け取る。拒否の理由は画面上部に表示し（F-208）、詳細パネルの入力欄は元の値に戻す。</li>
 <li>UI の操作から<strong>コマンドを作る処理は純関数としてドメイン層に置く</strong>: <code>dragCommand</code>（ドラッグ量 → 移動・リサイズ。<code>timeline/edit.ts</code>）、<code>addEventCommand</code> / <code>addMilestoneCommand</code> / <code>addProjectCommand</code> / <code>placeProjectCommand</code> / <code>addDependencyCommand</code> / <code>newId</code>（<code>edit.ts</code>）、<code>summarizeChange</code>（<code>summary.ts</code>。変更の日本語1行）。</li>
-<li>バー・◆のドラッグは ref + rAF でプレビューし（<code>applyCommand</code> の結果を描画にだけ使う）、離したときに <strong>1 コマンド</strong>を確定する（Undo 1 回で戻る）。開始＞終了になるリサイズは反対側の日付で止める（拒否しない）。</li>
+<li>バー・◆のドラッグは ref + rAF でプレビューし（<code>applyCommand</code> の結果を描画にだけ使う）、離したときに <strong>1 コマンド</strong>を確定する（Undo 1 回で戻る）。ドラッグ中は<strong>バーが新しい位置に動き、変更先の日付をカーソル脇に表示</strong>する。開始・終了を変えられる端ではカーソルを横向きの双方向矢印（ew-resize）にする。開始＞終了になるリサイズは反対側の日付で止める（拒否しない）。</li>
 <li>新規 ID は 8 文字の小文字英数字の乱数（<code>newId</code>。使用中なら引き直す）。並行編集で被りにくく、Git のマージでも衝突しにくい。</li></ul>
 <h3>13.2 画面</h3>
 <table><tr><th>機能</th><th>実装</th></tr>

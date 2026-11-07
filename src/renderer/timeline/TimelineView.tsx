@@ -114,7 +114,7 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
   // 最新の入力を ref に持つ（rAF のコールバックが古い値を見ないように）
   const preview = useRef<Schedule | null>(null);
   const latest = useRef({ schedule, layout, headerMode, deps, theme, selected });
-  latest.current = { schedule: preview.current ?? schedule, layout, headerMode, deps, theme, selected };
+  latest.current = { schedule, layout, headerMode, deps, theme, selected };
 
   const render = useCallback((): void => {
     pending.current = 0;
@@ -141,7 +141,7 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const t0 = performance.now();
-    const list = buildDrawList(L.schedule, L.layout, {
+    const list = buildDrawList(preview.current ?? L.schedule, L.layout, {
       viewport: { ...vp, width: W, height: H - HEADER_HEIGHT },
       headerMode: L.headerMode,
       today: todayString(),
@@ -287,7 +287,7 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
   }, []);
 
   // ---- ポインタ: ドラッグで編集 / 空白のドラッグでパン / クリックで選択 / ホバー ----
-  const drag = useRef<{ x: number; y: number; moved: boolean; edit?: { id: Id; part: 'body' | 'start' | 'end'; x0: number; cmd: Command | null } } | null>(null);
+  const drag = useRef<{ x: number; y: number; moved: boolean; edit?: { id: Id; projectId: Id; part: 'body' | 'start' | 'end'; x0: number; cmd: Command | null } } | null>(null);
   const pointer = (e: React.PointerEvent): { x: number; y: number } => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -298,7 +298,7 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
     if (e.button !== 0) return;
     const p = pointer(e);
     const h = hitAt(p.x, p.y);
-    const edit = !linkFrom && h && (h.kind === 'event' || h.kind === 'milestone') ? { id: h.id, part: h.kind === 'event' ? h.part : ('body' as const), x0: p.x, cmd: null } : undefined;
+    const edit = !linkFrom && h && (h.kind === 'event' || h.kind === 'milestone') ? { id: h.id, projectId: h.projectId, part: h.kind === 'event' ? h.part : ('body' as const), x0: p.x, cmd: null } : undefined;
     drag.current = { x: p.x, y: p.y, moved: false, edit };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -313,6 +313,8 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
         d.edit.cmd = dragCommand(schedule, d.edit.id, d.edit.part, delta);
         const r = d.edit.cmd ? applyCommand(schedule, d.edit.cmd) : null;
         preview.current = r?.ok ? r.schedule : null;
+        showTip(p.x, p.y, preview.current ?? schedule, d.edit);
+        setCursor(e.currentTarget as HTMLElement, d.edit.part === 'body' ? 'grabbing' : 'ew-resize');
         request();
         return;
       }
@@ -325,9 +327,11 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
     }
     const h = hitAt(p.x, p.y);
     const id = h && (h.kind === 'event' || h.kind === 'milestone') ? h.id : null;
+    // 開始日・終了日を変えられる端では横向きの双方向矢印にする（F-201）
+    const edge = h?.kind === 'event' && h.part !== 'body';
+    setCursor(e.currentTarget as HTMLElement, linkFrom ? 'crosshair' : edge ? 'ew-resize' : id ? 'move' : 'grab');
     if (id !== hover.current) {
       hover.current = id;
-      (e.currentTarget as HTMLElement).style.cursor = linkFrom ? 'crosshair' : id ? 'pointer' : 'grab';
       request();
     }
   };
@@ -336,6 +340,7 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
     drag.current = null;
     if (d?.edit && d.moved) {
       preview.current = null;
+      if (tipRef.current) tipRef.current.hidden = true;
       const cmd = d.edit.cmd;
       if (cmd) commit(cmd);
       else request();
@@ -355,6 +360,22 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
       return;
     }
     setSelected(isItem ? { kind: h.kind as 'event' | 'milestone', id: h.id } : null);
+  };
+  // ドラッグ中の変更先の表示（ドロップ前に新しい日付が分かるように。DOM を直接更新して React の再描画を避ける）
+  const tipRef = useRef<HTMLDivElement>(null);
+  const setCursor = (el: HTMLElement, c: string): void => {
+    if (el.style.cursor !== c) el.style.cursor = c;
+  };
+  const showTip = (x: number, y: number, s: Schedule, edit: { id: Id; projectId: Id }): void => {
+    const tip = tipRef.current;
+    const proj = s.projects[edit.projectId];
+    const e = proj?.events[edit.id];
+    const m = proj?.milestones[edit.id];
+    if (!tip || (!e && !m)) return;
+    tip.textContent = e ? (e.start === e.end ? e.start : `${e.start} 〜 ${e.end}`) : m!.date;
+    tip.style.left = `${Math.min(x + 14, view.current.width - 160)}px`;
+    tip.style.top = `${y + 18}px`;
+    tip.hidden = false;
   };
   const onPointerLeave = (): void => {
     if (hover.current !== null) {
@@ -527,6 +548,7 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
           </div>
         </div>
         <div className="canvas-area" ref={areaRef}>
+          <div className="dragtip" ref={tipRef} hidden data-testid="dragtip" />
           <canvas
             ref={canvasRef}
             data-testid="timeline-canvas"

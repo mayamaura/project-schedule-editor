@@ -40,7 +40,11 @@ test('バーのドラッグ: フレーム時間と、Undo 1 回で元に戻る�
       await page.waitForTimeout(8);
     }
     const times = await page.evaluate(() => (window as unknown as { stop: () => number[] }).stop());
+    // ドロップ前でも変更先の日付が見える（F-201）
+    await expect(page.getByTestId('dragtip')).toBeVisible();
+    await expect(page.getByTestId('dragtip')).toHaveText(/\d{4}-\d{2}-\d{2}/);
     await page.mouse.up();
+    await expect(page.getByTestId('dragtip')).toBeHidden();
     const gaps = times.slice(1).map((t, i) => t - times[i]!);
     const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length;
     const max = Math.max(...gaps);

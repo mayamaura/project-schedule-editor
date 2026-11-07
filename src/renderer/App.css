@@ -76,3 +76,5 @@ button[aria-pressed="true"] { background: var(--acc); color: #fff; border-color:
 .ctxmenu { position: fixed; z-index: 10; min-width: 180px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.25); padding: 4px 0; outline: none; }
 .ctxmenu div { padding: 5px 14px; cursor: pointer; }
 .ctxmenu div.on { background: var(--acc); color: #fff; }
+.dragtip { position: absolute; z-index: 5; pointer-events: none; padding: 2px 8px; font-size: 12px; background: var(--fg); color: var(--bg); border-radius: 4px; white-space: nowrap; }
+.dragtip[hidden] { display: none; }
