@@ -1,0 +1,3 @@
+#!/bin/sh
+# 人間・AI 共通のコミット前ゲート。有効化: git config core.hooksPath .githooks
+exec node scripts/verify.mjs --staged

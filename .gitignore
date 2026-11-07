@@ -1,0 +1,6 @@
+node_modules/
+dist/
+out/
+coverage/
+.env*
+.claude/settings.local.json

@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>変更履歴</title><link rel="stylesheet" href="style.css"></head><body>
+<nav><a href="index.html">概要</a><a href="requirements.html">要件定義</a><a href="data-model.html">データモデル</a><a href="architecture.html">アーキテクチャ・技術選定</a><a href="ui-design.html">UI設計</a><a href="git-ux.html">Git連携・UX</a><a href="open-questions.html">未決事項・追加定義</a><a href="development-rules.html">開発ルール</a><a class="cur" href="changelog.html">変更履歴</a></nav>
+<main>
+<h1>仕様変更履歴</h1>
+<p>仕様文書（requirements / data-model / architecture / ui-design / git-ux / open-questions）を変更したら、この表の<strong>先頭</strong>に追記する（pre-commit が検査）。</p>
+<table><tr><th>日付</th><th>変更内容</th><th>影響文書</th><th>要件ID</th></tr>
+<tr><td>2026-11-07</td><td>開発ハーネスを追加（開発ルール、整合性チェック、要件ID追跡、フック、スキル、レビュア）</td><td>development-rules, index</td><td>—</td></tr>
+<tr><td>2026-11-07</td><td>A1〜A10 を決定（端点=イベント/マイルストーン、連動なし、親は独立入力、数人・GitHub、約25,000イベント×8年、Windows のみ→将来 mac/Linux、単一親、日単位、縦展開）。日付ヘッダ（年月週/年月）を確定</td><td>open-questions, requirements, ui-design, architecture, git-ux</td><td>F-103, F-104, F-105, F-301, F-302, F-305, F-508, NF-001, NF-002</td></tr>
+<tr><td>2026-11-07</td><td>描画方式を React + SVG/DOM + d3 に決定、イベント処理方針を追加</td><td>architecture</td><td>—</td></tr>
+<tr><td>2026-11-07</td><td>データ形式を JSON に決定。日程変更の検出・表示機能を追加</td><td>data-model, requirements, ui-design, architecture</td><td>F-505, F-509, F-510, F-511, F-512</td></tr>
+<tr><td>2026-11-07</td><td>初版ドキュメント作成</td><td>全文書</td><td>—</td></tr></table>
+</main></body></html>
