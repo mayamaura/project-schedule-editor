@@ -170,8 +170,8 @@
 }</pre>
 <h3>展開の計算</h3>
 <ol>
-<li>展開時に、起点マイルストーン <em>M</em>（既定は <code>defaultAnchor</code>、標準日程内の任意のマイルストーンを選べる）と、その実日付 <em>D</em> を指定する。</li>
-<li>各項目の実日付 = <em>D</em> ＋（項目のオフセット − <em>M</em> のオフセット）。<code>dayMode</code> が <code>working</code> のときはオフセットを稼働日数として数える。</li>
+<li>展開時に起点を指定する（F-802）。(a) <strong>マイルストーン起点</strong>: 標準日程内の任意のマイルストーン <em>M</em>（既定は <code>defaultAnchor</code>）とその実日付 <em>D</em>。(b) <strong>開始日起点</strong>: 標準日程全体の開始日（最小オフセット <em>s</em> の項目の日付）となる実日付 <em>D</em> のみ。</li>
+<li>各項目の実日付 = <em>D</em> ＋（項目のオフセット − 基準オフセット）。基準オフセットは (a) では <em>M</em> のオフセット、(b) では <em>s</em>。<code>dayMode</code> が <code>working</code> のときはオフセットを稼働日数として数える。</li>
 <li>非稼働日に当たった場合は <code>adjust</code> に従って前倒し/後ろ倒し（既定は補正なし）。</li>
 <li>結果は新規 ID を持つ<strong>コマンド列（addProject / addEvent / addMilestone / addDependency）</strong>として生成し、<code>diffSchedule</code> でプレビュー、承認後に1コマンドとして適用する（Undo 1単位）。AI 提案（<a href="#ai-changeset">ChangeSet</a>）と同じ経路。</li>
 <li>展開後のプロジェクトは標準日程への参照を持たない（独立）。</li></ol>
