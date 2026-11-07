@@ -78,3 +78,14 @@ button[aria-pressed="true"] { background: var(--acc); color: #fff; border-color:
 .ctxmenu div.on { background: var(--acc); color: #fff; }
 .dragtip { position: absolute; z-index: 5; pointer-events: none; padding: 2px 8px; font-size: 12px; background: var(--fg); color: var(--bg); border-radius: 4px; white-space: nowrap; }
 .dragtip[hidden] { display: none; }
+.infobar { align-items: center; flex-wrap: wrap; }
+.infobar button { padding: 0 8px; font-size: 12px; }
+.modal-back { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; }
+.modal { background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; width: min(560px, 92vw); max-height: 80vh; overflow: auto; }
+.modal h2 { font-size: 16px; margin: 0 0 8px; }
+.modal h3 { font-size: 13px; margin: 12px 0 4px; }
+.modal .changes, .modal .history { margin: 0; padding-left: 18px; font-size: 13px; }
+.modal .history { list-style: none; padding: 0; }
+.modal .history li { border-bottom: 1px solid var(--line); padding: 6px 0; }
+.modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.modal .field input { font: inherit; }

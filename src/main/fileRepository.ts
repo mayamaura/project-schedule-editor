@@ -133,7 +133,7 @@ export function recover(root: string): RecoverResult {
 }
 
 const KNOWN = [/^schedule\.json$/, /^types\.json$/, /^projects\/[A-Za-z0-9_-]+\.json$/, /^dependencies\/[A-Za-z0-9_-]+\.json$/];
-const isKnown = (rel: string): boolean => KNOWN.some((r) => r.test(rel));
+export const isKnown = (rel: string): boolean => KNOWN.some((r) => r.test(rel));
 
 function listKnown(root: string): string[] {
   const out: string[] = [];

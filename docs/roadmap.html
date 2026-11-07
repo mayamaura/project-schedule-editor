@@ -100,6 +100,7 @@
 <tr><td>設計</td><td><strong>S4-0（冒頭）</strong>: 作業版・反映・競合解決の画面を<strong>モック（クリック可能な試作）で作り、Git 未経験者3名に試してもらう</strong>。結果で用語・導線を修正してから実装に入る。Git フローの状態遷移（作業版・反映・中断）、変更の日本語要約の文言規則</td></tr>
 <tr><td>実装</td><td>S4-1 GitService（Git の解決: 外部/同梱、実行、診断）と認証（GCM のブラウザ認証、代替の Device Flow / PAT）。S4-2 保存（commit）と日本語の変更要約、履歴・戻す。S4-3 作業版（作成・切替・現在地の常時表示・退避と復元）と、正式版の直接編集（確認付き。F-520）。S4-4 反映ウィザード（最新の取り込み・競合の事前予告・main へ <code>--no-ff</code>・push の再試行）。S4-5 競合解決（<strong>3版をフィールド単位で比較して、重ならない変更は自動で取り込む <code>mergeSchedules</code>（ドメイン層の純関数）</strong> と、食い違いだけを選ぶ UI。根拠: data-model 11.1）。S4-6 初回セットアップ（clone / 新規 / 開く）、共有時の変更一覧、共有</td></tr>
 <tr><td>テスト</td><td>一時リポジトリでの Git 統合テスト（<code>spike/git-flow</code> を取り込む: 作業版・反映・競合・push 拒否・退避・非対話の認証失敗）、<code>diffSchedule</code> を使った要約の単体テスト、Git フローの E2E、<strong>S4-7 ユーザビリティ受け入れテスト（NF-019。Git 未経験者3名）</strong>、EMU 実環境での認証・clone・push</td></tr>
+<tr><td><strong>進捗（2026-11-08）</strong></td><td><strong>S4-1・S4-2 を実装</strong>（GitService、Git の解決と診断、保存、履歴、過去の版に戻す、未保存の変更の表示）。詳細と未実装は <a href="architecture.html#phase4">architecture 14</a>。<strong>S4-0（Git 未経験者 3 名によるモックの確認）が未実施のため、S4-3 以降（作業版・反映・競合解決・セットアップ）は着手していない</strong>。同梱 Git（dugite）は未導入。</td></tr>
 <tr><td>完了条件</td><td>受け入れ基準の 3・4 を満たす（Git 未経験者が作業版 → 反映と競合解決を完遂。EMU/GitHub で認証・push が通る）</td></tr></table>
 
 <h3>Phase 5: 配布・仕上げ（約2週）</h3>

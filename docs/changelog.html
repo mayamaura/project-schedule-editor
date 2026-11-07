@@ -6,6 +6,7 @@
 <h1>仕様変更履歴</h1>
 <p>仕様文書（requirements / data-model / architecture / ui-design / git-ux / open-questions）を変更したら、この表の<strong>先頭</strong>に追記する（pre-commit が検査）。</p>
 <table><tr><th>日付</th><th>変更内容</th><th>影響文書</th><th>要件ID</th></tr>
+<tr><td>2026-11-08</td><td>Phase 4 の S4-1・S4-2 を実装: GitService（Git の解決と下限 2.38、spawn で引数配列、改行変換の無効化）、保存（変更要約をメモの既定に。名前・メール未設定の入力）、履歴、過去の版に戻す（未保存の変更として取り込む）、未保存の変更の件数表示、診断。<strong>S4-0（Git 未経験者によるモック確認）と同梱 Git（dugite）は未実施・未導入</strong>。S4-3 以降は S4-0 の結果待ち</td><td>architecture, roadmap, CLAUDE.md</td><td>F-502, F-504, F-522, F-523, NF-019</td></tr>
 <tr><td>2026-11-08</td><td>ズームの下限を「日付ヘッダの値が消える手前」に変更（0.5 → 約 1.52 px/日。8年全体は1画面に収まらなくなる）。年月週を選んでいて週の値が消えるほど縮小したら自動で年月表示にし、全ての週の値が出せる幅まで拡大したら年月週に戻す</td><td>architecture</td><td>F-104, F-107</td></tr>
 <tr><td>2026-11-08</td><td>ドラッグ編集の改善: ドラッグ中に変更先が見えるようにした（プレビューが描画に反映されていなかった不具合を修正、変更先の日付をカーソル脇に表示）。バー・◆はホバーで移動カーソル、開始・終了を変えられる端は横向きの双方向矢印</td><td>architecture</td><td>F-201</td></tr>
 <tr><td>2026-11-08</td><td>Phase 3（編集）を実装（S3-1〜S3-5）: 右クリックメニュー、詳細パネル、プロジェクト操作（ドラッグ&amp;ドロップ）、依存の作成・編集・削除と指摘の一覧、自動保存（約0.3秒で束ね、変更ファイルだけ原子的に書く）と異常終了からの復元（変更一覧・破棄）。<strong>仮定を明記</strong>: 復元の基準は Git の HEAD ではなく <code>.autosave/base.json</code>（Phase 4 で置換）、束ね処理は Renderer 側、依存の作成はメニュー＋クリック（ハンドルのドラッグは未実装）。ドメインに編集用の純関数（edit.ts / summary.ts）を追加。25,000 イベントでドラッグ 平均 16.7 ms・自動保存 約 134 ms</td><td>architecture, roadmap, README, CLAUDE.md</td><td>F-201, F-202, F-204, F-205, F-206, F-208, F-209, F-210, F-211, F-305, NF-018</td></tr>

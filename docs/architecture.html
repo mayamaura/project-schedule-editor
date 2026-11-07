@@ -433,5 +433,25 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <tr><td>標準日程の展開・色・表示方法のメニュー項目</td><td>R2 以降（F-805, F-102 の編集 UI）</td></tr>
 <tr><td>複数選択</td><td>未実装（単一選択のみ）</td></tr>
 <tr><td>プロジェクトの削除</td><td>確認なしで即時（Undo で戻る）。パイロットで事故が出たら確認を追加</td></tr></table>
+<h2 id="phase4">14. Phase 4（Git）の実装状況（2026-11-08。S4-1・S4-2 まで）</h2>
+<p>要件: F-502 F-504 F-522 F-523 NF-003 NF-019（一部）。<strong>「仮定」</strong>は未決のまま置いた前提。</p>
+<h3>14.1 実装したもの</h3>
+<ul>
+<li><strong>GitService</strong>（<code>src/main/git/gitService.ts</code>）: 解決済みの Git 実行ファイルだけを使う。<code>spawn</code> に引数配列で渡し（シェル禁止）、<code>GIT_TERMINAL_PROMPT=0</code>、バックグラウンド処理は <code>GCM_INTERACTIVE=never</code>。改行コード・パスの自動変換は無効（<code>core.autocrlf=false</code> / <code>core.quotepath=false</code>）で、JSON の LF を守る。</li>
+<li><strong>Git の解決（F-522）</strong>: ①利用者指定の外部 Git ②PATH 上の git（Windows は Git for Windows の既定場所も探索）③同梱 Git。外部が下限（2.38）未満・未検出なら同梱へ。<strong>同梱 Git（dugite）は未導入</strong>（下記 14.3）。</li>
+<li><strong>保存（F-502）</strong>: 全ての変更を 1 つの版として記録。変更が無ければ何もしない。名前・メールが未設定なら入力を求め、このリポジトリにだけ設定する。メモの既定は変更要約（<code>diffSchedule</code> + <code>summarizeChange</code>）。<code>.autosave/</code> は <code>.git/info/exclude</code>（共有されない除外設定）で対象外。</li>
+<li><strong>履歴・戻す（F-504）</strong>: 履歴（新しい順）を表示。「この版に戻す」は、その版の日程を読み込んで<strong>通常の未保存の変更</strong>にする（確認後に保存。履歴は書き換えない）。過去版の読み出しは <code>cat-file --batch</code> 1 回でまとめて行う（ファイル数ぶんプロセスを起動しない）。</li>
+<li><strong>未保存の変更の表示</strong>: 最後に保存した版と今の日程の差を件数で常時表示し、保存画面に日本語の一覧を出す。</li>
+<li><strong>診断（F-523）</strong>: Git の検出（種別・版・パス）、データの場所、名前とメール、共有先、共有先への接続（認証画面を出さない）を項目別に表示。</li>
+<li>IPC: <code>git:state</code> / <code>git:init</code> / <code>git:save</code> / <code>git:log</code> / <code>git:filesAt</code> / <code>git:diagnose</code>。パスは Main が保持するものを使い、Renderer からは受け取らない。</li></ul>
+<h3>14.2 検証</h3>
+<p>一時リポジトリでの実際の Git による単体テスト 10 件（<code>tests/main/gitService.test.ts</code>: 版の解釈と解決・フォールバック、保存、変更なし、名前未設定、<code>.autosave</code> 対象外、過去版の読み出し（日本語・改行を含む）、空の履歴、CRLF に変換されない、診断）と、E2E 3 件（<code>tests/e2e/versioning.spec.ts</code>: 編集 → 未保存の変更 → 保存 → 履歴 → 戻す、診断）。</p>
+<h3>14.3 未実装・見直しが必要なもの</h3>
+<table><tr><th>項目</th><th>状況</th></tr>
+<tr><td><strong>S4-0 モックによるユーザビリティ確認</strong></td><td>未実施。<strong>Git 未経験者 3 名に試してもらう必要がある</strong>ため、実装側では進められない。作業版・反映・競合解決の用語と導線は、その結果で修正してから実装に入る方針のため、S4-3 以降は着手していない</td></tr>
+<tr><td>同梱 Git（dugite）</td><td>決定済み（H1）だが未導入。約 80MB の Git 本体（GPL-2.0）を取得するため、導入時にライセンス検査（<code>scripts/check-licenses.mjs</code>）の扱いと、配布サイズ・告知の同梱を確認する。<code>resolveGit</code> の <code>bundledPath</code> に渡すだけで使える作りにしてある</td></tr>
+<tr><td>S4-3 作業版 / S4-4 反映 / S4-5 競合解決 / S4-6 セットアップと共有 / S4-7 受け入れテスト</td><td>未着手（S4-0 の結果待ち）。<code>mergeSchedules</code>（3 版のフィールド単位マージ）はドメインの純関数でユーザビリティと独立のため先行できる</td></tr>
+<tr><td>異常終了の復元の基準</td><td>13.3 のとおり <code>.autosave/base.json</code> のまま。版管理の履歴がある場合は最後に保存した版へ置き換えるのが本来で、S4-3 とあわせて行う</td></tr>
+<tr><td>EMU の認証確認（L2）</td><td>ユーザー環境での確認待ち（Phase 0 から継続）。共有先への接続は診断で確認できるが、サインインの導線は S4-6</td></tr></table>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>

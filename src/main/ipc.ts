@@ -1,9 +1,21 @@
 import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { ipcSchemas, type IpcChannel, type IpcInput, type IpcOutput } from '@shared/ipc';
+import { GitService, resolveGit } from './git/gitService';
 import { beginSession, endSession, loadFiles, recover, saveFiles } from './fileRepository';
 
 // 開いているフォルダ（Renderer からパスは受け取らない。NF-007）
 let currentRoot: string | null = null;
+let gitService: GitService | null = null;
+
+// ponytail: 同梱 Git（dugite）は未導入。導入したら bundledPath に渡す（architecture 3.5）
+function gitFor(root: string): GitService | null {
+  const info = resolveGit({});
+  return info ? new GitService(info, root) : null;
+}
+const needGit = (): GitService => {
+  if (!gitService) throw new Error('Git を使えません');
+  return gitService;
+};
 
 // アプリ自身の画面（packaged は file://、開発時は dev サーバ）からの呼び出しだけを受け付ける。
 function isTrustedSender(event: IpcMainInvokeEvent): boolean {
@@ -40,12 +52,29 @@ export function registerIpc(): void {
     recover(root); // 更新の途中で終わっていたら完了させる（F-211 の基礎）
     const session = beginSession(root);
     currentRoot = root;
+    gitService = gitFor(root);
     return { path: root, files: loadFiles(root), ...session };
   });
   handle('repo:save', ({ files }) => {
     if (!currentRoot) throw new Error('フォルダが開かれていない');
     return { written: saveFiles(currentRoot, files).written.length };
   });
+  handle('git:state', async () => {
+    if (!gitService) return { available: false, isRepo: false, branch: null, dirty: false, head: null };
+    return { available: true, ...(await gitService.state()) };
+  });
+  handle('git:init', async () => {
+    try {
+      await needGit().init();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) };
+    }
+  });
+  handle('git:save', ({ message, identity }) => needGit().save(message, identity));
+  handle('git:log', ({ limit }) => needGit().log(limit));
+  handle('git:filesAt', ({ hash }) => needGit().filesAt(hash));
+  handle('git:diagnose', () => needGit().diagnose());
   app.on('before-quit', () => {
     if (currentRoot) endSession(currentRoot);
   });

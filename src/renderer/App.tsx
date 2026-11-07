@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { History, diffSchedule, generateSample, parseSchedule, serializeSchedule, summarizeChange, type Command, type Schedule, type ParseIssue } from '@domain/index';
 import { t } from './i18n';
 import { TimelineView } from './timeline/TimelineView';
+import { VersionControls } from './VersionControls';
 
 interface Loaded {
   readonly history: History;
@@ -128,12 +129,12 @@ export function App() {
   const latest = useRef({ h, path: loaded?.path ?? null });
   latest.current = { h, path: loaded?.path ?? null };
   const dirty = useRef(false);
-  const flush = (): void => {
+  const flush = (): Promise<void> => {
     const { h: hist, path } = latest.current;
-    if (!dirty.current || !hist || !path) return;
+    if (!dirty.current || !hist || !path) return Promise.resolve();
     dirty.current = false;
     setSave({ kind: 'saving' });
-    window.api
+    return window.api
       .invoke('repo:save', { files: serializeSchedule(hist.present) })
       .then(() => setSave({ kind: 'saved' }))
       .catch((e: unknown) => setSave({ kind: 'failed', message: e instanceof Error ? e.message : String(e) }));
@@ -142,13 +143,14 @@ export function App() {
     if (edits === 0 || !latest.current.path) return;
     dirty.current = true;
     setSave({ kind: 'saving' }); // 書き出しが済むまでは「保存済み」と出さない
-    const timer = setTimeout(flush, AUTOSAVE_DELAY_MS);
+    const timer = setTimeout(() => void flush(), AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timer);
     // flush は ref だけを読むので依存に入れない
   }, [edits]);
   useEffect(() => {
-    window.addEventListener('pagehide', flush);
-    return () => window.removeEventListener('pagehide', flush);
+    const onHide = (): void => void flush();
+    window.addEventListener('pagehide', onHide);
+    return () => window.removeEventListener('pagehide', onHide);
   }, []);
 
   const discardRecovered = async (): Promise<void> => {
@@ -226,6 +228,18 @@ export function App() {
             <span>{loaded.label}</span>
             {loaded.errors + loaded.warnings > 0 ? <span className="issues">{t('app.issues', { errors: String(loaded.errors), warnings: String(loaded.warnings) })}</span> : null}
             <span className="spacer" />
+            {loaded.path ? (
+              <VersionControls
+                schedule={loaded.history.present}
+                edits={edits}
+                flush={flush}
+                onRestore={(sc) => {
+                  setLoaded({ ...loaded, history: new History(sc) });
+                  setEditError('');
+                  bump((n) => n + 1);
+                }}
+              />
+            ) : null}
             <span data-testid="save-state" className={save.kind === 'failed' ? 'issues' : undefined}>
               {saveText}
             </span>
