@@ -53,7 +53,7 @@
 <h2>2. 全体構成</h2>
 <pre>┌───────────── Electron ─────────────┐
 │ Main process (Node)                 │
-│  ├ GitService  ← dugite / isomorphic-git
+│  ├ GitService  ← git 実行ファイル（同梱 dugite / 外部 git）+ Git Credential Manager
 │  ├ FileRepository (JSON 読み書き・検証)
 │  ├ AiService  ← GitHub Copilot SDK（提案の生成のみ。main/ai/ に隔離）
 │  ├ AutosaveService（変更を即時に作業ツリーへ書込・復旧。architecture 8）
@@ -78,9 +78,19 @@
 <table><tr><th>方式</th><th>利点</th><th>欠点</th></tr>
 <tr><td><strong>dugite（Git バイナリ同梱）（推奨）</strong></td><td>ユーザーに Git インストール不要。本物の git で挙動・性能・マージが信頼できる（GitHub Desktop が採用）</td><td>配布サイズ増（~数十MB）、OS別バイナリ管理</td></tr>
 <tr><td>isomorphic-git</td><td>純JSで軽量、導入簡単</td><td>マージ/競合処理が限定的、巨大リポジトリで遅い、一部機能未対応</td></tr>
-<tr><td>simple-git 等（システムの git を呼ぶ）</td><td>実装容易</td><td>利用者に Git のインストールを要求 → 本件の目的に反する</td></tr>
+<tr><td>simple-git 等（システムの git を呼ぶ）</td><td>実装容易</td><td>Git 未導入の利用者では使えない（→ 同梱 Git をフォールバックとして併用して解消。3.5）</td></tr>
 <tr><td>libgit2 (nodegit)</td><td>高機能</td><td>ビルド/メンテ状況に難。非推奨</td></tr></table>
-<p>データ量は小さいため性能差は問題にならない。<strong>信頼性重視で dugite</strong>。スパイクで認証（HTTPS トークン / SSH）まで通ることを確認する。</p>
+<p>データ量は小さいため性能差は問題にならない。<strong>方針（決定）: 本物の git 実行ファイルを呼び出す方式とし、「同梱 Git（dugite）」と「外部（システム）の Git」の両方を使えるようにする。</strong>認証は Git Credential Manager（GCM）によるブラウザ認証を第一候補とする（3.5）。</p>
+<h3 id="git-exec">3.5 Git 実行ファイルの選択と認証（決定）</h3>
+<table><tr><th>項目</th><th>方針</th></tr>
+<tr><td>実行方法</td><td><code>child_process.execFile(gitPath, args[])</code> に統一。<strong>シェルを経由せず</strong>引数は配列で渡す（コマンドインジェクション防止）。<code>GIT_TERMINAL_PROMPT=0</code> を設定し、入力待ちでハングさせない。タイムアウトとキャンセルに対応。出力は文字コード固定（<code>LC_ALL=C</code> 等）でパース</td></tr>
+<tr><td>Git の解決順（設定「自動」）</td><td>①利用者が指定した外部 Git のパス ②PATH 上の <code>git</code>（Windows は Git for Windows の既定場所も探索）③同梱 Git。外部が最低バージョン未満・見つからない場合は同梱にフォールバック（F-522）</td></tr>
+<tr><td>最低バージョン</td><td>使用するコマンド（<code>merge --no-ff</code>、<code>branch.&lt;名&gt;.description</code>、<code>refs/app/*</code> 等）に必要な版を技術検証で確定</td></tr>
+<tr><td>認証（第一候補）</td><td><strong>Git Credential Manager（GCM）</strong>: Git の credential helper として動作し、ブラウザで認証（EMU・SAML SSO・2要素に対応）。Git for Windows には標準で同梱。<code>ghe.com</code> など接続先が github.com 以外の場合は、GCM に GitHub プロバイダを明示する設定が必要になる場合がある（要検証）</td></tr>
+<tr><td>認証（代替）</td><td>GCM が使えない場合（同梱 Git に GCM が含まれていない等。要検証）は、アプリが Device Flow（ブラウザ）または PAT でトークンを取得し、<strong>一時的な環境変数／askpass 経由で git に渡す</strong>。トークンを <code>.git/config</code>・コマンドライン引数・ログに残さない。保存は OS 資格情報ストア</td></tr>
+<tr><td>診断</td><td>F-523: Git のパスと版、GCM の有無、リモート接続（<code>git ls-remote</code>）、SSO 承認の状態を確認し、原因別の対処を表示</td></tr>
+<tr><td>抽象化</td><td>GitService は上記の解決済み実行ファイルだけを使い、同梱/外部の違いを他の層に漏らさない（実装は1つ）。isomorphic-git は採用しない</td></tr></table>
+<div class="note">技術検証で確認: ①同梱 Git（dugite）に GCM が含まれるか ②外部 Git + GCM で GitHub EMU（<code>github.com</code> / <code>ghe.com</code>）のブラウザ認証が通るか ③外部 Git の版差（Windows の Git for Windows 各版）による挙動差 ④認証待ち中の UI 非ブロック（GCM のブラウザ起動・キャンセル）。</div>
 
 <h2>4. その他の選定（案）</h2>
 <table><tr><th>領域</th><th>選定案</th><th>理由</th></tr>
@@ -97,7 +107,7 @@
 <table><tr><th>リスク</th><th>対策</th></tr>
 <tr><td>描画性能が不足</td><td>描画層を分離、Canvas 移行を前提にスパイクで検証</td></tr>
 <tr><td>非エンジニアが競合で詰まる</td><td>競合の発生自体を減らすデータ形式＋項目単位の解決UI＋「やり直す」安全弁</td></tr>
-<tr><td>Git 認証設定が難しい</td><td>ウィザード化。まずは HTTPS+トークンに絞る案</td></tr>
+<tr><td>Git 認証設定が難しい</td><td>GCM のブラウザ認証を第一候補にし、診断（F-523）と代替認証（Device Flow / PAT）を用意。ウィザード化</td></tr>
 <tr><td>Excel 風の期待値が高い</td><td>初期に「何を Excel 同様にするか」を明文化済み（「Excel 風」は見た目のみ。<a href="ui-design.html">UI設計 2.5</a>）</td></tr>
 <tr><td>Copilot SDK の仕様変更・提供条件</td><td>main/ai/ に隔離。初期に技術検証。BYOK など代替も視野に</td></tr>
 <tr><td>AI が誤った/危険な提案をする</td><td>書き込み権限を与えず、提案→差分確認→承認の構造に固定。大量変更は警告</td></tr></table>
@@ -139,6 +149,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <li><strong>商用ライブラリは使用しない</strong>（NF-016）。有償・商用ライセンスが必要な部品（例: Bryntum、dhtmlx の商用版、AG Grid Enterprise、Handsontable の商用ライセンス等）は選定対象外。</li>
 <li>許容: MIT / ISC / BSD-2/3 / Apache-2.0 / 0BSD / CC0 / Unlicense など許諾型 OSS。MPL-2.0 は要確認（警告）。GPL 系・独自条件・ライセンス不明は、ユーザーの承認なしに採用しない。</li>
 <li>検査: <code>scripts/check-licenses.mjs</code>（<code>node_modules</code> がある場合は <code>verify.mjs</code> から実行）。例外を認める場合は、理由とともにスクリプトの例外一覧と本節に記録する。</li>
+<li><strong>同梱 Git は GPL-2.0 の別プログラム</strong>（dugite 自体は MIT だが、配布物に Git 本体を含む）。別個の実行ファイルとして同梱する形で、ライセンス告知・ソース入手先の記載が必要になる見込み。<code>check-licenses.mjs</code> は npm パッケージの宣言のみを検査するため、<strong>この件は手動で確認し、ユーザーの承認を得る</strong>（NF-016）。同梱は決定済み（H1）: 配布物に含め、GPL-2.0 の告知を同梱する。</li>
 <li>既に想定している d3（ISC/BSD）、React（MIT）、Electron（MIT）、dugite（MIT）、zod（MIT）、Vitest（MIT）は許諾型。<strong>Copilot SDK 自体のライセンスは技術検証で確認する</strong>（Copilot はサービスの利用契約が別途必要。E1 で契約済みの前提）。</li>
 </ul>
 <h2 id="autosave">8. 作業版のGit運用と自動保存・クラッシュ復旧</h2>

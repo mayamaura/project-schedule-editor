@@ -12,7 +12,7 @@
 <tr><td>★A2</td><td>日程の自動連動（スケジューリング）をするか。先行を動かすと後続が自動で動くか</td><td>しない・違反を警告のみ（推奨・MVP）/ 手動で「連動移動」/ 常時自動</td><td><strong>決定:</strong> 自動連動しない。依存違反は警告のみ（手動の「連動移動」は将来検討）</td></tr>
 <tr><td>★A3</td><td>親の期間は子から自動集計か、独立した値か</td><td>自動集計表示（推奨）/ 独立入力 / 両方</td><td><strong>決定:</strong> 独立入力。将来の変更可能性あり → 子からの集計は表示層の純関数に分離し、データには持たせない</td></tr>
 <tr><td>★A4</td><td>共同編集者（Git リモート経由）の人数と運用</td><td>1人 / 数人 / 十数人以上。→ <a href="git-ux.html">運用モデル</a>の選択に直結</td><td><strong>決定:</strong> 数人。編集は常に1人がアプリで行い、複数人での共同編集は Git のリモートを介した非同期（保存→共有）。リアルタイム同時編集は対象外 → 運用モデルB（作業版で編集 → 正式版 main へ反映。<strong>2026-11-07 に変更</strong>。<a href="git-ux.html#branch">git-ux 2.5</a>）。※アプリ外の Git クライアントでの直接編集は特に想定しない（スキーマ検証・出力規則による保護は維持）</td></tr>
-<tr><td>★A5</td><td>リモートリポジトリの種類</td><td>GitHub / GitLab / Azure DevOps / 社内サーバ / 共有フォルダ（bare repo）/ ローカルのみ</td><td><strong>決定:</strong> GitHub。認証は GitHub の Device Flow（OAuth）または PAT を想定</td></tr>
+<tr><td>★A5</td><td>リモートリポジトリの種類</td><td>GitHub / GitLab / Azure DevOps / 社内サーバ / 共有フォルダ（bare repo）/ ローカルのみ</td><td><strong>決定:</strong> GitHub（EMU の利用もあり得る）。認証は<strong>ブラウザ経由</strong>が条件。第一候補は Git Credential Manager、代替は Device Flow / PAT。Git は外部のものも使えるようにする（F-508, F-522）</td></tr>
 <tr><td>★A6</td><td>想定規模</td><td>プロジェクト数・イベント数・期間（例: 200行/3,000イベント/5年）→ 描画方式の判断材料</td><td><strong>決定:</strong> 最大 500プロジェクト × 50イベント = 約 25,000 イベント、期間 約8年。→ 描画方式への影響大（<a href="architecture.html">アーキテクチャ</a>）</td></tr>
 <tr><td>★A7</td><td>対象OS</td><td>Windows のみ / Windows+macOS(+Linux)</td><td><strong>決定:</strong> Windows のみ（将来 macOS / Linux 追加の可能性大）→ OS依存を作らない設計</td></tr>
 <tr><td>A8</td><td>プロジェクトの親子は単一親（木）か、複数親（DAG）か</td><td>単一親（推奨）</td><td><strong>決定:</strong> 単一親（木構造）</td></tr>
@@ -48,6 +48,12 @@
 <tr><td>G2</td><td>作業版のバックアップ（リモートへ送る）</td><td>手動で任意（推奨）/ 保存のたびに自動 / しない</td><td><strong>決定:</strong> 推奨案。手動で任意</td></tr>
 <tr><td>G3</td><td>反映したときの履歴の残し方</td><td>作業版の保存履歴をそのまま残す（推奨。後から細かく追える）/ 1つの変更にまとめる（履歴は簡潔）</td><td><strong>決定:</strong> 推奨案。作業版の保存履歴をそのまま残す</td></tr>
 <tr><td>G4</td><td>正式版の直接編集</td><td>確認ダイアログ付きで可能（軽微な修正用。推奨）/ 禁止（必ず作業版を経由）</td><td><strong>決定:</strong> 推奨案。確認ダイアログ付きで可能（軽微な修正用）</td></tr></table>
+
+<h2>H. Git 実行環境</h2>
+<p>回答済み（2026-11-07）。</p>
+<table><tr><th>#</th><th>質問</th><th>選択肢/推奨</th><th>回答</th></tr>
+<tr><td>H1</td><td>同梱 Git（dugite の配布物。Git 本体は GPL-2.0）を配布物に含めるか</td><td>含める（推奨。Git 未導入の利用者向けのフォールバック。ライセンス告知を同梱）/ 含めず外部 Git のみを必須にする（配布は軽く、GPL の同梱は無くなるが、Git のインストールが前提）</td><td><strong>決定:</strong> 推奨案。同梱 Git を配布物に含める（Git 未導入の利用者向けのフォールバック）。GPL-2.0 のライセンス告知を同梱する。※NF-016 に基づき、ライセンス告知の内容は実装時に確認する</td></tr>
+<tr><td>H2</td><td>既定の Git の選び方</td><td>自動: 外部 Git が使えれば優先、なければ同梱（推奨）/ 同梱を優先 / 常に外部のみ</td><td><strong>決定:</strong> 推奨案。自動（外部 Git が使えれば優先、なければ同梱）</td></tr></table>
 
 <h2>B. 見落としやすい要件（提案）</h2>
 <table><tr><th>領域</th><th>検討事項</th></tr>

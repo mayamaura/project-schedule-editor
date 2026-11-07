@@ -6,6 +6,8 @@
 <h1>仕様変更履歴</h1>
 <p>仕様文書（requirements / data-model / architecture / ui-design / git-ux / open-questions）を変更したら、この表の<strong>先頭</strong>に追記する（pre-commit が検査）。</p>
 <table><tr><th>日付</th><th>変更内容</th><th>影響文書</th><th>要件ID</th></tr>
+<tr><td>2026-11-07</td><td>H1・H2 を決定: 同梱 Git を配布物に含める（GPL 告知を同梱）、既定は「外部 Git 優先、なければ同梱」</td><td>open-questions, requirements, architecture</td><td>F-522, NF-016</td></tr>
+<tr><td>2026-11-07</td><td>Git 実行ファイルを同梱（dugite）と外部（システム）の両対応に変更。認証は Git Credential Manager のブラウザ認証を第一候補（EMU・SSO 想定）、代替は Device Flow / PAT。接続先ホストを設定可能に。Git 環境の診断を追加。同梱 Git の GPL に関する確認事項 H1・H2 を追加</td><td>requirements, architecture, git-ux, open-questions, development-rules, CLAUDE.md</td><td>F-508, F-522, F-523, NF-008, NF-016</td></tr>
 <tr><td>2026-11-07</td><td>G1〜G4 を推奨案で決定（用語=正式版/作業版/反映する/バックアップ、バックアップは手動、反映時は作業版の履歴を残す、正式版の直接編集は確認付きで可）</td><td>open-questions, requirements, git-ux, architecture</td><td>F-513, F-516, F-517, F-520</td></tr>
 <tr><td>2026-11-07</td><td>①運用を「正式版(main)直接編集」から「作業版(ブランチ)で編集 → 正式版へ反映」に変更。作業版の作成・切替・保存・バックアップ・反映ウィザード・整理・中断再開を追加し、旧 F-507 を統合（廃止）。Git 初心者向けの用語と受け入れ基準を追加。②異常終了に備えた自動保存と復元を追加（編集は約1秒以内に自動保存、起動時に復元）。方式は作業ツリーへの原子的書き込み。確認事項 G1〜G4 を追加</td><td>requirements, git-ux, ui-design, architecture, data-model, open-questions, index, development-rules, CLAUDE.md</td><td>F-503, F-507(廃止), F-513〜F-521, F-210, F-211, NF-004, NF-018, NF-019</td></tr>
 <tr><td>2026-11-07</td><td>標準日程の「基準マイルストーン」「開始日」の表現を廃止し、<strong>起点（0ヶ月/0週）</strong>に統一（起点の前=負・後=正。起点はマイルストーンに限らない。展開時は「マイルストーンを選ぶ」か「起点の日付を直接指定」）。編集モデルを明確化: 編集は1人、共同編集は Git リモート経由の非同期で、リアルタイム同時編集は対象外（NF-017 追加、「同時編集」の表現を修正）。年月週ヘッダの月見出しを確定。index の依存関係の端点の古い記述を修正</td><td>requirements, data-model, ui-design, git-ux, open-questions, index</td><td>F-801, F-802, NF-005, NF-017</td></tr>

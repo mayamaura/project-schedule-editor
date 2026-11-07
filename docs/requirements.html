@@ -60,7 +60,7 @@
 <tr><td>F-512</td><td>変更による依存違反の新規発生を警告として表示</td><td class="should">S</td><td>F-305 と連動</td></tr>
 <tr><td>F-506</td><td>競合解決UI（項目単位で「自分の/相手の」を選ぶ）</td><td class="must">M</td><td>最大のUX課題</td></tr>
 <tr><td>F-507</td><td>（廃止）ブランチ相当の「案」機能は F-513〜F-521 に統合</td><td>—</td><td>欠番扱い（ID は再利用しない）</td></tr>
-<tr><td>F-508</td><td>GitHub 認証の設定支援（Device Flow / PAT）</td><td class="must">M</td><td>リモートは GitHub（A5）。トークンは OS 資格情報ストアに保存</td></tr>
+<tr><td>F-508</td><td>GitHub への認証。第一候補は <strong>Git Credential Manager（GCM）によるブラウザ認証</strong>（EMU・SAML SSO を含む）。GCM が使えない環境（同梱 Git のみ等）では、GitHub の Device Flow（ブラウザ）または PAT で代替する。接続先ホスト（github.com / &lt;サブドメイン&gt;.ghe.com）を設定できる</td><td class="must">M</td><td>リモートは GitHub（A5。EMU を想定）。認証情報をアプリの設定・リポジトリ・ログに平文で残さない（GCM / OS 資格情報ストアを使用）。Copilot 認証（F-708）との共通化は要検証</td></tr>
 <tr><td>F-513</td><td><strong>作業版の作成</strong>: 正式版（main）の最新から「作業版」（= ブランチ）を作り、自分だけでしばらく編集・保存できる。名前は日本語で付けられる（内部のブランチ名は自動生成）</td><td class="must">M</td><td>決定（2026-11-07）。決定（G1）: 用語は 正式版/作業版/反映する/バックアップ。<a href="git-ux.html#branch">git-ux 2.5</a></td></tr>
 <tr><td>F-514</td><td><strong>作業版の切替と現在地の常時表示</strong>: 今「正式版」と「どの作業版」のどちらを編集しているかを画面上部に常時表示（色でも区別）。作業版の一覧（名前・最終更新・正式版との差の件数）から切替できる。切替時に保存前の変更があれば、自動で退避して戻ったときに復元する</td><td class="must">M</td><td>誤って正式版を編集しないため</td></tr>
 <tr><td>F-515</td><td>作業版での編集・保存（F-502）は<strong>自分だけに影響し、他の人からは見えない</strong>（反映やバックアップをするまで）。保存は何度でも繰り返せ、履歴・戻す（F-504）も作業版ごとに使える</td><td class="must">M</td><td></td></tr>
@@ -69,7 +69,9 @@
 <tr><td>F-518</td><td>反映前の確認: 正式版との差分を日程のタイムライン上と変更一覧で表示（F-509 の diffSchedule を再利用）。新たな不整合（F-704）と、競合しそうな項目を事前に知らせる</td><td class="must">M</td><td></td></tr>
 <tr><td>F-519</td><td>作業版の整理: 反映後に「続ける / 整理する」を選べる。不要な作業版は「整理」（一覧から非表示）で片付け、後から復元できる。履歴を即時に消す操作は提供しない</td><td class="should">S</td><td>破壊的操作を出さない原則</td></tr>
 <tr><td>F-520</td><td>正式版の直接編集: 軽微な修正のため、確認ダイアログ付きで正式版を直接編集できる（作業版の利用を促す表示を併記）</td><td class="should">S</td><td>決定（G4）: 確認付きで可能</td></tr>
-<tr><td>F-521</td><td>中断からの再開: 反映や競合解決の途中でアプリが落ちても、再起動後に途中の状態を検出し、「続きから再開」か「最初からやり直し」を選べる</td><td class="should">S</td><td>F-210/211 と対</td></tr></table>
+<tr><td>F-521</td><td>中断からの再開: 反映や競合解決の途中でアプリが落ちても、再起動後に途中の状態を検出し、「続きから再開」か「最初からやり直し」を選べる</td><td class="should">S</td><td>F-210/211 と対</td></tr>
+<tr><td>F-522</td><td><strong>Git 実行ファイルの選択</strong>: 「同梱 Git」と「外部（システム）の Git」の両方を使える。設定は 自動（外部の Git が見つかれば優先、なければ同梱）/ 外部 Git（パスを指定）/ 同梱 Git。使用中の Git のパスとバージョン、認証方式を設定画面に表示する。最低バージョン未満の場合は警告し、同梱 Git への切替を案内する</td><td class="must">M</td><td>決定（2026-11-07）。方式は <a href="architecture.html#git-exec">architecture 3.5</a>。既定の選び方は決定済み（H2）</td></tr>
+<tr><td>F-523</td><td>Git 環境の診断と接続テスト: Git の検出・バージョン、GCM の有無、リモートへの接続、SSO 承認の状態を確認し、問題と対処を平易な日本語で表示する。初回セットアップ（F-501）で実行し、設定画面からいつでも再実行できる</td><td class="should">S</td><td></td></tr></table>
 
 <h3>1.6 入出力・その他</h3>
 <table><tr><th>ID</th><th>要件</th><th>優先</th><th>備考</th></tr>
@@ -117,7 +119,7 @@
 <tr><td>NF-005</td><td>マージしやすさ</td><td>共同編集（Git 経由）での競合が最小になるデータ形式（<a href="data-model.html">データモデル</a>）</td></tr>
 <tr><td>NF-006</td><td>スキーマ互換</td><td>スキーマバージョン付き。旧版データの自動マイグレーション。新しいデータを旧アプリが壊さない</td></tr>
 <tr><td>NF-007</td><td>セキュリティ</td><td>Electron: contextIsolation 有効、nodeIntegration 無効、preload 経由のIPCのみ。認証情報は OS 資格情報ストア</td></tr>
-<tr><td>NF-008</td><td>配布</td><td>インストーラ(NSIS等)、コード署名、自動更新（要判断）。Git同梱によりユーザーに Git インストール不要</td></tr>
+<tr><td>NF-008</td><td>配布</td><td>インストーラ(NSIS等)、コード署名、自動更新（要判断。GitHub Releases 経由を想定）。Git は同梱と外部の両方に対応（F-522）。同梱 Git があるため、Git 未導入の利用者でもインストール不要で動作する</td></tr>
 <tr><td>NF-009</td><td>国際化</td><td>日本語UI優先。文言は外出し（将来の多言語化余地）</td></tr>
 <tr><td>NF-010</td><td>アクセシビリティ</td><td>キーボードのみで主要操作可能。色だけに依存しない表示（形・パターン）</td></tr>
 <tr><td>NF-011</td><td>テスト</td><td>ドメインロジック（日付計算・依存検証・差分）は単体テスト必須。E2E は主要フローのみ</td></tr>
