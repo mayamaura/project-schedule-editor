@@ -45,7 +45,7 @@ test.afterAll(async () => {
 });
 
 test('AI の接続先が無いときは、AI だけが無効になり、理由が出る。他の機能は動く（F-708）', async () => {
-  const l = await launch();
+  const l = await launch({ PSE_AI_NONE: '1' });
   await openDir(l.app, l.page, dir);
   await l.page.getByTestId('ai-open').click();
   await expect(l.page.getByTestId('ai-unavailable')).toContainText('AI は利用できません');

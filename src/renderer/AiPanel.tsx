@@ -210,7 +210,8 @@ export function AiPanel({
     return id;
   };
 
-  const disabledReason = status && !status.available ? (status.reason ?? t('ai.unavailable')) : '';
+  // 接続の確認が済むまで（Copilot の実行本体の起動に数秒かかる）は、送信できない
+  const disabledReason = status === null ? t('ai.checking') : !status.available ? (status.reason ?? t('ai.unavailable')) : '';
   const defaultMessage = (k: 'evaluate' | 'check'): string => (k === 'evaluate' ? t('ai.defaultEvaluate') : t('ai.defaultCheck'));
 
   return (
@@ -222,7 +223,11 @@ export function AiPanel({
         </button>
       </div>
 
-      {disabledReason ? (
+      {status === null ? (
+        <p role="status" data-testid="ai-checking">
+          {t('ai.checking')}
+        </p>
+      ) : disabledReason ? (
         <p role="status" className="ai-unavailable" data-testid="ai-unavailable">
           {t('ai.unavailableFmt', { reason: disabledReason })}
         </p>

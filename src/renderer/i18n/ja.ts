@@ -240,6 +240,7 @@ export const ja = {
   'ai.chgAdd': 'AI の指示・観点「{name}」を追加',
   'ai.chgEdit': 'AI の指示・観点「{name}」を変更',
   'ai.chgDelete': 'AI の指示・観点「{name}」を削除',
+  'ai.checking': 'AI への接続を確認しています…',
   'tpl.apply': '追加',
   'menu.goToday': '今日へ移動',
   'menu.toggleHeader': '表示方法の切替（年月週⇔年月）',

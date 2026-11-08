@@ -31,6 +31,8 @@ export interface AiProvider {
   status(): Promise<AiStatus>;
   /** 1 回の依頼を実行する。キャンセルされたら signal が中止になるので、速やかに終わらせる。 */
   run(input: AiRunInput): Promise<void>;
+  /** アプリ終了時の後片付け（実行本体の停止など）。 */
+  dispose?(): Promise<void>;
 }
 
 /** SDK が組み込まれていない（または無効な）ときの既定。AI 機能だけが無効になり、他の機能は影響を受けない。 */

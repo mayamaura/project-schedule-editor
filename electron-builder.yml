@@ -7,6 +7,13 @@ files:
   - out/**
   - package.json
 asar: true
+# Copilot の実行本体（CLI）は、asar の外に展開して起動する（asar の中のバイナリは実行できない）。決定 I2。
+asarUnpack:
+  - node_modules/@github/copilot-sdk-*/**
+# GitHub Copilot CLI License の条件: ライセンスのコピーを同梱し、表示を残す（変更せずに配布する）。
+extraResources:
+  - from: third-party/copilot-cli-LICENSE.md
+    to: licenses/copilot-cli-LICENSE.md
 win:
   target:
     - target: nsis

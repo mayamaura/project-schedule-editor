@@ -176,7 +176,9 @@ export function registerIpc(): void {
   });
   // ---- AI（F-701〜F-713）。SDK に触れるのは ./ai/ のプロバイダだけ（NF-014）。日程には書き込まない（提案のみ）----
   const aiStore = new AiStore(app.getPath('userData'));
-  const aiService = new AiService(createProvider(), aiStore, (e) => {
+  const aiProvider = createProvider();
+  app.on('will-quit', () => void aiProvider.dispose?.()); // 実行本体（Copilot CLI）を止める
+  const aiService = new AiService(aiProvider, aiStore, (e) => {
     for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('ai:event', e);
   });
   const today = (): string => {
