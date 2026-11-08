@@ -32,6 +32,23 @@ test.afterAll(async () => {
   }
 });
 
+test('編集画面は初期状態は通常の大きさで、端・角のドラッグで広げられる', async () => {
+  await page.getByTestId('tpl-open').click();
+  const dlg = page.getByTestId('dialog-templates');
+  const w0 = (await dlg.boundingBox())!.width;
+  expect(w0).toBeLessThanOrEqual(761);
+  const h = (await page.getByTestId('rz-r').boundingBox())!;
+  const x = h.x + h.width / 2;
+  const y = h.y + h.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 100, y, { steps: 5 });
+  await page.mouse.up();
+  const w1 = (await dlg.boundingBox())!.width;
+  expect(w1).toBeGreaterThan(w0 + 150); // 中央寄せのまま、ドラッグ量の 2 倍広がる
+  await page.getByTestId('tpl-close').click();
+});
+
 test('標準日程を作る: 横軸でバーをドラッグして位置を決め、templates/ に 1 ファイルで保存される', async () => {
   await page.getByTestId('tpl-open').click();
   await page.getByTestId('tpl-new').click();
@@ -48,7 +65,8 @@ test('標準日程を作る: 横軸でバーをドラッグして位置を決め
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 - 40, y, { steps: 4 });
   await expect(page.getByTestId('tpl-drag-hint')).toContainText('起点の'); // ドラッグ中に移動先が分かる
-  await page.mouse.move(box.x + box.width / 2 - 2.4 * 30.4375 * 2, y, { steps: 6 });
+  const monthPx = (await page.locator('.tpl-tl-scroll svg').boundingBox())!.width / 12; // 表示範囲は ±6 ヶ月
+  await page.mouse.move(box.x + box.width / 2 - monthPx * 2, y, { steps: 6 });
   await page.mouse.up();
   await expect(page.getByTestId('tpl-sel-start-months')).toHaveValue('2');
   await expect(page.getByTestId('tpl-sel-start-dir')).toHaveValue('before');

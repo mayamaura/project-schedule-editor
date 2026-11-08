@@ -135,3 +135,19 @@ button[aria-pressed="true"] { background: var(--acc); color: #fff; border-color:
 .tpl-tl-ev.on .tpl-tl-bar, .tpl-tl-ms.on { stroke: currentColor; stroke-width: 2; }
 .tpl-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
 .tpl-settings .field { display: flex; flex-direction: column; margin: 0; }
+/* 端・角のドラッグで大きさを変えられるダイアログ（初期状態は通常の大きさ） */
+.modal-frame { position: relative; width: min(760px, 94vw); }
+.modal-frame.sized .modal { width: 100%; height: 100%; max-width: none; max-height: none; }
+.rz { position: absolute; z-index: 1; }
+.rz-r, .rz-l { top: 10px; bottom: 10px; width: 10px; cursor: ew-resize; }
+.rz-r { right: -5px; }
+.rz-l { left: -5px; }
+.rz-t, .rz-b { left: 10px; right: 10px; height: 10px; cursor: ns-resize; }
+.rz-t { top: -5px; }
+.rz-b { bottom: -5px; }
+.rz-tl, .rz-tr, .rz-bl, .rz-br { width: 16px; height: 16px; }
+.rz-tl { top: -6px; left: -6px; cursor: nwse-resize; }
+.rz-br { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.rz-tr { top: -6px; right: -6px; cursor: nesw-resize; }
+.rz-bl { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.modal-frame .modal { width: 100%; }

@@ -47,7 +47,8 @@ function previewOf(row: Row, drag: Drag | null, unit: SnapUnit): Row {
 }
 
 export function TemplateTimeline({ draft, selected, onSelect, onChange }: { draft: Template; selected: TplSel; onSelect: (s: TplSel) => void; onChange: (t: Template) => void }) {
-  const [ppd, setPpd] = useState(2.4); // 1 日あたりの幅(px)
+  const [zoom, setZoom] = useState<number | null>(null); // 利用者が拡大縮小したときの 1 日あたりの幅(px)。null は「ウィンドウの幅に合わせる」
+  const [boxW, setBoxW] = useState(0);
   const [unit, setUnit] = useState<SnapUnit>('month');
   const [drag, setDrag] = useState<Drag | null>(null);
   const frozen = useRef<{ min: number; max: number } | null>(null);
@@ -63,6 +64,7 @@ export function TemplateTimeline({ draft, selected, onSelect, onChange }: { draf
     const xs = rows.flatMap((r) => [offsetToX(r.start), offsetToX(r.end)]);
     range = { min: Math.floor(Math.min(-6 * MONTH_DAYS, ...xs.map((x) => x - 3 * MONTH_DAYS)) / MONTH_DAYS) * MONTH_DAYS, max: Math.ceil(Math.max(6 * MONTH_DAYS, ...xs.map((x) => x + 3 * MONTH_DAYS)) / MONTH_DAYS) * MONTH_DAYS };
   }
+  const ppd = zoom ?? Math.max(2.4, boxW / (range.max - range.min)); // 既定は表示範囲がちょうど収まる幅
   const X = (day: number): number => (day - range.min) * ppd;
   const width = (range.max - range.min) * ppd;
   const height = HEAD + Math.max(rows.length, 1) * ROW;
@@ -75,6 +77,15 @@ export function TemplateTimeline({ draft, selected, onSelect, onChange }: { draf
   const weekLines: number[] = [];
   if (ppd >= 3) for (let d = Math.ceil(range.min / 7) * 7; d <= range.max; d += 7) weekLines.push(d);
 
+  // 表示領域の幅を追う（ウィンドウを広げたら、グラフも広がる）
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setBoxW(el.clientWidth);
+    const ro = new ResizeObserver(() => setBoxW(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   // 最初に、起点（0）が中央に来る位置へスクロールする
   useEffect(() => {
     const el = scrollRef.current;
@@ -119,10 +130,10 @@ export function TemplateTimeline({ draft, selected, onSelect, onChange }: { draf
             <option value="day">{t('tpl.unitDay')}</option>
           </select>
         </label>
-        <button type="button" aria-label={t('tpl.zoomOut')} onClick={() => setPpd((p) => Math.max(0.8, p / 1.5))}>
+        <button type="button" aria-label={t('tpl.zoomOut')} onClick={() => setZoom(Math.max(0.8, ppd / 1.5))}>
           −
         </button>
-        <button type="button" aria-label={t('tpl.zoomIn')} onClick={() => setPpd((p) => Math.min(12, p * 1.5))}>
+        <button type="button" aria-label={t('tpl.zoomIn')} onClick={() => setZoom(Math.min(12, ppd * 1.5))}>
           ＋
         </button>
         <span className="hint" data-testid="tpl-drag-hint" aria-live="polite">

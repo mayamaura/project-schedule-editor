@@ -15,6 +15,7 @@ import {
   type Template,
 } from '@domain/index';
 import { t } from './i18n';
+import { ResizableModal } from './ResizableModal';
 import { TemplateTimeline, type TplSel } from './TemplateTimeline';
 
 const ID_CHARS = '0123456789abcdefghijklmnopqrstuvwxyz';
@@ -239,7 +240,7 @@ export function TemplateManager({
   };
   return (
     <div className="modal-back" onKeyDown={(e) => e.key === 'Escape' && !draft && onClose()}>
-      <div className="modal wide" role="dialog" aria-modal="true" data-testid="dialog-templates">
+      <ResizableModal testId="dialog-templates">
         {draft ? (
           <TemplateEditor draft={draft} onChange={setDraft} onSave={() => void save()} onCancel={() => { setDraft(null); setError(''); }} typeNames={typeNames} error={error} />
         ) : (
@@ -277,7 +278,7 @@ export function TemplateManager({
             </div>
           </>
         )}
-      </div>
+      </ResizableModal>
     </div>
   );
 }
