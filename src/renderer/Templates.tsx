@@ -15,6 +15,7 @@ import {
   type Template,
 } from '@domain/index';
 import { t } from './i18n';
+import { TemplateTimeline, type TplSel } from './TemplateTimeline';
 
 const ID_CHARS = '0123456789abcdefghijklmnopqrstuvwxyz';
 const randomId = (prefix: string): string => prefix + Array.from({ length: 6 }, () => ID_CHARS[Math.floor(Math.random() * ID_CHARS.length)]).join('');
@@ -50,7 +51,6 @@ function OffsetEditor({ value, onChange, label, testId }: { value: Offset; onCha
 }
 
 function TemplateEditor({ draft, onChange, onSave, onCancel, typeNames, error }: { draft: Template; onChange: (t: Template) => void; onSave: () => void; onCancel: () => void; typeNames: readonly string[]; error: string }) {
-  const evs = Object.entries(draft.events).sort(([, a], [, b]) => sortKey(a.start) - sortKey(b.start));
   const mss = Object.entries(draft.milestones).sort(([, a], [, b]) => sortKey(a.date) - sortKey(b.date));
   const deps = Object.entries(draft.dependencies);
   const items = [
@@ -59,9 +59,27 @@ function TemplateEditor({ draft, onChange, onSave, onCancel, typeNames, error }:
   ];
   const without = <T,>(rec: Readonly<Record<string, T>>, k: string): Record<string, T> => Object.fromEntries(Object.entries(rec).filter(([id]) => id !== k));
   const defType = typeNames[0] ?? 'task';
+  const [sel, setSel] = useState<TplSel>(null);
+  const selEvent = sel?.kind === 'event' ? draft.events[sel.id] : undefined;
+  const selMilestone = sel?.kind === 'milestone' ? draft.milestones[sel.id] : undefined;
+  const add = (kind: 'event' | 'milestone'): void => {
+    const id = randomId(kind === 'event' ? 'e' : 'm');
+    if (kind === 'event') onChange({ ...draft, events: { ...draft.events, [id]: { name: t('edit.newEvent'), type: defType, start: {}, end: { months: 1 } } } });
+    else onChange({ ...draft, milestones: { ...draft.milestones, [id]: { name: t('edit.newMilestone'), type: typeNames[0] ?? 'milestone', date: {} } } });
+    setSel({ kind, id });
+  };
+  const remove = (): void => {
+    if (!sel) return;
+    const touches = (d: Template['dependencies'][string]): boolean => (d.from.kind === sel.kind && d.from.id === sel.id) || (d.to.kind === sel.kind && d.to.id === sel.id);
+    const dependencies = Object.fromEntries(deps.filter(([, d]) => !touches(d)));
+    if (sel.kind === 'event') onChange({ ...draft, events: without(draft.events, sel.id), dependencies });
+    else onChange({ ...draft, milestones: without(draft.milestones, sel.id), ...(draft.defaultAnchor === sel.id ? { defaultAnchor: undefined } : {}), dependencies });
+    setSel(null);
+  };
   return (
     <div data-testid="tpl-editor">
       <h2>{t('tpl.edit')}</h2>
+      <div className="tpl-settings">
       <label className="field">
         <span>{t('tpl.name')}</span>
         <input data-testid="tpl-name" value={draft.name} onChange={(e) => onChange({ ...draft, name: e.target.value })} />
@@ -81,7 +99,6 @@ function TemplateEditor({ draft, onChange, onSave, onCancel, typeNames, error }:
           <option value="later">{t('tpl.adjustLater')}</option>
         </select>
       </label>
-      <p className="hint">{t('tpl.workdayNote')}</p>
       <label className="field">
         <span>{t('tpl.defaultAnchor')}</span>
         <select data-testid="tpl-default-anchor" value={draft.defaultAnchor ?? ''} onChange={(e) => onChange({ ...draft, ...(e.target.value ? { defaultAnchor: e.target.value } : { defaultAnchor: undefined }) })}>
@@ -94,46 +111,39 @@ function TemplateEditor({ draft, onChange, onSave, onCancel, typeNames, error }:
         </select>
       </label>
 
-      <h3>{t('tpl.events')}</h3>
-      {evs.map(([id, e], i) => (
-        <div className="tpl-row" key={id} data-testid="tpl-event-row">
-          <input aria-label={t('tpl.itemName')} data-testid={`tpl-event-name-${i}`} value={e.name} onChange={(ev) => onChange({ ...draft, events: { ...draft.events, [id]: { ...e, name: ev.target.value } } })} />
-          <input aria-label={t('tpl.itemType')} list="tpl-types" value={e.type} onChange={(ev) => onChange({ ...draft, events: { ...draft.events, [id]: { ...e, type: ev.target.value } } })} />
-          <OffsetEditor label={t('tpl.start')} testId={`tpl-event-start-${i}`} value={e.start} onChange={(o) => onChange({ ...draft, events: { ...draft.events, [id]: { ...e, start: o } } })} />
-          <OffsetEditor label={t('tpl.end')} testId={`tpl-event-end-${i}`} value={e.end} onChange={(o) => onChange({ ...draft, events: { ...draft.events, [id]: { ...e, end: o } } })} />
-          <button type="button" onClick={() => onChange({ ...draft, events: without(draft.events, id), dependencies: Object.fromEntries(deps.filter(([, d]) => !((d.from.kind === 'event' && d.from.id === id) || (d.to.kind === 'event' && d.to.id === id)))) })}>
+      </div>
+      <p className="hint">{t('tpl.workdayNote')}</p>
+      <h3>{t('tpl.chart')}</h3>
+      <div className="tpl-add">
+        <button type="button" data-testid="tpl-add-event" onClick={() => add('event')}>
+          {t('tpl.addEvent')}
+        </button>
+        <button type="button" data-testid="tpl-add-milestone" onClick={() => add('milestone')}>
+          {t('tpl.addMilestone')}
+        </button>
+      </div>
+      <TemplateTimeline draft={draft} selected={sel} onSelect={setSel} onChange={onChange} />
+      {selEvent ? (
+        <div className="tpl-detail" data-testid="tpl-detail">
+          <input aria-label={t('tpl.itemName')} data-testid="tpl-sel-name" value={selEvent.name} onChange={(ev) => onChange({ ...draft, events: { ...draft.events, [sel!.id]: { ...selEvent, name: ev.target.value } } })} />
+          <input aria-label={t('tpl.itemType')} list="tpl-types" value={selEvent.type} onChange={(ev) => onChange({ ...draft, events: { ...draft.events, [sel!.id]: { ...selEvent, type: ev.target.value } } })} />
+          <OffsetEditor label={t('tpl.start')} testId="tpl-sel-start" value={selEvent.start} onChange={(o) => onChange({ ...draft, events: { ...draft.events, [sel!.id]: { ...selEvent, start: o } } })} />
+          <OffsetEditor label={t('tpl.end')} testId="tpl-sel-end" value={selEvent.end} onChange={(o) => onChange({ ...draft, events: { ...draft.events, [sel!.id]: { ...selEvent, end: o } } })} />
+          <button type="button" data-testid="tpl-sel-remove" onClick={remove}>
             {t('tpl.remove')}
           </button>
         </div>
-      ))}
-      <button type="button" data-testid="tpl-add-event" onClick={() => onChange({ ...draft, events: { ...draft.events, [randomId('e')]: { name: t('edit.newEvent'), type: defType, start: {}, end: { days: 6 } } } })}>
-        {t('tpl.addEvent')}
-      </button>
-
-      <h3>{t('tpl.milestones')}</h3>
-      {mss.map(([id, m], i) => (
-        <div className="tpl-row" key={id} data-testid="tpl-milestone-row">
-          <input aria-label={t('tpl.itemName')} data-testid={`tpl-milestone-name-${i}`} value={m.name} onChange={(ev) => onChange({ ...draft, milestones: { ...draft.milestones, [id]: { ...m, name: ev.target.value } } })} />
-          <input aria-label={t('tpl.itemType')} list="tpl-types" value={m.type} onChange={(ev) => onChange({ ...draft, milestones: { ...draft.milestones, [id]: { ...m, type: ev.target.value } } })} />
-          <OffsetEditor label={t('tpl.date')} testId={`tpl-milestone-date-${i}`} value={m.date} onChange={(o) => onChange({ ...draft, milestones: { ...draft.milestones, [id]: { ...m, date: o } } })} />
-          <button
-            type="button"
-            onClick={() =>
-              onChange({
-                ...draft,
-                milestones: without(draft.milestones, id),
-                ...(draft.defaultAnchor === id ? { defaultAnchor: undefined } : {}),
-                dependencies: Object.fromEntries(deps.filter(([, d]) => !((d.from.kind === 'milestone' && d.from.id === id) || (d.to.kind === 'milestone' && d.to.id === id)))),
-              })
-            }
-          >
+      ) : null}
+      {selMilestone ? (
+        <div className="tpl-detail" data-testid="tpl-detail">
+          <input aria-label={t('tpl.itemName')} data-testid="tpl-sel-name" value={selMilestone.name} onChange={(ev) => onChange({ ...draft, milestones: { ...draft.milestones, [sel!.id]: { ...selMilestone, name: ev.target.value } } })} />
+          <input aria-label={t('tpl.itemType')} list="tpl-types" value={selMilestone.type} onChange={(ev) => onChange({ ...draft, milestones: { ...draft.milestones, [sel!.id]: { ...selMilestone, type: ev.target.value } } })} />
+          <OffsetEditor label={t('tpl.date')} testId="tpl-sel-date" value={selMilestone.date} onChange={(o) => onChange({ ...draft, milestones: { ...draft.milestones, [sel!.id]: { ...selMilestone, date: o } } })} />
+          <button type="button" data-testid="tpl-sel-remove" onClick={remove}>
             {t('tpl.remove')}
           </button>
         </div>
-      ))}
-      <button type="button" data-testid="tpl-add-milestone" onClick={() => onChange({ ...draft, milestones: { ...draft.milestones, [randomId('m')]: { name: t('edit.newMilestone'), type: typeNames[0] ?? 'milestone', date: {} } } })}>
-        {t('tpl.addMilestone')}
-      </button>
+      ) : null}
 
       <h3>{t('tpl.dependencies')}</h3>
       {deps.map(([id, d]) => {

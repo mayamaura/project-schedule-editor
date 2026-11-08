@@ -318,3 +318,50 @@ export function parseTemplates(files: Files): ParsedTemplates {
 export function duplicateTemplate(t: Template, id: Id, name: string): Template {
   return { ...t, id, name };
 }
+
+// ---- グラフィカル編集用（横軸 = 起点からの日数の目安。ui-design 6.2） ----
+
+/** 画面上で 1 ヶ月を何日分の幅とするか（平均月長）。実際の日付は展開時に暦で決まるので、画面の位置は目安。 */
+export const MONTH_DAYS = 365.25 / 12;
+export type SnapUnit = 'month' | 'week' | 'day';
+export const SNAP_DAYS: Readonly<Record<SnapUnit, number>> = { month: MONTH_DAYS, week: 7, day: 1 };
+
+/** オフセットの横軸上の位置（起点 = 0 日、単位は日の目安）。 */
+export function offsetToX(o: Offset): number {
+  return nonNeg(o.months) * MONTH_DAYS + nonNeg(o.days);
+}
+
+/** 横軸上の位置を、吸着単位に丸めたオフセットにする（ヶ月 → ヶ月のみ、週・日 → 日のみ）。 */
+export function snapOffset(x: number, unit: SnapUnit): Offset {
+  const months = unit === 'month' ? Math.round(x / MONTH_DAYS) : 0;
+  const days = unit === 'week' ? Math.round(x / 7) * 7 : unit === 'day' ? Math.round(x) : 0;
+  return { ...(months !== 0 ? { months } : {}), ...(days !== 0 ? { days } : {}) };
+}
+
+/** オフセットを単位 n 個ぶんずらす（週は 7 日）。ヶ月と日の向きが食い違う結果になるときは、位置の近い丸めたオフセットにする。 */
+export function shiftOffset(o: Offset, n: number, unit: SnapUnit): Offset {
+  const months = nonNeg(o.months) + (unit === 'month' ? n : 0);
+  const days = nonNeg(o.days) + (unit === 'week' ? n * 7 : unit === 'day' ? n : 0);
+  if (months * days >= 0) return { ...(months !== 0 ? { months } : {}), ...(days !== 0 ? { days } : {}) };
+  return snapOffset(months * MONTH_DAYS + days, unit === 'month' ? 'month' : 'day');
+}
+
+export type DragPart = 'body' | 'start' | 'end';
+
+/** イベントのドラッグ結果。本体は両端を、端は片側だけをずらす。終了が開始より前になるときは、動かした側を相手に揃える。 */
+export function dragEvent(e: Pick<Template['events'][string], 'start' | 'end'>, part: DragPart, n: number, unit: SnapUnit): { start: Offset; end: Offset } {
+  if (part === 'body') return { start: shiftOffset(e.start, n, unit), end: shiftOffset(e.end, n, unit) };
+  if (part === 'start') {
+    const start = shiftOffset(e.start, n, unit);
+    return { start: offsetToX(start) > offsetToX(e.end) ? e.end : start, end: e.end };
+  }
+  const end = shiftOffset(e.end, n, unit);
+  return { start: e.start, end: offsetToX(end) < offsetToX(e.start) ? e.start : end };
+}
+
+/** 画面表示用の説明（例: 起点の2ヶ月14日前 / 起点）。 */
+export function describeOffset(o: Offset): string {
+  const sp = splitOffset(o);
+  const parts = [sp.months > 0 ? `${sp.months}ヶ月` : '', sp.weeks > 0 ? `${sp.weeks}週` : '', sp.days > 0 ? `${sp.days}日` : ''].join('');
+  return parts === '' ? '起点' : `起点の${parts}${sp.dir === 'before' ? '前' : '後'}`;
+}

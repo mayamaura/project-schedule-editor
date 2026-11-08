@@ -32,19 +32,28 @@ test.afterAll(async () => {
   }
 });
 
-test('標準日程を作ると、templates/ に 1 ファイルで保存され、一覧に出る', async () => {
+test('標準日程を作る: 横軸でバーをドラッグして位置を決め、templates/ に 1 ファイルで保存される', async () => {
   await page.getByTestId('tpl-open').click();
   await page.getByTestId('tpl-new').click();
   await page.getByTestId('tpl-name').fill('標準リリース日程');
   await page.getByTestId('tpl-add-milestone').click();
-  await page.getByTestId('tpl-milestone-name-0').fill('リリース');
+  await page.getByTestId('tpl-sel-name').fill('リリース');
   await page.getByTestId('tpl-add-event').click();
-  await page.getByTestId('tpl-event-name-0').fill('試作');
-  await page.getByTestId('tpl-event-start-0-months').fill('2');
-  await page.getByTestId('tpl-event-start-0-dir').selectOption('before');
-  await page.getByTestId('tpl-event-end-0-days').fill('0');
-  await page.getByTestId('tpl-event-end-0-months').fill('1');
-  await page.getByTestId('tpl-event-end-0-dir').selectOption('before');
+  await page.getByTestId('tpl-sel-name').fill('試作');
+  // 既定は「起点から 1 ヶ月後まで」。バーの本体を 2 ヶ月ぶん左へドラッグする（吸着: ヶ月）
+  const bar = page.locator('g[data-kind="event"] .tpl-tl-bar');
+  const box = (await bar.boundingBox())!;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 40, y, { steps: 4 });
+  await expect(page.getByTestId('tpl-drag-hint')).toContainText('起点の'); // ドラッグ中に移動先が分かる
+  await page.mouse.move(box.x + box.width / 2 - 2.4 * 30.4375 * 2, y, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByTestId('tpl-sel-start-months')).toHaveValue('2');
+  await expect(page.getByTestId('tpl-sel-start-dir')).toHaveValue('before');
+  await expect(page.getByTestId('tpl-sel-end-months')).toHaveValue('1');
+  await expect(page.getByTestId('tpl-sel-end-dir')).toHaveValue('before');
   await page.getByTestId('tpl-save').click();
   await expect(page.getByTestId('tpl-item')).toHaveCount(1);
   await expect(page.getByTestId('tpl-item')).toContainText('標準リリース日程');

@@ -113,3 +113,25 @@ button[aria-pressed="true"] { background: var(--acc); color: #fff; border-color:
 .modal .hint { font-size: 12px; opacity: .75; margin: 2px 0; }
 .modal fieldset.field { border: 1px solid var(--line); margin: 8px 0; }
 .modal fieldset.field label { display: block; margin: 2px 0; }
+
+.tpl-add { display: flex; gap: 8px; margin-bottom: 4px; }
+.tpl-detail { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; padding: 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; }
+.tpl-tl-tools { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 4px 0; }
+.tpl-tl-tools .hint { flex: 1; }
+.tpl-tl-body { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.tpl-tl-names { flex: 0 0 150px; border-right: 1px solid var(--line); font-size: 12px; }
+.tpl-tl-name { line-height: 28px; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.tpl-tl-name.on { background: rgba(37, 99, 235, .15); }
+.tpl-tl-scroll { flex: 1; overflow-x: auto; }
+.tpl-tl-scroll svg { display: block; user-select: none; touch-action: none; }
+.tpl-tl-head { fill: rgba(128, 128, 128, .12); }
+.tpl-tl-label { font-size: 11px; fill: currentColor; }
+.tpl-tl-month { stroke: rgba(128, 128, 128, .45); stroke-width: 1; }
+.tpl-tl-week { stroke: rgba(128, 128, 128, .15); stroke-width: 1; }
+.tpl-tl-zero { stroke: #dc2626; stroke-width: 2; }
+.tpl-tl-bar { fill: #2563eb; cursor: grab; }
+.tpl-tl-ms { fill: #d97706; cursor: grab; }
+.tpl-tl-edge { fill: transparent; cursor: ew-resize; }
+.tpl-tl-ev.on .tpl-tl-bar, .tpl-tl-ms.on { stroke: currentColor; stroke-width: 2; }
+.tpl-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+.tpl-settings .field { display: flex; flex-direction: column; margin: 0; }

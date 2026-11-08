@@ -474,7 +474,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <tr><td>domain</td><td><code>src/domain/template.ts</code>: zod スキーマ、<code>applyOffset</code> / <code>reverseOffset</code>（ヶ月 → 日 → 非稼働日の補正）、<code>makeOffset</code> / <code>splitOffset</code>（週↔日の単位変換）、<code>validateTemplate</code>、<code>expandTemplate</code>（新しい ID を振った <code>batch</code> コマンド + 適用後の日程 + プレビュー用の一覧）、<code>parseTemplates</code> / <code>serializeTemplate</code>。Schedule とは独立の型で、コマンド・Undo の対象外（展開の結果だけがコマンド）。</td></tr>
 <tr><td>main</td><td><code>fileRepository.ts</code>: <code>templates/&lt;id&gt;.json</code> を既知のファイルに追加（履歴・差分・復旧の対象）。<strong>日程の自動保存（<code>saveFiles</code>）は templates/ を消さない</strong>（保存・削除は <code>saveTemplate</code> / <code>deleteTemplate</code> で個別に行う）。IPC: <code>template:save</code>（Main でも内容を検証）/ <code>template:delete</code>。</td></tr>
 <tr><td>git</td><td>取り込み（<code>completeMerge</code>）は、日程は <code>mergeSchedules</code>、<strong>標準日程はファイル単位の 3 版</strong>で合わせる（自分が変えていなければ相手の版、相手が変えていなければ自分の版、双方が別々に変えたら自分の版）。</td></tr>
-<tr><td>renderer</td><td><code>Templates.tsx</code>: 管理画面（一覧・新規・編集・複製・削除）と展開ダイアログ（プレビューつき）。入口は、ヘッダの「標準日程」「標準日程から追加」、右クリック（空白: この日を起点 / ◆: ここを起点 / プロジェクト行: 展開）。展開は <code>commit()</code> を通るので、正式版の直接編集の確認（F-520）と Undo 1 単位が効く。履歴に残す前の変更一覧・件数に、標準日程の追加・変更・削除を含める。</td></tr></table>
+<tr><td>renderer</td><td><code>Templates.tsx</code>: 管理画面（一覧・新規・編集・複製・削除）と展開ダイアログ（プレビューつき）。編集は横軸が「起点からの前後」のグラフィカル画面（<code>TemplateTimeline.tsx</code>。SVG。位置・ずらし・説明文の計算は <code>template.ts</code> の <code>offsetToX</code> / <code>snapOffset</code> / <code>shiftOffset</code> / <code>dragEvent</code> / <code>describeOffset</code>）。入口は、ヘッダの「標準日程」「標準日程から追加」、右クリック（空白: この日を起点 / ◆: ここを起点 / プロジェクト行: 展開）。展開は <code>commit()</code> を通るので、正式版の直接編集の確認（F-520）と Undo 1 単位が効く。履歴に残す前の変更一覧・件数に、標準日程の追加・変更・削除を含める。</td></tr></table>
 <h3>15.2 決めたこと（仮定）</h3>
 <ul>
 <li><strong>マイルストーン起点の逆算</strong>: 起点（0）= 選んだマイルストーンの日付から、そのオフセットを<strong>日 → ヶ月の順に逆向き</strong>に適用した日付。選んだマイルストーン自身は、指定した日付に必ず一致させる（月末丸めのずれを出さない）。</li>
@@ -486,6 +486,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <table><tr><th>項目</th><th>状況</th></tr>
 <tr><td>祝日・稼働日カレンダー（F-603）</td><td>未実装。稼働日は土日のみ。「標準日程」画面に注記を出している</td></tr>
 <tr><td>タイムライン上の仮表示（F-803）</td><td>ダイアログ内の一覧（種別・名称・日付）でプレビュー。タイムライン上の仮表示と <code>diffSchedule</code> の再利用は未実装</td></tr>
+<tr><td>グラフ編集の制約</td><td>横軸は平均月長（約 30.4 日）の目安。ヶ月単位のドラッグは日を保ち、ヶ月と日の向きが食い違う結果になるときは近い位置のヶ月（または日）に丸める。編集中の Undo は無い（「やめる」で破棄）。依存の作成はグラフ上では未実装（一覧）</td></tr>
 <tr><td>既存プロジェクトを標準日程として保存（F-806）</td><td>未着手（C）</td></tr>
 <tr><td>標準日程どうしの競合の解決 UI</td><td>双方が同じ標準日程を変えたら自分の版を残す（相手の変更は履歴に残る）。解決 UI は R5 で検討</td></tr>
 <tr><td>過去の版に戻す（F-504）と標準日程</td><td>戻すのは日程のみ。標準日程は戻さない</td></tr></table>

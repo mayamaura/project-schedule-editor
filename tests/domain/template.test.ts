@@ -4,12 +4,18 @@ import { applyCommand } from '../../src/domain/commands';
 import { weekday } from '../../src/domain/date';
 import {
   applyOffset,
+  describeOffset,
+  dragEvent,
   duplicateTemplate,
   expandTemplate,
   makeOffset,
+  MONTH_DAYS,
+  offsetToX,
   parseTemplate,
   parseTemplates,
   serializeTemplate,
+  shiftOffset,
+  snapOffset,
   splitOffset,
   validateTemplate,
   weekendWorkday,
@@ -219,5 +225,34 @@ describe('保存形式（F-807）', () => {
     expect(d.id).toBe('tpl-copy');
     expect(d.name).toBe('標準リリース日程（コピー）');
     expect(d.events).toEqual(std().events);
+  });
+});
+
+describe('グラフィカル編集の計算（ui-design 6.2）', () => {
+  it('位置は 1 ヶ月 ≒ 30.44 日の目安。吸着単位に丸める', () => {
+    expect(offsetToX({ months: -2, days: -14 })).toBeCloseTo(-74.875);
+    expect(snapOffset(-60, 'month')).toEqual({ months: -2 });
+    expect(snapOffset(20, 'week')).toEqual({ days: 21 });
+    expect(snapOffset(-3.4, 'day')).toEqual({ days: -3 });
+    expect(snapOffset(0.2, 'month')).toEqual({});
+  });
+  it('ずらす: ヶ月はヶ月だけ、週は 7 日、日は日。向きが食い違ったら近い位置に丸める', () => {
+    expect(shiftOffset({ months: -2, days: -15 }, 1, 'month')).toEqual({ months: -1, days: -15 });
+    expect(shiftOffset({ months: -1 }, 2, 'week')).toEqual(snapOffset(-MONTH_DAYS + 14, 'day')); // 向きが食い違うので日に丸める（-16 日）
+    expect(shiftOffset({ days: 3 }, -5, 'day')).toEqual({ days: -2 });
+    expect(shiftOffset({ months: -1, days: -15 }, 3, 'month')).toEqual({ months: 2 }); // +2ヶ月 -15日（≒1.5ヶ月）→ 近い月に丸める
+    expect(shiftOffset({}, -1, 'month')).toEqual({ months: -1 });
+  });
+  it('イベントのドラッグ: 本体は両端、端は片側。逆転しない', () => {
+    const e = { start: { months: -2 }, end: { months: -1 } };
+    expect(dragEvent(e, 'body', 1, 'month')).toEqual({ start: { months: -1 }, end: {} });
+    expect(dragEvent(e, 'start', -1, 'month')).toEqual({ start: { months: -3 }, end: { months: -1 } });
+    expect(dragEvent(e, 'start', 5, 'month').start).toEqual(e.end); // 終了を越えたら終了に揃える
+    expect(dragEvent(e, 'end', -5, 'month').end).toEqual(e.start);
+  });
+  it('説明文', () => {
+    expect(describeOffset({})).toBe('起点');
+    expect(describeOffset({ months: -2, days: -14 })).toBe('起点の2ヶ月2週前');
+    expect(describeOffset({ days: 38 })).toBe('起点の5週3日後');
   });
 });
