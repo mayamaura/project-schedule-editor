@@ -1,7 +1,8 @@
 // @req F-501, F-101, F-206, F-208, F-210, F-211
 import { useEffect, useRef, useState } from 'react';
-import { History, diffSchedule, generateSample, parseSchedule, parseTemplates, serializeSchedule, serializeTemplate, summarizeChange, type Command, type Id, type Schedule, type ParseIssue, type Template } from '@domain/index';
+import { History, defaultCalendar, diffSchedule, newIssues, generateSample, parseCalendar, parseSchedule, parseTemplates, serializeCalendar, serializeSchedule, serializeTemplate, summarizeChange, type Calendar, type Command, type Id, type Schedule, type ParseIssue, type Template } from '@domain/index';
 import { t } from './i18n';
+import { CalendarDialog } from './CalendarDialog';
 import { ExpandDialog, TemplateManager, type ExpandPreset } from './Templates';
 import { TimelineView } from './timeline/TimelineView';
 import { VersionControls, type VersionInfo } from './VersionControls';
@@ -40,6 +41,13 @@ export function App() {
   const [problems, setProblems] = useState<readonly ParseIssue[]>([]);
   const [message, setMessage] = useState('');
   const [editError, setEditError] = useState('');
+  const [editWarn, setEditWarn] = useState('');
+  // 新たな指摘の知らせは、しばらくしたら消す（画面のレイアウトは動かさない）
+  useEffect(() => {
+    if (!editWarn) return;
+    const id = window.setTimeout(() => setEditWarn(''), 12000);
+    return () => window.clearTimeout(id);
+  }, [editWarn]);
   const [recovery, setRecovery] = useState<Recovery | null>(null);
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [edits, bump] = useState(0);
@@ -54,6 +62,8 @@ export function App() {
   const [cloneError, setCloneError] = useState('');
   const [templates, setTemplates] = useState<Readonly<Record<Id, Template>>>({});
   const [tplOpen, setTplOpen] = useState(false);
+  const [calendar, setCalendar] = useState<Calendar>(defaultCalendar());
+  const [calOpen, setCalOpen] = useState(false);
   const [expand, setExpand] = useState<ExpandPreset | null>(null);
 
   useEffect(() => {
@@ -78,7 +88,9 @@ export function App() {
       setMessage('');
       setEditError('');
       setSave({ kind: 'idle' });
+      setEditWarn('');
       setTemplates(loadTemplates(r.files));
+      setCalendar(loadCalendar(r.files));
       setLoaded({
         history: new History(parsed.schedule),
         path: r.path,
@@ -142,6 +154,25 @@ export function App() {
     if (r.errors.length > 0) setMessage(t('tpl.readError', { count: String(r.errors.length), detail: r.errors.map((e) => `${e.path}: ${e.message}`).join(' / ') }));
     return r.templates;
   };
+  const loadCalendar = (files: Record<string, string>): Calendar => {
+    const text = files['calendar.json'];
+    if (text === undefined) return defaultCalendar();
+    const r = parseCalendar(text);
+    if (!r.ok) {
+      setMessage(t('cal.readError', { detail: r.message }));
+      return defaultCalendar();
+    }
+    return r.calendar;
+  };
+  const saveCalendar = async (c: Calendar): Promise<string | null> => {
+    try {
+      await window.api.invoke('calendar:save', { text: serializeCalendar(c) });
+      setCalendar(c);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  };
   const saveTemplate = async (tp: Template): Promise<string | null> => {
     try {
       await window.api.invoke('template:save', { id: tp.id, text: serializeTemplate(tp) });
@@ -166,6 +197,7 @@ export function App() {
     }
     setLoaded({ ...loaded, history: new History(parsed.schedule) });
     setTemplates(loadTemplates(r.files));
+    setCalendar(loadCalendar(r.files));
     setEditError('');
     setMainOk(false);
   };
@@ -177,9 +209,13 @@ export function App() {
       setDirectPending(c);
       return t('direct.title');
     }
+    const before = h?.present;
     const r = h?.execute(c);
     if (r?.ok) {
       setEditError('');
+      // この変更で新たに生じた指摘（依存違反など。編集は止めず、知らせる。F-512）
+      const fresh = before && h ? newIssues(before, h.present) : [];
+      setEditWarn(fresh.length === 0 ? '' : t('edit.newIssues', { count: String(fresh.length), detail: fresh.slice(0, 3).map((i) => i.message).join(' / ') }));
       bump((n) => n + 1);
       return null;
     }
@@ -190,12 +226,14 @@ export function App() {
   const undo = (): void => {
     if (h?.undo()) {
       setEditError('');
+      setEditWarn('');
       bump((n) => n + 1);
     }
   };
   const redo = (): void => {
     if (h?.redo()) {
       setEditError('');
+      setEditWarn('');
       bump((n) => n + 1);
     }
   };
@@ -371,6 +409,11 @@ export function App() {
           </div>
         </div>
       ) : null}
+      {editWarn && !editError ? (
+        <section className="notice warn" role="status" data-testid="edit-warn">
+          <p>{editWarn}</p>
+        </section>
+      ) : null}
       {editError ? (
         <section className="notice" role="alert" data-testid="edit-error">
           <p>{editError}</p>
@@ -387,6 +430,9 @@ export function App() {
                 <button type="button" data-testid="tpl-add-project" onClick={() => setExpand({})}>
                   {t('tpl.addProject')}
                 </button>
+                <button type="button" data-testid="cal-open" onClick={() => setCalOpen(true)}>
+                  {t('cal.open')}
+                </button>
                 <button type="button" data-testid="tpl-open" onClick={() => setTplOpen(true)}>
                   {t('tpl.open')}
                 </button>
@@ -397,6 +443,7 @@ export function App() {
                 key={opened}
                 schedule={loaded.history.present}
                 templates={templates}
+                calendar={calendar}
                 edits={edits}
                 flush={flush}
                 onReload={reloadFromDisk}
@@ -419,12 +466,14 @@ export function App() {
               {t('app.redo')}
             </button>
           </div>
-          <TimelineView schedule={loaded.history.present} docKey={loaded.history} commit={commit} {...(loaded.path ? { onExpand: setExpand } : {})} />
+          <TimelineView schedule={loaded.history.present} docKey={loaded.history} commit={commit} calendar={calendar} {...(loaded.path ? { onExpand: setExpand } : {})} />
+          {calOpen ? <CalendarDialog calendar={calendar} onSave={saveCalendar} onClose={() => setCalOpen(false)} /> : null}
           {tplOpen ? <TemplateManager templates={templates} typeNames={Object.keys(loaded.history.present.types)} onSave={saveTemplate} onDelete={deleteTemplate} onClose={() => setTplOpen(false)} /> : null}
           {expand ? (
             <ExpandDialog
               schedule={loaded.history.present}
               templates={templates}
+              calendar={calendar}
               preset={expand}
               onApply={(c) => {
                 commit(c);

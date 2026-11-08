@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { emptySchedule } from '../../src/domain/model';
 import { parseSchedule, serializeSchedule } from '../../src/domain/serialize';
-import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveFiles, saveTemplate, writeAtomic, writeTransaction } from '../../src/main/fileRepository';
+import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveCalendar, saveFiles, saveTemplate, writeAtomic, writeTransaction } from '../../src/main/fileRepository';
 import { basic } from '../domain/fixtures';
 
 let root: string;
@@ -221,7 +221,10 @@ describe('標準日程のファイル（F-801, F-807）', () => {
     saveFiles(root, serializeSchedule(basic()));
     saveTemplate(root, 't1', '{"id":"t1"}\n');
     expect(loadFiles(root)['templates/t1.json']).toBe('{"id":"t1"}\n');
-    saveFiles(root, serializeSchedule(basic())); // 自動保存（標準日程を含まない）
+    saveFiles(root, serializeSchedule(basic())); // 自動保存（標準日程・カレンダーを含まない）
+    saveCalendar(root, '{}'+String.fromCharCode(10));
+    saveFiles(root, serializeSchedule(basic()));
+    expect(existsSync(join(root, 'calendar.json'))).toBe(true);
     expect(existsSync(join(root, 'templates/t1.json'))).toBe(true);
     deleteTemplate(root, 't1');
     expect(existsSync(join(root, 'templates/t1.json'))).toBe(false);

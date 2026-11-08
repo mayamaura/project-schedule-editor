@@ -27,6 +27,8 @@ import {
   spanOf,
   toDays,
   validateSchedule,
+  nonWorkingDayFn,
+  type Calendar,
   visibleRowRange,
   zoomAt,
   type Canvas2D,
@@ -83,7 +85,7 @@ function describeSelection(s: Schedule, sel: Sel | null): string | null {
   return null;
 }
 
-export function TimelineView({ schedule, docKey, commit, onExpand }: { schedule: Schedule; docKey: unknown; commit: (c: Command) => string | null; onExpand?: (target: { projectId: Id; date?: string }) => void }) {
+export function TimelineView({ schedule, docKey, commit, onExpand, calendar }: { schedule: Schedule; docKey: unknown; commit: (c: Command) => string | null; onExpand?: (target: { projectId: Id; date?: string }) => void; calendar?: Calendar }) {
   const dark = usePrefersDark();
   const theme = dark ? darkTheme : lightTheme;
   const [headerMode, setHeaderMode] = useState<HeaderMode>('weekMonth');
@@ -114,8 +116,9 @@ export function TimelineView({ schedule, docKey, commit, onExpand }: { schedule:
 
   // 最新の入力を ref に持つ（rAF のコールバックが古い値を見ないように）
   const preview = useRef<Schedule | null>(null);
-  const latest = useRef({ schedule, layout, headerMode, deps, theme, selected });
-  latest.current = { schedule, layout, headerMode, deps, theme, selected };
+  const nonWorking = useMemo(() => (calendar ? nonWorkingDayFn(calendar) : undefined), [calendar]);
+  const latest = useRef({ schedule, layout, headerMode, deps, theme, selected, nonWorking });
+  latest.current = { schedule, layout, headerMode, deps, theme, selected, nonWorking };
 
   const render = useCallback((): void => {
     pending.current = 0;
@@ -152,6 +155,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand }: { schedule:
       hover: hover.current,
       dependencies: L.deps,
       theme: L.theme,
+      ...(L.nonWorking ? { nonWorkingDay: L.nonWorking } : {}),
     });
     const t1 = performance.now();
     dl.current = list;
@@ -183,7 +187,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand }: { schedule:
   // 入力が変わったら再描画
   useEffect(() => {
     request();
-  }, [request, schedule, layout, headerMode, deps, theme, selected]);
+  }, [request, schedule, layout, headerMode, deps, theme, selected, nonWorking]);
 
   // 文書が差し替わったら（編集ではなく）、全体の日付範囲に合わせて表示し直す
   useEffect(() => {

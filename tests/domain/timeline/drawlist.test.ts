@@ -188,6 +188,16 @@ describe('背景・ヘッダ・選択', () => {
     expect(w.length).toBe(12); // 800px = 80日 ≒ 11〜12週
     expect(w[0]).toMatchObject({ w: 20 }); // 2日分
   });
+  it('休みの日（祝日・会社休日）を指定すると、週末の代わりにその日を連続でまとめて塗る（F-603）', () => {
+    const d = toDays('2026-11-03'); // 文化の日（火）
+    const off = (day: number): boolean => day === d || day === d + 1 || day === d + 5; // 火水・日
+    const rects = (px: number) => body(draw(basic(), base({ pxPerDay: px }, { nonWorkingDay: off })), 'rect').filter((r) => r.t === 'rect' && r.fill === lightTheme.weekend);
+    const r = rects(10);
+    expect(r).toHaveLength(2);
+    expect(r[0]).toMatchObject({ x: (d - toDays('2026-10-25')) * 10, w: 20 }); // 連続 2 日は 1 枚
+    expect(r[1]).toMatchObject({ w: 10 });
+    expect(rects(2)).toEqual([]); // 1日 < 3px では塗らない
+  });
   it('今日線', () => {
     const lines = (today?: string) => body(draw(basic(), base({}, today ? { today } : {})), 'line').filter((l) => l.t === 'line' && l.color === lightTheme.today);
     expect(lines('2026-11-07')).toHaveLength(1);

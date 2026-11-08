@@ -2,7 +2,7 @@
 // 履歴に残す・履歴・戻す・診断、作業版（現在地の常時表示・切替・作成）、正式版への反映 / 共有。
 // UI に Git 用語を出さない（docs/git-ux.html）。「未記録の変更」は、最後に履歴に残した版と今の日程の diffSchedule（F-509）。
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { diffSchedule, parseSchedule, parseTemplates, serializeTemplate, summarizeChange, type Id, type Schedule, type Template } from '@domain/index';
+import { diffSchedule, newIssues, parseSchedule, defaultCalendar, parseCalendar, parseTemplates, serializeCalendar, serializeTemplate, summarizeChange, type Calendar, type Id, type Schedule, type Template } from '@domain/index';
 import { t } from './i18n';
 import { SyncWizard } from './SyncWizard';
 
@@ -23,6 +23,7 @@ export interface VersionInfo {
 export function VersionControls({
   schedule,
   templates,
+  calendar,
   edits,
   flush,
   onRestore,
@@ -33,6 +34,8 @@ export function VersionControls({
   schedule: Schedule;
   /** 標準日程（履歴に残す変更の一覧と件数に含める）。 */
   templates: Readonly<Record<Id, Template>>;
+  /** カレンダー設定（履歴に残す変更の一覧に含める）。 */
+  calendar: Calendar;
   /** 編集のたびに増える（未記録の変更を数え直す合図）。 */
   edits: number;
   /** 自動保存の書き出しを完了させる（履歴に残す直前などに呼ぶ）。 */
@@ -91,8 +94,12 @@ export function VersionControls({
       else if (serializeTemplate(old) !== serializeTemplate(tp)) tplLines.push(t('tpl.chgEdit', { name: tp.name }));
     }
     for (const [id, tp] of Object.entries(before)) if (!templates[id]) tplLines.push(t('tpl.chgDelete', { name: tp.name }));
+    const oldCal = git.head['calendar.json'];
+    const oldCalParsed = oldCal !== undefined ? parseCalendar(oldCal) : null;
+    const oldText = oldCalParsed?.ok ? serializeCalendar(oldCalParsed.calendar) : serializeCalendar(defaultCalendar());
+    if (oldText !== serializeCalendar(calendar)) tplLines.push(t('cal.chgEdit'));
     return [...diffSchedule(head, schedule).map(summarizeChange), ...tplLines];
-  }, [head, git, templates, schedule, edits]);
+  }, [head, git, templates, calendar, schedule, edits]);
 
   if (!git) return null;
   if (!git.available) return <span className="issues">{t('ver.noGit')}</span>;
@@ -110,6 +117,7 @@ export function VersionControls({
   const onMain = git.branch === 'main';
   const currentWork = works?.items.find((w) => w.name === git.branch) ?? null;
   const unsaved = git.head === null ? null : lines.length;
+  const fresh = head ? newIssues(head, schedule) : [];
 
   const openSave = async (): Promise<void> => {
     await flush();
@@ -231,6 +239,16 @@ export function VersionControls({
                     <li key={i}>{l}</li>
                   ))}
                 </ul>
+                {fresh.length > 0 ? (
+                  <>
+                    <h3>{t('sync.newIssues')}</h3>
+                    <ul className="changes" data-testid="ver-new-issues">
+                      {fresh.slice(0, 20).map((i, n) => (
+                        <li key={n}>{i.message}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
                 <label className="field">
                   <span>{t('ver.memo')}</span>
                   <input data-testid="ver-memo" value={memo} onChange={(e) => setMemo(e.target.value)} />

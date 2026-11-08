@@ -1,5 +1,6 @@
 // ドメイン層の公開口（純 TypeScript。electron / node / react / DOM に依存しない）。
 // 詳細仕様: docs/data-model.html 11
+export * from './calendar';
 export * from './commands';
 export * from './date';
 export * from './diff';

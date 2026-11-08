@@ -4,8 +4,9 @@ import { GitService, resolveGit } from './git/gitService';
 import { readdirSync } from 'node:fs';
 import { emptySchedule } from '../domain/model';
 import { serializeSchedule } from '../domain/serialize';
+import { parseCalendar } from '../domain/calendar';
 import { parseTemplate } from '../domain/template';
-import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveFiles, saveTemplate } from './fileRepository';
+import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveCalendar, saveFiles, saveTemplate } from './fileRepository';
 
 // 開いているフォルダ（Renderer からパスは受け取らない。NF-007）
 let currentRoot: string | null = null;
@@ -111,6 +112,13 @@ export function registerIpc(): void {
     if (!p.ok) throw new Error(`標準日程の内容が正しくありません: ${p.message}`);
     if (p.template.id !== id) throw new Error('標準日程の id とファイル名が一致しません');
     saveTemplate(currentRoot, id, text);
+    return undefined;
+  });
+  handle('calendar:save', ({ text }) => {
+    if (!currentRoot) throw new Error('フォルダが開かれていない');
+    const p = parseCalendar(text);
+    if (!p.ok) throw new Error(`カレンダーの内容が正しくありません: ${p.message}`);
+    saveCalendar(currentRoot, text);
     return undefined;
   });
   handle('template:delete', ({ id }) => {

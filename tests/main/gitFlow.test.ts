@@ -253,6 +253,24 @@ describe('標準日程の取り込み（F-807）', () => {
     expect(git(a, 'status', '--porcelain')).toBe('');
   });
 
+  it('カレンダー（calendar.json）も同じ規則: 相手が変えて自分が変えていなければ相手の設定になる', async () => {
+    const cal = (n: string): string => `{"holidays":{"2026-12-29":"${n}"},"japaneseHolidays":true,"weekend":[0,6],"workdays":{}}
+`;
+    write(a, { 'calendar.json': cal('元') });
+    await svc.save('カレンダー', id);
+    git(a, 'push', 'origin', 'main');
+    git(b, 'pull', '--no-rebase', 'origin', 'main');
+    write(b, { 'calendar.json': cal('相手の休業') });
+    git(b, 'add', '-A');
+    git(b, 'commit', '-m', '相手のカレンダー');
+    git(b, 'push', 'origin', 'main');
+    write(a, serializeSchedule(apply(load(a), { type: 'updateEvent', id: 'e1', patch: { name: '自分の変更' } })));
+    await svc.save('自分の変更', id);
+    const { conflicts } = await pullIn();
+    expect(conflicts).toBe(0);
+    expect(readFileSync(join(a, 'calendar.json'), 'utf8')).toContain('相手の休業');
+  });
+
   it('双方が同じ標準日程を変えたら自分の版を残す', async () => {
     write(a, { 'templates/t1.json': tpl('元') });
     await svc.save('標準日程を追加', id);

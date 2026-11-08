@@ -5,8 +5,9 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { CALENDAR_PATH } from '../../domain/calendar';
 import { TEMPLATE_PATH_RE } from '../../domain/template';
-import { deleteTemplate, isKnown, saveFiles, saveTemplate } from '../fileRepository';
+import { deleteTemplate, isKnown, saveCalendar, saveFiles, saveTemplate } from '../fileRepository';
 
 export type GitSource = 'external' | 'bundled';
 export type Version = readonly [number, number, number];
@@ -437,7 +438,7 @@ export class GitService {
   }
 
   /**
-   * 標準日程（templates/）は項目ごとの比較をせず、ファイル単位で 3 版を合わせる: 自分が変えていなければ相手の版、
+   * 標準日程（templates/）とカレンダー（calendar.json）は項目ごとの比較をせず、ファイル単位で 3 版を合わせる: 自分が変えていなければ相手の版、
    * 相手が変えていなければ自分の版、双方が別々に変えたら自分の版を残す。
    * ponytail: 双方が同じ標準日程を変えた場合は自分の版が勝つ（相手の変更は履歴に残る）。競合の解決 UI は R5 で検討。
    */
@@ -445,11 +446,15 @@ export class GitService {
     const baseHash = await this.text(['merge-base', 'HEAD', theirsRef]);
     if (!baseHash) return;
     const [b, o, t] = [await this.filesAt(baseHash), await this.filesAt('HEAD'), await this.filesAt(theirsRef)];
-    const paths = new Set([...Object.keys(b), ...Object.keys(o), ...Object.keys(t)].filter((p) => TEMPLATE_PATH_RE.test(p)));
+    const paths = new Set([...Object.keys(b), ...Object.keys(o), ...Object.keys(t)].filter((p) => TEMPLATE_PATH_RE.test(p) || p === CALENDAR_PATH));
     for (const p of paths) {
       const [bv, ov, tv] = [b[p], o[p], t[p]];
       const result = ov === tv ? ov : ov === bv ? tv : tv === bv ? ov : ov;
       if (result === ov) continue;
+      if (p === CALENDAR_PATH) {
+        if (result !== undefined) saveCalendar(this.root, result); // 削除はしない（設定の既定に戻るだけ）
+        continue;
+      }
       const id = p.slice('templates/'.length, -'.json'.length);
       if (result === undefined) deleteTemplate(this.root, id);
       else saveTemplate(this.root, id, result);

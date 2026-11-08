@@ -6,6 +6,7 @@
 // ドメイン層（純関数）が作る「パス → 内容」を受け渡すだけで、データの意味は知らない。
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, unlinkSync, writeSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
+import { CALENDAR_PATH } from '../domain/calendar';
 import { TEMPLATE_PATH_RE, templatePath } from '../domain/template';
 
 export type Files = Record<string, string>;
@@ -133,12 +134,12 @@ export function recover(root: string): RecoverResult {
   return { completedTransaction: completed, removedTmpFiles: removeOrphanTmp(root) };
 }
 
-const KNOWN = [/^schedule\.json$/, /^types\.json$/, /^projects\/[A-Za-z0-9_-]+\.json$/, /^dependencies\/[A-Za-z0-9_-]+\.json$/, TEMPLATE_PATH_RE];
+const KNOWN = [/^schedule\.json$/, /^types\.json$/, /^projects\/[A-Za-z0-9_-]+\.json$/, /^dependencies\/[A-Za-z0-9_-]+\.json$/, TEMPLATE_PATH_RE, /^calendar\.json$/];
 export const isKnown = (rel: string): boolean => KNOWN.some((r) => r.test(rel));
 
 function listKnown(root: string): string[] {
   const out: string[] = [];
-  for (const rel of ['schedule.json', 'types.json']) if (existsSync(join(root, rel))) out.push(rel);
+  for (const rel of ['schedule.json', 'types.json', CALENDAR_PATH]) if (existsSync(join(root, rel))) out.push(rel);
   for (const dir of ['projects', 'dependencies', 'templates']) {
     const d = join(root, dir);
     if (!existsSync(d)) continue;
@@ -157,6 +158,10 @@ export function loadFiles(root: string): Files {
 /** 標準日程 1 件の保存・削除（F-801, F-807）。日程の自動保存とは別に、操作の確定時に呼ぶ。 */
 export function saveTemplate(root: string, id: string, text: string): void {
   writeTransaction(root, { [templatePath(id)]: text });
+}
+/** カレンダー設定の保存（F-603）。 */
+export function saveCalendar(root: string, text: string): void {
+  writeTransaction(root, { [CALENDAR_PATH]: text });
 }
 export function deleteTemplate(root: string, id: string): void {
   writeTransaction(root, {}, [templatePath(id)]);
@@ -178,8 +183,8 @@ export function saveFiles(root: string, files: Files): SaveResult {
   for (const [rel, text] of Object.entries(files)) {
     if (!existing.has(rel) || readFileSync(join(root, rel), 'utf8') !== text) changed[rel] = text;
   }
-  // 標準日程（templates/）は日程の自動保存の対象外: 渡されなくても消さない（削除は deleteTemplate）
-  const removed = [...existing].filter((rel) => !(rel in files) && !TEMPLATE_PATH_RE.test(rel)).sort();
+  // 標準日程（templates/）とカレンダー（calendar.json）は日程の自動保存の対象外: 渡されなくても消さない（削除は deleteTemplate）
+  const removed = [...existing].filter((rel) => !(rel in files) && !TEMPLATE_PATH_RE.test(rel) && rel !== CALENDAR_PATH).sort();
   writeTransaction(root, changed, removed);
   return { written: Object.keys(changed).sort(), removed };
 }

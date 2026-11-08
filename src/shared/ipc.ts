@@ -84,6 +84,8 @@ export const ipcSchemas = {
   /** 標準日程 1 件の保存・削除（F-801, F-807）。内容は Main でも検証する。 */
   'template:save': { input: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), text: z.string().max(2_000_000) }), output: z.undefined() },
   'template:delete': { input: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/) }), output: z.undefined() },
+  /** カレンダー設定の保存（F-603）。内容は Main でも検証する。 */
+  'calendar:save': { input: z.object({ text: z.string().max(2_000_000) }), output: z.undefined() },
   'repo:reload': { input: z.undefined(), output: z.object({ files: z.record(z.string(), z.string()) }) },
   /** 取り込みの準備: 共有先の最新を取得し、3 版の材料を返す（F-511, F-518）。main = 正式版の最新（作業版のとき）。 */
   'sync:prepare': {

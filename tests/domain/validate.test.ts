@@ -1,6 +1,6 @@
 // @req F-208, F-305, F-704, F-301
 import { describe, expect, it } from 'vitest';
-import { dependenciesInCycles, dependencyShortfall, validateSchedule, type Rule } from '../../src/domain/validate';
+import { dependenciesInCycles, dependencyShortfall, newIssues, validateSchedule, type Rule } from '../../src/domain/validate';
 import { basic, dep, ev, ms, proj, schedule } from './fixtures';
 
 const rules = (s: ReturnType<typeof schedule>): Rule[] => validateSchedule(s).map((i) => i.rule);
@@ -115,5 +115,34 @@ describe('dependenciesInCycles（大きなグラフでも動く）', () => {
   it('鎖だけなら循環なし', () => {
     const deps = Array.from({ length: 10000 }, (_, i) => dep(`d${i}`, ['event', `n${i}`], ['event', `n${i + 1}`]));
     expect(dependenciesInCycles(deps).size).toBe(0);
+  });
+});
+
+describe('同一項目の重複（F-704）', () => {
+  it('同じプロジェクトに、名称・日付・種別が同じイベント / 名称・日付が同じマイルストーンがあれば警告', () => {
+    const s = schedule([
+      proj('A', {
+        events: { e1: ev('設計', '2026-11-01', '2026-11-30'), e2: ev('設計', '2026-11-01', '2026-11-30'), e3: ev('設計', '2026-11-01', '2026-12-01') },
+        milestones: { m1: ms('レビュー', '2026-12-01'), m2: ms('レビュー', '2026-12-01'), m3: ms('レビュー', '2026-12-02') },
+      }),
+    ]);
+    const dups = validateSchedule(s).filter((i) => i.rule === 'duplicate-item');
+    expect(dups.map((i) => `${i.target.kind}:${i.target.id}`)).toEqual(['event:e2', 'milestone:m2']); // 後のほうに付ける
+    expect(dups.every((i) => i.severity === 'warning')).toBe(true);
+  });
+  it('別のプロジェクトなら重複とみなさない', () => {
+    const s = schedule([proj('A', { events: { e1: ev('設計', '2026-11-01', '2026-11-30') } }), proj('B', { events: { e2: ev('設計', '2026-11-01', '2026-11-30') } })]);
+    expect(validateSchedule(s).filter((i) => i.rule === 'duplicate-item')).toEqual([]);
+  });
+});
+
+describe('変更で新たに生じた指摘（F-512）', () => {
+  const two = (endB: string) => schedule([proj('A', { events: { a: ev('a', '2026-11-01', '2026-11-10'), b: ev('b', '2026-11-11', endB) } })], [dep('d1', ['event', 'a'], ['event', 'b'])]);
+  it('以前から有った指摘は含めず、新しく発生したものだけを返す', () => {
+    const ok = two('2026-11-20');
+    const moved = schedule([proj('A', { events: { a: ev('a', '2026-11-01', '2026-11-15'), b: ev('b', '2026-11-11', '2026-11-20') } })], [dep('d1', ['event', 'a'], ['event', 'b'])]);
+    expect(newIssues(ok, moved).map((i) => i.rule)).toEqual(['dependency-violation']);
+    expect(newIssues(moved, moved)).toEqual([]);
+    expect(newIssues(moved, ok)).toEqual([]); // 解消されたものは新規ではない
   });
 });

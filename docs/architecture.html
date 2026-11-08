@@ -352,7 +352,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <li>表示スタイル（F-102）: イベント = バー / 角丸バー / 細線＋端点 / 背景帯 / 枠線 / ストライプ。マイルストーン = ◆ ● ▲ ■ ★ 旗 / ラベルのみ。種別マスタの既定を項目の <code>style</code> が上書き。色は種別の色、無ければ種別名から決めた既定のパレット。色だけに依存せず、形・パターン・ラベルでも区別する（NF-010）。</li>
 <li>ラベル: バーに収まれば内側、収まらなければ右の外側。マイルストーンのラベルは 1日 ≥ 3px のとき右に出す。文字幅は推定（全角 = 1em、半角 = 0.55em。描画時は幅でクリップ）。</li>
 <li>依存線（F-302, F-304）: 直交の折れ線＋矢印。種類（FS/SS/FF/SF）ごとに出入りの向きを変え、後続が先行より前にある場合は迂回する。<strong>違反している依存（validate の <code>dependency-violation</code>）は赤</strong>。表示は「全て / 選択項目に関係するものだけ / 非表示」。端点が画面外でも、片方が見えていれば描く。</li>
-<li>背景: 週末は 1日 ≥ 3px のときだけ薄く塗る。今日線。祝日はカレンダー（R2）の実装後。</li>
+<li>背景: 週末（カレンダーを渡したときは、祝日・会社の休日・休みの曜日。連続する日は 1 枚にまとめる）は 1日 ≥ 3px のときだけ薄く塗る。今日線。</li>
 <li>ヒットテスト: 描画した項目の箱（表示範囲内のみ）を、後ろから（手前のものを優先）走査。イベントは両端 6px を「つまみ」（開始/終了の変更用。Phase 3）。<strong>索引（格子など）は使わない</strong>（表示範囲の項目数が上限でも走査で足りるか、実測する。足りなければ導入）。</li>
 </ul>
 <h3>12.6 Renderer（<code>src/renderer/timeline/</code>）</h3>
@@ -390,7 +390,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <h4>未実装・後回し（意図的）</h4>
 <table><tr><th>項目</th><th>状況</th></tr>
 <tr><td>F-401 表示するプロジェクトの選択（UI）</td><td>レイアウトは <code>visible</code> オプションに対応済み（単体テストあり）。<strong>チェックボックスの UI は未実装</strong>（Phase 3 の左ペインの作り込みと合わせる）</td></tr>
-<tr><td>祝日の背景</td><td>カレンダー（F-603）の実装後（R2）。週末と今日線は実装済み</td></tr>
+<tr><td>祝日の背景</td><td>実装済み（15.4。F-603）。週末と今日線も実装済み</td></tr>
 <tr><td>キーボードでの項目の選択（NF-010）</td><td>Canvas にフォーカスは当たり、選択項目は読み上げ用に通知される。<strong>矢印キーで項目を移動する操作は未実装</strong>（F-203 とともに Phase 3 / R5）</td></tr>
 <tr><td>項目のホバーでの詳細表示</td><td>ホバーは強調のみ。詳細は選択時に下部に表示（ツールチップは未実装）</td></tr>
 <tr><td>右クリックメニュー・編集</td><td>Phase 3</td></tr>
@@ -479,16 +479,24 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <ul>
 <li><strong>マイルストーン起点の逆算</strong>: 起点（0）= 選んだマイルストーンの日付から、そのオフセットを<strong>日 → ヶ月の順に逆向き</strong>に適用した日付。選んだマイルストーン自身は、指定した日付に必ず一致させる（月末丸めのずれを出さない）。</li>
 <li><strong>終了が開始より前になったとき</strong>（稼働日・補正の結果）は、終了を開始に揃える（拒否しない）。</li>
-<li><strong>稼働日 = 土日以外</strong>。祝日（F-603）は未実装のため、<code>isWorkday</code> を差し替え可能にしてある（<code>weekendWorkday</code> が既定）。</li>
+<li><strong>稼働日</strong>はカレンダー（15.4）の設定に従う（<code>workdayFn(calendar)</code> を <code>isWorkday</code> に渡す）。カレンダーを渡さない場合（<code>weekendWorkday</code>）は土日以外。</li>
 <li>ヶ月と日は<strong>同じ向き</strong>（前か後）で指定する（スキーマで検査）。画面は「ヶ月・週・日 + 前/後」で、週は日（×7）に換算して保存する。</li>
 </ul>
 <h3>15.3 未実装・制約</h3>
 <table><tr><th>項目</th><th>状況</th></tr>
-<tr><td>祝日・稼働日カレンダー（F-603）</td><td>未実装。稼働日は土日のみ。「標準日程」画面に注記を出している</td></tr>
+<tr><td>祝日・稼働日カレンダー（F-603）</td><td>実装済み（15.4）</td></tr>
 <tr><td>タイムライン上の仮表示（F-803）</td><td>ダイアログ内の一覧（種別・名称・日付）でプレビュー。タイムライン上の仮表示と <code>diffSchedule</code> の再利用は未実装</td></tr>
 <tr><td>グラフ編集の制約</td><td>横軸は平均月長（約 30.4 日）の目安。ヶ月単位のドラッグは日を保ち、ヶ月と日の向きが食い違う結果になるときは近い位置のヶ月（または日）に丸める。編集中の Undo は無い（「やめる」で破棄）。依存の作成はグラフ上では未実装（一覧）</td></tr>
 <tr><td>既存プロジェクトを標準日程として保存（F-806）</td><td>未着手（C）</td></tr>
 <tr><td>標準日程どうしの競合の解決 UI</td><td>双方が同じ標準日程を変えたら自分の版を残す（相手の変更は履歴に残る）。解決 UI は R5 で検討</td></tr>
 <tr><td>過去の版に戻す（F-504）と標準日程</td><td>戻すのは日程のみ。標準日程は戻さない</td></tr></table>
+<h3 id="r2-calendar">15.4 カレンダー（F-603）と整合性チェックの拡充（F-704, F-512）</h3>
+<table><tr><th>項目</th><th>内容</th></tr>
+<tr><td>domain</td><td><code>src/domain/calendar.ts</code>: <code>japaneseHolidays(year)</code>（1980〜2099 年。春分・秋分は近似式、海の日・スポーツの日・山の日の 2020/2021 年の特例、天皇誕生日・みどりの日の移り変わり、<strong>国民の休日・振替休日</strong>）、<code>holidayName</code> / <code>isNonWorking</code> / <code>workdayFn</code>、スキーマと保存形式。範囲外の年は祝日なし。</td></tr>
+<tr><td>設定ファイル</td><td><code>calendar.json</code>（<code>japaneseHolidays</code>・<code>weekend</code>（休みの曜日）・<code>holidays</code>（会社の休日）・<code>workdays</code>（特別稼働日。休みに勝つ））。無ければ既定（日本の祝日あり・土日休み）。<strong>日程の自動保存の対象外</strong>で、<code>calendar:save</code> で保存する。他の人の更新とは標準日程と同じ<strong>ファイル単位の 3 版</strong>で合わせる。</td></tr>
+<tr><td>表示</td><td>タイムラインの背景（<code>DrawOptions.nonWorkingDay</code>）、標準日程の稼働日の計算、「カレンダー」画面（祝日の確認つき）。履歴に残す前の変更一覧に「カレンダーの設定を変更」を含める。</td></tr>
+<tr><td>整合性チェック（F-704）</td><td>既存の規則（依存違反・循環・終了＜開始・親の期間の逸脱・ID 重複 ほか）に、<strong>同一項目の重複</strong>（<code>duplicate-item</code>。同じプロジェクトで名称・日付・種別が同じ項目。警告）を追加。</td></tr>
+<tr><td>新規発生の警告（F-512）</td><td><code>newIssues(before, after)</code>（純関数）: 変更前に無く、変更後に生じた指摘。編集の直後に画面上部へ「この変更で新たに N 件の指摘が出ました」と出す（編集は止めない。A2）。履歴に残す前の確認と、反映前の確認（F-518）にも同じ関数を使う。</td></tr>
+<tr><td>制約</td><td>祝日の対象は 1980〜2099 年（春分・秋分は近似式）。会社の休日は手入力（一括取り込みなし）。祝日・休日に当たる項目の警告は出さない。新規発生の指摘は編集の直後の 1 回だけ表示する（一覧は常に問題一覧で見られる）。</td></tr></table>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>

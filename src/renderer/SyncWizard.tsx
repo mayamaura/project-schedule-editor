@@ -10,6 +10,7 @@ import {
   parseSchedule,
   serializeSchedule,
   summarizeChange,
+  newIssues,
   validateSchedule,
   type MergeConflict,
   type Resolution,
@@ -117,8 +118,7 @@ export function SyncWizard({ mode, display, schedule, flush, onClose }: { mode: 
   }, [data, mainSched, result]);
   const issues = useMemo(() => {
     const ref = data?.theirs ?? mainSched;
-    const known = new Set((ref ? validateSchedule(ref) : []).map((i) => `${i.rule}:${i.target.id}`));
-    return validateSchedule(result).filter((i) => !known.has(`${i.rule}:${i.target.id}`));
+    return ref ? newIssues(ref, result) : validateSchedule(result);
   }, [data, mainSched, result]);
   const blocked = issues.some((i) => i.severity === 'error');
 

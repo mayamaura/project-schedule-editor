@@ -26,7 +26,7 @@
 <h2>2. Git 上のファイル構成（案）</h2>
 <pre>schedule-data/
 ├─ schedule.json            # schemaVersion、設定
-├─ calendar.json
+├─ calendar.json            # 祝日・稼働日の設定（チーム共有。data-model 2.1）
 ├─ types.json
 ├─ projects/
 │   ├─ 3f9a….json           # 1プロジェクト = 1ファイル
@@ -39,6 +39,15 @@
 │   └─ tpl-release-std.json
 └─ ai-prompts/              # AI への共有指示・観点
     └─ pt-release-risk.json</pre>
+<h3 id="calendar-file">2.1 calendar.json（カレンダー設定。F-603）</h3>
+<pre>{
+  "holidays": { "2026-12-29": "年末休業" },   // 会社の休日・追加の休み（日付 → 名称）
+  "japaneseHolidays": true,                  // 日本の祝日（振替休日・国民の休日を含む）を休みにする
+  "weekend": [0, 6],                         // 毎週の休みの曜日（0=日曜 … 6=土曜）
+  "workdays": { "2027-01-02": "休日出勤" }    // 特別稼働日（休みに勝つ）
+}</pre>
+<ul><li>ファイルが無ければ既定（日本の祝日あり・土日休み・追加なし）。出力規則は他と同じ。日程の自動保存の対象外で、<code>calendar:save</code> で個別に保存する。他の人の更新とはファイル単位の 3 版で合わせる（architecture 15.4）。</li>
+<li>日本の祝日はデータに持たず、アプリが計算する（1980〜2099 年）。判定は「特別稼働日 → 休みの曜日 → 会社の休日 → 日本の祝日」。</li></ul>
 <h3>方式比較</h3>
 <table><tr><th>方式</th><th>利点</th><th>欠点</th></tr>
 <tr><td><strong>A. 1プロジェクト1ファイル（推奨）</strong></td><td>別プロジェクトを別々の人が編集しても競合しない。履歴がプロジェクト単位で追える</td><td>ファイル数が増える（数千まで許容）</td></tr>
@@ -241,7 +250,7 @@
 <ul>
 <li><strong>実装済み</strong>: <code>date</code> / <code>model</code> / <code>order</code> / <code>validate</code> / <code>commands</code> / <code>history</code> / <code>serialize</code>（整形出力・読み込み・マイグレーション枠）/ <code>diff</code> / <code>sample</code>。main 層に <code>fileRepository</code>（原子的書き込み・複数ファイルのトランザクション・復旧・保存/読み込み）。</li>
 <li><strong>25,000イベントでの実測</strong>（<code>tests/domain/perf.test.ts</code>）: 全データの読み込み（スキーマ検証＋整合性チェック込み）約 110ms、整形出力 約 55ms、整合性チェック 約 50ms、<strong>1回の編集コマンド 約 0.015ms</strong>、差分検出 約 32ms、1,000回の編集＋Undo 全戻し 約 107ms。NF-001・NF-018 に対して桁違いに余裕がある。</li>
-<li><strong>未実装（意図的に後回し）</strong>: 稼働日・祝日を使う日付計算（カレンダー。F-603 / F-804 とともに R2）、<code>mergeSchedules</code>（Phase 4）、プロセスの強制終了を使った自動保存のテスト（Phase 3 の E2E。復旧ロジック自体は途中状態を手で再現したテストで検証済み。実際の強制終了は <code>spike/autosave-atomic</code> で検証済み）。</li>
+<li><strong>未実装（意図的に後回し）</strong>: <s>稼働日・祝日を使う日付計算</s>（R2 で実装。calendar.ts）、<code>mergeSchedules</code>（Phase 4）、プロセスの強制終了を使った自動保存のテスト（Phase 3 の E2E。復旧ロジック自体は途中状態を手で再現したテストで検証済み。実際の強制終了は <code>spike/autosave-atomic</code> で検証済み）。</li>
 </ul>
 <div class="todo">属性の追加（予算・工数・進捗率など）、データ形式の希望を追記。</div>
 </main></body></html>

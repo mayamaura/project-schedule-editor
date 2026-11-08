@@ -7,6 +7,8 @@ import {
   makeOffset,
   splitOffset,
   validateTemplate,
+  workdayFn,
+  type Calendar,
   type Command,
   type Id,
   type Offset,
@@ -294,12 +296,14 @@ export interface ExpandPreset {
 export function ExpandDialog({
   schedule,
   templates,
+  calendar,
   preset,
   onApply,
   onClose,
 }: {
   schedule: Schedule;
   templates: Readonly<Record<Id, Template>>;
+  calendar: Calendar;
   preset: ExpandPreset;
   onApply: (c: Command) => void;
   onClose: () => void;
@@ -318,10 +322,11 @@ export function ExpandDialog({
   const result = useMemo(() => {
     if (!tpl) return null;
     return expandTemplate(schedule, tpl, {
+      isWorkday: workdayFn(calendar),
       anchor: anchorKind === 'milestone' ? { kind: 'milestone', milestoneId: effMilestone, date } : { kind: 'date', date },
       target: preset.projectId ? { kind: 'existing', projectId: preset.projectId } : { kind: 'newProject', name: name.trim(), parentId: parentId === '' ? null : parentId },
     });
-  }, [schedule, tpl, anchorKind, effMilestone, date, name, parentId, preset.projectId]);
+  }, [schedule, tpl, calendar, anchorKind, effMilestone, date, name, parentId, preset.projectId]);
 
   const projects = Object.values(schedule.projects).sort((a, b) => (a.name < b.name ? -1 : 1));
   const targetName = preset.projectId ? schedule.projects[preset.projectId]?.name : null;

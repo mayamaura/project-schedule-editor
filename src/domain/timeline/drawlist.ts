@@ -87,6 +87,8 @@ export interface DrawOptions {
   /** 依存線の表示（F-304）。既定は全て。 */
   readonly dependencies?: 'all' | 'selected' | 'none';
   readonly theme?: Theme;
+  /** 稼働日でない日か（通算日数。祝日・会社の休日・休みの曜日。F-603）。指定すると、週末の代わりにこの日を塗る。 */
+  readonly nonWorkingDay?: (day: number) => boolean;
 }
 
 /** 種別の色。種別マスタに無ければ、種別名から決めた既定のパレット色（同じ名前は常に同じ色）。 */
@@ -184,7 +186,18 @@ export function buildDrawList(s: Schedule, layout: Layout, o: DrawOptions): Draw
   // --- 背景: 週末・列の罫線・今日線 ---
   const d0 = Math.floor(xToDay(0, vp)) - 1;
   const d1 = Math.ceil(xToDay(width, vp));
-  if (pxPerDay >= 3) {
+  if (pxPerDay >= 3 && o.nonWorkingDay) {
+    // 休みの日が続く間は 1 枚にまとめる
+    let from = -1;
+    for (let d = d0; d <= d1 + 1; d++) {
+      const off = d <= d1 && o.nonWorkingDay(d);
+      if (off && from < 0) from = d;
+      else if (!off && from >= 0) {
+        bg.push({ t: 'rect', x: dayToX(from, vp), y: 0, w: (d - from) * pxPerDay, h: height, fill: theme.weekend });
+        from = -1;
+      }
+    }
+  } else if (pxPerDay >= 3) {
     for (let d = d0 + ((6 - weekdayOfDay(d0) + 7) % 7); d <= d1; d += 7) {
       const x = dayToX(d, vp);
       if (x + 2 * pxPerDay > 0 && x < width) bg.push({ t: 'rect', x, y: 0, w: 2 * pxPerDay, h: height, fill: theme.weekend });

@@ -29,6 +29,14 @@ async function openDir(): Promise<void> {
 /** probe（最初の項目の中心。キャンバス内の座標）をクリックして選択する。 */
 async function clickProbe(button: 'left' | 'right' = 'left'): Promise<void> {
   await expect.poll(() => canvas.getAttribute('data-probe')).toMatch(/\d+,\d+/);
+  // 直前の操作で配置が変わった直後は、描画が落ち着くまで待つ（古い座標を押さない）
+  let prev = '';
+  await expect.poll(async () => {
+    const cur = (await canvas.getAttribute('data-probe')) ?? '';
+    const stable = cur === prev;
+    prev = cur;
+    return stable;
+  }, { intervals: [150] }).toBe(true);
   const [x, y] = (await canvas.getAttribute('data-probe'))!.split(',').map(Number) as [number, number];
   await canvas.click({ position: { x, y }, button });
 }

@@ -16,7 +16,8 @@ export type Rule =
   | 'parent-cycle'
   | 'duplicate-id'
   | 'id-mismatch'
-  | 'child-outside-parent';
+  | 'child-outside-parent'
+  | 'duplicate-item';
 
 export interface ValidationIssue {
   readonly rule: Rule;
@@ -219,5 +220,27 @@ export function validateSchedule(s: Schedule): ValidationIssue[] {
     }
   }
 
+  // --- 同一項目の重複（警告）: 同じプロジェクトで、名称・日付（・種別）が全て同じ項目。後に出てくるほうに付ける ---
+  for (const p of Object.values(s.projects)) {
+    const seenEv = new Set<string>();
+    for (const [id, e] of Object.entries(p.events).sort(([a], [b]) => (a < b ? -1 : 1))) {
+      const key = JSON.stringify([e.name, e.start, e.end, e.type]);
+      if (seenEv.has(key)) add('duplicate-item', 'warning', 'event', id, `イベント「${e.name}」（${e.start}〜${e.end}）が同じ内容で重複している`);
+      seenEv.add(key);
+    }
+    const seenMs = new Set<string>();
+    for (const [id, m] of Object.entries(p.milestones).sort(([a], [b]) => (a < b ? -1 : 1))) {
+      const key = JSON.stringify([m.name, m.date]);
+      if (seenMs.has(key)) add('duplicate-item', 'warning', 'milestone', id, `マイルストーン「${m.name}」（${m.date}）が同じ内容で重複している`);
+      seenMs.add(key);
+    }
+  }
+
   return issues.sort(byRuleThenId);
+}
+
+/** 変更前には無く、変更後に新しく生じた指摘（F-512 / F-518）。同じ規則・同じ対象は「以前からある」とみなす。 */
+export function newIssues(before: Schedule, after: Schedule): ValidationIssue[] {
+  const known = new Set(validateSchedule(before).map((i) => `${i.rule}:${i.target.id}`));
+  return validateSchedule(after).filter((i) => !known.has(`${i.rule}:${i.target.id}`));
 }
