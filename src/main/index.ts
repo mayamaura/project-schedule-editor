@@ -21,6 +21,8 @@ function createWindow(): void {
     height: 900,
     show: false,
     title: 'プロジェクトスケジュールエディタ',
+    // 配布版は exe に埋め込んだアイコンを使う。開発中だけ build/icon.png を指定する。
+    ...(app.isPackaged ? {} : { icon: join(app.getAppPath(), 'build/icon.png') }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

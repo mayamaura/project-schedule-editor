@@ -15,11 +15,12 @@ extraResources:
   - from: third-party/copilot-cli-LICENSE.md
     to: licenses/copilot-cli-LICENSE.md
 win:
+  icon: build/icon.png
   target:
     - target: nsis
       arch: [x64]
-  # Phase 0 は署名・実行ファイルの書き換え（rcedit）を行わない。署名は Phase 5（K7: 可能なら実施）。
-  signAndEditExecutable: false
+  # exe にアイコンを埋め込む（rcedit）。署名は R6（K7: 可能なら実施）で、証明書が無ければ署名はスキップされる。
+  signAndEditExecutable: true
 nsis:
   oneClick: false
   perMachine: false
