@@ -300,7 +300,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <tr><td>IPC の方針</td><td><code>src/shared/ipc.ts</code> がチャネル定義の<strong>唯一の正</strong>（zod で入出力を定義）。Main は <code>handle()</code> で登録し、<strong>入力と出力を検証</strong>、送信元がアプリ自身の画面でなければ拒否。preload は <code>invoke</code> だけを公開し、<strong>定義済みのチャネル以外は拒否</strong></td></tr>
 <tr><td>Electron のセキュリティ（NF-007）</td><td><code>contextIsolation</code> 有効・<code>nodeIntegration</code> 無効・<code>sandbox</code> 有効。新規ウィンドウ・外部への遷移・webview・権限要求を拒否。<strong>CSP</strong>（本番は <code>connect-src 'none'</code>・インラインスクリプト禁止。開発時のみ HMR 用に緩和）。<strong>Fuses</strong>（<code>runAsNode</code> 無効、Cookie 暗号化、NODE_OPTIONS・CLI の inspect 無効、asar の整合性検証、asar 以外からの読み込み禁止）</td></tr>
 <tr><td>文言（NF-009）</td><td><code>src/renderer/i18n/ja.ts</code> に文言を外出しし、<code>t(key, params)</code> で取得</td></tr>
-<tr><td>パッケージ</td><td><code>electron-builder.yml</code>: NSIS（x64、署名なし）。署名・自動更新は Phase 5（K7）</td></tr>
+<tr><td>パッケージ</td><td><code>electron-builder.yml</code>: NSIS（x64、署名なし）。署名・自動更新は R6（旧 Phase 5。K7）</td></tr>
 <tr><td>CI</td><td><code>.github/workflows/ci.yml</code>（windows-latest）: <code>npm ci</code> → Electron のバイナリ取得 → <code>verify.mjs</code> → build → E2E → pack。<strong>リモートが未設定のため、GitHub 上では未実行</strong></td></tr></table>
 <h3>11.3 検証結果（Phase 0 の完了条件）</h3>
 <table><tr><th>確認</th><th>結果</th></tr>
