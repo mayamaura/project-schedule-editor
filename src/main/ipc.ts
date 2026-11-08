@@ -3,13 +3,19 @@ import { ipcSchemas, type IpcChannel, type IpcInput, type IpcOutput } from '@sha
 import { GitService, resolveGit } from './git/gitService';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import { emptySchedule } from '../domain/model';
+import { emptySchedule, type Schedule } from '../domain/model';
 import { serializeSchedule } from '../domain/serialize';
-import { parseCalendar } from '../domain/calendar';
+import { parseCalendar, type Calendar } from '../domain/calendar';
 import { parseCsv, toCsv } from '../domain/csv';
+import { serializeAiPrompt } from '../domain/ai/prompt';
+import { defaultCalendar } from '../domain/calendar';
+import { parseSchedule } from '../domain/serialize';
+import { createProvider } from './ai';
+import { AiService } from './ai/service';
+import { AiStore } from './ai/store';
 import { buildHtmlFile, renderPdf } from './export';
 import { parseTemplate } from '../domain/template';
-import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveCalendar, saveFiles, saveTemplate, writeAtomic } from './fileRepository';
+import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveAiPrompt, deleteAiPrompt, saveCalendar, saveFiles, saveTemplate, writeAtomic } from './fileRepository';
 
 // 開いているフォルダ（Renderer からパスは受け取らない。NF-007）
 let currentRoot: string | null = null;
@@ -167,6 +173,72 @@ export function registerIpc(): void {
     } catch (e) {
       return { status: 'failed' as const, message: e instanceof Error ? e.message : String(e) };
     }
+  });
+  // ---- AI（F-701〜F-713）。SDK に触れるのは ./ai/ のプロバイダだけ（NF-014）。日程には書き込まない（提案のみ）----
+  const aiStore = new AiStore(app.getPath('userData'));
+  const aiService = new AiService(createProvider(), aiStore, (e) => {
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('ai:event', e);
+  });
+  const today = (): string => {
+    const d = new Date();
+    return `${String(d.getFullYear()).padStart(4, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  /** 開いているフォルダの今の日程（Renderer は先に自動保存を完了させてから呼ぶ）。 */
+  const currentData = (): { schedule: Schedule; calendar: Calendar } => {
+    if (!currentRoot) throw new Error('フォルダが開かれていない');
+    const files = loadFiles(currentRoot);
+    const p = parseSchedule(files);
+    if (p.status !== 'ok') throw new Error('日程データを読み込めません');
+    const calText = files['calendar.json'];
+    const cal = calText !== undefined ? parseCalendar(calText) : null;
+    return { schedule: p.schedule, calendar: cal?.ok ? cal.calendar : defaultCalendar() };
+  };
+  handle('ai:status', () => aiService.status());
+  handle('ai:settings', async (patch) => {
+    aiStore.saveSettings({ ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}), ...(patch.model !== undefined ? { model: patch.model } : {}), ...(patch.maxChanges !== undefined ? { maxChanges: patch.maxChanges } : {}) });
+    return aiService.status();
+  });
+  handle('ai:preview', ({ scope, options }) => {
+    const { schedule, calendar } = currentData();
+    return aiService.preview(schedule, calendar, scope, options, today());
+  });
+  handle('ai:ask', (input) => {
+    const { schedule, calendar } = currentData();
+    void aiService.ask(input, schedule, calendar, today()); // 待たずに返す（結果は ai:event で流れる。待機中も他の操作は止まらない）
+    return undefined;
+  });
+  handle('ai:cancel', ({ requestId }) => {
+    aiService.cancel(requestId);
+    return undefined;
+  });
+  handle('ai:history', () => aiStore.history());
+  handle('ai:history-delete', ({ id }) => {
+    aiStore.deleteHistory(id);
+    return undefined;
+  });
+  handle('ai:applied', ({ entryId, proposalId }) => {
+    aiStore.markApplied(entryId, proposalId);
+    return undefined;
+  });
+  handle('ai:prompts', () => aiStore.settings().prompts);
+  handle('ai:prompt-save', ({ prompt }) => {
+    const personal = aiStore.settings().prompts.filter((p) => p.id !== prompt.id);
+    if (prompt.shared) {
+      if (!currentRoot) throw new Error('フォルダが開かれていない');
+      saveAiPrompt(currentRoot, prompt.id, serializeAiPrompt(prompt));
+      aiStore.saveSettings({ prompts: personal });
+    } else {
+      aiStore.saveSettings({ prompts: [...personal, prompt] });
+      if (currentRoot) deleteAiPrompt(currentRoot, prompt.id);
+    }
+    return undefined;
+  });
+  handle('ai:prompt-delete', ({ id, shared }) => {
+    if (shared) {
+      if (!currentRoot) throw new Error('フォルダが開かれていない');
+      deleteAiPrompt(currentRoot, id);
+    } else aiStore.saveSettings({ prompts: aiStore.settings().prompts.filter((p) => p.id !== id) });
+    return undefined;
   });
   handle('template:save', ({ id, text }) => {
     if (!currentRoot) throw new Error('フォルダが開かれていない');

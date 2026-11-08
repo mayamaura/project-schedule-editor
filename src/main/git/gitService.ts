@@ -5,9 +5,10 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { AI_PROMPT_PATH_RE } from '../../domain/ai/prompt';
 import { CALENDAR_PATH } from '../../domain/calendar';
 import { TEMPLATE_PATH_RE } from '../../domain/template';
-import { deleteTemplate, isKnown, saveCalendar, saveFiles, saveTemplate } from '../fileRepository';
+import { deleteAiPrompt, deleteTemplate, isKnown, saveAiPrompt, saveCalendar, saveFiles, saveTemplate } from '../fileRepository';
 
 export type GitSource = 'external' | 'bundled';
 export type Version = readonly [number, number, number];
@@ -453,13 +454,19 @@ export class GitService {
     const baseHash = await this.text(['merge-base', 'HEAD', theirsRef]);
     if (!baseHash) return;
     const [b, o, t] = [await this.filesAt(baseHash), await this.filesAt('HEAD'), await this.filesAt(theirsRef)];
-    const paths = new Set([...Object.keys(b), ...Object.keys(o), ...Object.keys(t)].filter((p) => TEMPLATE_PATH_RE.test(p) || p === CALENDAR_PATH));
+    const paths = new Set([...Object.keys(b), ...Object.keys(o), ...Object.keys(t)].filter((p) => TEMPLATE_PATH_RE.test(p) || p === CALENDAR_PATH || AI_PROMPT_PATH_RE.test(p)));
     for (const p of paths) {
       const [bv, ov, tv] = [b[p], o[p], t[p]];
       const result = ov === tv ? ov : ov === bv ? tv : tv === bv ? ov : ov;
       if (result === ov) continue;
       if (p === CALENDAR_PATH) {
         if (result !== undefined) saveCalendar(this.root, result); // 削除はしない（設定の既定に戻るだけ）
+        continue;
+      }
+      if (AI_PROMPT_PATH_RE.test(p)) {
+        const pid = p.slice('ai-prompts/'.length, -'.json'.length);
+        if (result === undefined) deleteAiPrompt(this.root, pid);
+        else saveAiPrompt(this.root, pid, result);
         continue;
       }
       const id = p.slice('templates/'.length, -'.json'.length);

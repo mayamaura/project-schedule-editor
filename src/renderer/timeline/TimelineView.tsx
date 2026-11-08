@@ -131,6 +131,24 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
         return null;
       },
       headerMode: () => headerMode,
+      jumpTo: (id) => {
+        const L = latest.current;
+        let found: { kind: 'event' | 'milestone' | 'project'; day: number | null } | null = null;
+        for (const p of Object.values(L.schedule.projects)) {
+          if (p.id === id) found = { kind: 'project', day: null };
+          const e = p.events[id];
+          if (e) found = { kind: 'event', day: toDays(e.start) };
+          const m = p.milestones[id];
+          if (m) found = { kind: 'milestone', day: toDays(m.date) };
+        }
+        if (!found) return;
+        setSelected({ kind: found.kind, id });
+        const row = found.kind === 'project' ? L.layout.rowOfProject.get(id) : L.layout.itemPos.get(id)?.row;
+        const r = row === undefined ? undefined : L.layout.rows[row];
+        const v = view.current;
+        view.current = { ...v, ...(found.day !== null ? { leftDay: found.day - v.width / 3 / v.pxPerDay } : {}), ...(r ? { scrollY: Math.max(0, r.y - v.height / 3) } : {}) };
+        request();
+      },
     };
   }
   const nonWorking = useMemo(() => (calendar ? nonWorkingDayFn(calendar) : undefined), [calendar]);

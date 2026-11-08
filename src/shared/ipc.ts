@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { promptTemplateSchema } from '../domain/ai/prompt';
+import { findingSchema } from '../domain/ai/tools';
+import { dateSchema } from '../domain/model';
 
 const identitySchema = z.object({ name: z.string().min(1).max(200), email: z.string().min(3).max(200) });
 const reflectResultSchema = z.discriminatedUnion('status', [
@@ -9,6 +12,52 @@ const reflectResultSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('identity-required') }),
   z.object({ status: z.literal('error'), message: z.string() }),
 ]);
+
+// ---- AI（F-701〜F-713）----
+export const aiScopeSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('selection'), projectIds: z.array(z.string().max(80)).min(1).max(500) }),
+  z.object({ kind: z.literal('view'), from: dateSchema, to: dateSchema }),
+  z.object({ kind: z.literal('all') }),
+]);
+export const aiOptionsSchema = z.object({ includeNotes: z.boolean(), includeAssignee: z.boolean() });
+export const aiStatusSchema = z.object({
+  available: z.boolean(),
+  reason: z.string().optional(),
+  models: z.array(z.string()),
+  enabled: z.boolean(),
+  model: z.string().nullable(),
+  maxChanges: z.number(),
+});
+export const aiProposalSchema = z.object({
+  id: z.string(),
+  summary: z.string(),
+  rationale: z.string().optional(),
+  /** 承認後に commit するコマンド（batch）。適用時に applyCommand が改めて検証する。 */
+  command: z.unknown(),
+  lines: z.array(z.string()),
+  changeCount: z.number(),
+  newIssues: z.array(z.string()),
+});
+/** Main → Renderer のイベント（ストリーミング・提案・指摘・完了・エラー）。 */
+export const aiEventSchema = z.discriminatedUnion('type', [
+  z.object({ requestId: z.string(), type: z.literal('text'), delta: z.string() }),
+  z.object({ requestId: z.string(), type: z.literal('proposal'), proposal: aiProposalSchema }),
+  z.object({ requestId: z.string(), type: z.literal('findings'), findings: z.array(findingSchema) }),
+  z.object({ requestId: z.string(), type: z.literal('done'), entryId: z.string(), cancelled: z.boolean() }),
+  z.object({ requestId: z.string(), type: z.literal('error'), message: z.string() }),
+]);
+export type AiEventMessage = z.infer<typeof aiEventSchema>;
+const aiHistorySchema = z.object({
+  id: z.string(),
+  at: z.string(),
+  kind: z.enum(['chat', 'evaluate', 'check']),
+  request: z.string(),
+  scope: z.string(),
+  answer: z.string(),
+  error: z.string().optional(),
+  proposals: z.array(z.object({ id: z.string(), summary: z.string(), lines: z.array(z.string()), changeCount: z.number(), applied: z.boolean() })),
+  findings: z.array(findingSchema),
+});
 
 const exportResultSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('cancelled') }),
@@ -115,6 +164,33 @@ export const ipcSchemas = {
   'export:html': { input: z.object({ payload: z.string().max(400_000_000), title: z.string().max(500) }), output: exportResultSchema },
   'export:file': { input: z.object({ kind: z.enum(['svg', 'png']), data: z.string().max(400_000_000) }), output: exportResultSchema },
   'export:pdf': { input: z.object({ svg: z.string().max(400_000_000), paper: z.enum(['A4', 'A3']), landscape: z.boolean() }), output: exportResultSchema },
+  'ai:status': { input: z.undefined(), output: aiStatusSchema },
+  'ai:settings': { input: z.object({ enabled: z.boolean().optional(), model: z.string().max(200).nullable().optional(), maxChanges: z.number().int().min(1).max(200).optional() }), output: aiStatusSchema },
+  /** 送信前のプレビュー（F-707）。AI に渡すテキストそのもの。 */
+  'ai:preview': {
+    input: z.object({ scope: aiScopeSchema, options: aiOptionsSchema }),
+    output: z.object({ text: z.string(), large: z.boolean(), stats: z.object({ projects: z.number(), events: z.number(), milestones: z.number(), dependencies: z.number(), chars: z.number() }) }),
+  },
+  /** 依頼を始める。結果はイベント（ai:event）で流れる。 */
+  'ai:ask': {
+    input: z.object({
+      requestId: z.string().min(1).max(100),
+      kind: z.enum(['chat', 'evaluate', 'check']),
+      message: z.string().min(1).max(8000),
+      scope: aiScopeSchema,
+      options: aiOptionsSchema,
+      instruction: z.string().max(4000).optional(),
+      model: z.string().max(200).optional(),
+    }),
+    output: z.undefined(),
+  },
+  'ai:cancel': { input: z.object({ requestId: z.string().max(100) }), output: z.undefined() },
+  'ai:history': { input: z.undefined(), output: z.array(aiHistorySchema) },
+  'ai:history-delete': { input: z.object({ id: z.string().max(100).optional() }), output: z.undefined() },
+  'ai:applied': { input: z.object({ entryId: z.string().max(100), proposalId: z.string().max(100) }), output: z.undefined() },
+  'ai:prompts': { input: z.undefined(), output: z.array(promptTemplateSchema) },
+  'ai:prompt-save': { input: z.object({ prompt: promptTemplateSchema }), output: z.undefined() },
+  'ai:prompt-delete': { input: z.object({ id: z.string().max(80), shared: z.boolean() }), output: z.undefined() },
   'repo:reload': { input: z.undefined(), output: z.object({ files: z.record(z.string(), z.string()) }) },
   /** 取り込みの準備: 共有先の最新を取得し、3 版の材料を返す（F-511, F-518）。main = 正式版の最新（作業版のとき）。 */
   'sync:prepare': {
@@ -169,4 +245,6 @@ export type IpcOutput<C extends IpcChannel> = z.infer<(typeof ipcSchemas)[C]['ou
 /** Renderer に公開する API（preload が contextBridge で window.api として公開する）。 */
 export interface Api {
   invoke<C extends IpcChannel>(channel: C, input?: IpcInput<C>): Promise<IpcOutput<C>>;
+  /** Main からのイベントの購読（許可したチャネルのみ）。解除する関数を返す。 */
+  on(channel: 'ai:event', listener: (message: unknown) => void): () => void;
 }

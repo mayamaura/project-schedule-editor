@@ -2,7 +2,7 @@
 // 履歴に残す・履歴・戻す・診断、作業版（現在地の常時表示・切替・作成）、正式版への反映 / 共有。
 // UI に Git 用語を出さない（docs/git-ux.html）。「未記録の変更」は、最後に履歴に残した版と今の日程の diffSchedule（F-509）。
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { diffSchedule, newIssues, parseSchedule, defaultCalendar, parseCalendar, parseTemplates, serializeCalendar, serializeTemplate, summarizeChange, type Calendar, type Id, type Schedule, type Template } from '@domain/index';
+import { diffSchedule, newIssues, parseSchedule, defaultCalendar, parseAiPrompts, parseCalendar, parseTemplates, serializeCalendar, serializeTemplate, summarizeChange, type Calendar, type Id, type PromptTemplate, type Schedule, type Template } from '@domain/index';
 import { t } from './i18n';
 import { CompareDialog, type CompareTarget } from './CompareDialog';
 import { SyncWizard } from './SyncWizard';
@@ -25,6 +25,9 @@ export function VersionControls({
   schedule,
   templates,
   calendar,
+  sharedPrompts,
+  aiNotes,
+  onSaved,
   edits,
   flush,
   onRestore,
@@ -37,6 +40,12 @@ export function VersionControls({
   templates: Readonly<Record<Id, Template>>;
   /** カレンダー設定（履歴に残す変更の一覧に含める）。 */
   calendar: Calendar;
+  /** チーム共有の AI の指示・観点（変更一覧に含める）。 */
+  sharedPrompts: readonly PromptTemplate[];
+  /** 適用した AI 提案の要約（履歴に残すメモに「AI提案」と付記する。F-711）。 */
+  aiNotes: readonly string[];
+  /** 履歴に残したあと（AI 提案の記録を空にする）。 */
+  onSaved: () => void;
   /** 編集のたびに増える（未記録の変更を数え直す合図）。 */
   edits: number;
   /** 自動保存の書き出しを完了させる（履歴に残す直前などに呼ぶ）。 */
@@ -99,12 +108,19 @@ export function VersionControls({
       else if (serializeTemplate(old) !== serializeTemplate(tp)) tplLines.push(t('tpl.chgEdit', { name: tp.name }));
     }
     for (const [id, tp] of Object.entries(before)) if (!templates[id]) tplLines.push(t('tpl.chgDelete', { name: tp.name }));
+    const beforePrompts = parseAiPrompts(git.head).prompts;
+    for (const pr of sharedPrompts) {
+      const old = beforePrompts.find((x) => x.id === pr.id);
+      if (!old) tplLines.push(t('ai.chgAdd', { name: pr.name }));
+      else if (JSON.stringify(old) !== JSON.stringify(pr)) tplLines.push(t('ai.chgEdit', { name: pr.name }));
+    }
+    for (const old of beforePrompts) if (!sharedPrompts.some((x) => x.id === old.id)) tplLines.push(t('ai.chgDelete', { name: old.name }));
     const oldCal = git.head['calendar.json'];
     const oldCalParsed = oldCal !== undefined ? parseCalendar(oldCal) : null;
     const oldText = oldCalParsed?.ok ? serializeCalendar(oldCalParsed.calendar) : serializeCalendar(defaultCalendar());
     if (oldText !== serializeCalendar(calendar)) tplLines.push(t('cal.chgEdit'));
     return [...diffSchedule(head, schedule).map(summarizeChange), ...tplLines];
-  }, [head, git, templates, calendar, schedule, edits]);
+  }, [head, git, templates, calendar, sharedPrompts, schedule, edits]);
 
   if (!git) return null;
   if (!git.available) return <span className="issues">{t('ver.noGit')}</span>;
@@ -129,7 +145,8 @@ export function VersionControls({
     await refresh();
     setNote('');
     setIdentity(null);
-    setMemo(lines.length === 0 ? '' : lines.length === 1 ? lines[0]! : t('ver.defaultMemo', { first: lines[0]!, rest: String(lines.length - 1) }));
+    const base = lines.length === 0 ? '' : lines.length === 1 ? lines[0]! : t('ver.defaultMemo', { first: lines[0]!, rest: String(lines.length - 1) });
+    setMemo(aiNotes.length > 0 ? `${t('ai.memoPrefix', { summary: aiNotes.join('、') })}${base ? `　${base}` : ''}` : base);
     setDialog('save');
   };
   const doSave = async (): Promise<void> => {
@@ -140,6 +157,7 @@ export function VersionControls({
     } else if (r.status === 'ok') {
       setNote('');
       setDialog(null);
+      onSaved();
       await refresh();
     } else if (r.status === 'nothing') setNote(t('ver.nothing'));
     else setNote(t('ver.saveFailed', { message: r.message }));

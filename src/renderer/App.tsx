@@ -1,7 +1,8 @@
 // @req F-501, F-101, F-206, F-208, F-210, F-211
 import { useEffect, useRef, useState } from 'react';
-import { History, defaultCalendar, diffSchedule, exportRows, newIssues, generateSample, parseCalendar, parseSchedule, parseTemplates, serializeCalendar, serializeSchedule, serializeTemplate, summarizeChange, type Calendar, type Command, type Id, type Schedule, type ParseIssue, type Template } from '@domain/index';
+import { History, defaultCalendar, diffSchedule, exportRows, newIssues, parseAiPrompts, generateSample, parseCalendar, parseSchedule, parseTemplates, serializeCalendar, serializeSchedule, serializeTemplate, summarizeChange, type Calendar, type Command, type PromptTemplate, type Id, type Schedule, type ParseIssue, type Template } from '@domain/index';
 import { t } from './i18n';
+import { AiPanel } from './AiPanel';
 import { CalendarDialog } from './CalendarDialog';
 import { CsvImportDialog } from './CsvDialog';
 import { ExportDialog, type TimelineApi } from './ExportDialog';
@@ -68,6 +69,10 @@ export function App() {
   const [calOpen, setCalOpen] = useState(false);
   const [saveAs, setSaveAs] = useState<Id | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiNotes, setAiNotes] = useState<string[]>([]);
+  const pendingAiNote = useRef<string | null>(null); // 確認（F-520）を挟んで適用される AI 提案の要約
+  const [sharedPrompts, setSharedPrompts] = useState<PromptTemplate[]>([]);
   const timelineApi = useRef<TimelineApi | null>(null);
   const [csv, setCsv] = useState<{ fileName: string; rows: string[][] } | null>(null);
   const [expand, setExpand] = useState<ExpandPreset | null>(null);
@@ -97,6 +102,8 @@ export function App() {
       setEditWarn('');
       setTemplates(loadTemplates(r.files));
       setCalendar(loadCalendar(r.files));
+      setSharedPrompts(parseAiPrompts(r.files).prompts);
+      setAiNotes([]);
       setLoaded({
         history: new History(parsed.schedule),
         path: r.path,
@@ -216,6 +223,7 @@ export function App() {
     setLoaded({ ...loaded, history: new History(parsed.schedule) });
     setTemplates(loadTemplates(r.files));
     setCalendar(loadCalendar(r.files));
+    setSharedPrompts(parseAiPrompts(r.files).prompts);
     setEditError('');
     setMainOk(false);
   };
@@ -232,6 +240,11 @@ export function App() {
     if (r?.ok) {
       setEditError('');
       // この変更で新たに生じた指摘（依存違反など。編集は止めず、知らせる。F-512）
+      if (pendingAiNote.current) {
+        const note = pendingAiNote.current;
+        pendingAiNote.current = null;
+        setAiNotes((n) => [...n, note]);
+      }
       const fresh = before && h ? newIssues(before, h.present) : [];
       setEditWarn(fresh.length === 0 ? '' : t('edit.newIssues', { count: String(fresh.length), detail: fresh.slice(0, 3).map((i) => i.message).join(' / ') }));
       bump((n) => n + 1);
@@ -416,6 +429,11 @@ export function App() {
                   setMainOk(true);
                   // 確認前に行おうとした編集をそのまま適用する
                   if (h?.execute(c).ok) {
+                    if (pendingAiNote.current) {
+                      const note = pendingAiNote.current;
+                      pendingAiNote.current = null;
+                      setAiNotes((n) => [...n, note]);
+                    }
                     setEditError('');
                     bump((n) => n + 1);
                   }
@@ -448,6 +466,9 @@ export function App() {
                 <button type="button" data-testid="tpl-add-project" onClick={() => setExpand({})}>
                   {t('tpl.addProject')}
                 </button>
+                <button type="button" data-testid="ai-open" aria-pressed={aiOpen} onClick={() => setAiOpen((v) => !v)}>
+                  {t('ai.open')}
+                </button>
                 <button type="button" data-testid="export-open" onClick={() => setExportOpen(true)}>
                   {t('exp.open')}
                 </button>
@@ -471,6 +492,9 @@ export function App() {
                 schedule={loaded.history.present}
                 templates={templates}
                 calendar={calendar}
+                sharedPrompts={sharedPrompts}
+                aiNotes={aiNotes}
+                onSaved={() => setAiNotes([])}
                 edits={edits}
                 flush={flush}
                 onReload={reloadFromDisk}
@@ -494,6 +518,23 @@ export function App() {
             </button>
           </div>
           <TimelineView schedule={loaded.history.present} docKey={loaded.history} commit={commit} calendar={calendar} apiRef={timelineApi} {...(loaded.path ? { onExpand: setExpand, onSaveAsTemplate: setSaveAs } : {})} />
+          {aiOpen && loaded.path ? (
+            <AiPanel
+              schedule={loaded.history.present}
+              sharedPrompts={sharedPrompts}
+              api={timelineApi.current}
+              flush={flush}
+              onClose={() => setAiOpen(false)}
+              onApply={(command, summary) => {
+                // 正式版の直接編集の確認（F-520）が出たときは、確認後に適用される（その時点で記録する）。承認の記録は、確認を待つ間も「適用」として扱う
+                pendingAiNote.current = summary;
+                const err = commit(command as Command);
+                if (err !== null && err !== t('direct.title')) pendingAiNote.current = null;
+                return err === t('direct.title') ? null : err;
+              }}
+              onReloadShared={() => void window.api.invoke('repo:reload').then((r) => setSharedPrompts(parseAiPrompts(r.files).prompts))}
+            />
+          ) : null}
           {exportOpen ? <ExportDialog schedule={loaded.history.present} calendar={calendar} versionLabel={ver.branch === 'main' || ver.branch === null ? t('exp.main') : t('exp.work')} api={timelineApi.current} onDone={setMessage} onClose={() => setExportOpen(false)} /> : null}
           {saveAs ? <SaveAsTemplateDialog schedule={loaded.history.present} projectId={saveAs} onSave={saveTemplate} onClose={() => setSaveAs(null)} /> : null}
           {csv ? (

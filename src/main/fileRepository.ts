@@ -6,6 +6,7 @@
 // ドメイン層（純関数）が作る「パス → 内容」を受け渡すだけで、データの意味は知らない。
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, unlinkSync, writeSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
+import { AI_PROMPT_PATH_RE, aiPromptPath } from '../domain/ai/prompt';
 import { CALENDAR_PATH } from '../domain/calendar';
 import { TEMPLATE_PATH_RE, templatePath } from '../domain/template';
 
@@ -135,13 +136,13 @@ export function recover(root: string): RecoverResult {
   return { completedTransaction: completed, removedTmpFiles: removeOrphanTmp(root) };
 }
 
-const KNOWN = [/^schedule\.json$/, /^types\.json$/, /^projects\/[A-Za-z0-9_-]+\.json$/, /^dependencies\/[A-Za-z0-9_-]+\.json$/, TEMPLATE_PATH_RE, /^calendar\.json$/];
+const KNOWN = [/^schedule\.json$/, /^types\.json$/, /^projects\/[A-Za-z0-9_-]+\.json$/, /^dependencies\/[A-Za-z0-9_-]+\.json$/, TEMPLATE_PATH_RE, /^calendar\.json$/, AI_PROMPT_PATH_RE];
 export const isKnown = (rel: string): boolean => KNOWN.some((r) => r.test(rel));
 
 function listKnown(root: string): string[] {
   const out: string[] = [];
   for (const rel of ['schedule.json', 'types.json', CALENDAR_PATH]) if (existsSync(join(root, rel))) out.push(rel);
-  for (const dir of ['projects', 'dependencies', 'templates']) {
+  for (const dir of ['projects', 'dependencies', 'templates', 'ai-prompts']) {
     const d = join(root, dir);
     if (!existsSync(d)) continue;
     for (const name of readdirSync(d)) if (isKnown(`${dir}/${name}`)) out.push(`${dir}/${name}`);
@@ -164,6 +165,13 @@ export function saveTemplate(root: string, id: string, text: string): void {
 export function saveCalendar(root: string, text: string): void {
   writeTransaction(root, { [CALENDAR_PATH]: text });
 }
+/** チーム共有の AI の指示・観点（ai-prompts/）の保存・削除（F-712）。 */
+export function saveAiPrompt(root: string, id: string, text: string): void {
+  writeTransaction(root, { [aiPromptPath(id)]: text });
+}
+export function deleteAiPrompt(root: string, id: string): void {
+  writeTransaction(root, {}, [aiPromptPath(id)]);
+}
 export function deleteTemplate(root: string, id: string): void {
   writeTransaction(root, {}, [templatePath(id)]);
 }
@@ -185,7 +193,7 @@ export function saveFiles(root: string, files: Files): SaveResult {
     if (!existing.has(rel) || readFileSync(join(root, rel), 'utf8') !== text) changed[rel] = text;
   }
   // 標準日程（templates/）とカレンダー（calendar.json）は日程の自動保存の対象外: 渡されなくても消さない（削除は deleteTemplate）
-  const removed = [...existing].filter((rel) => !(rel in files) && !TEMPLATE_PATH_RE.test(rel) && rel !== CALENDAR_PATH).sort();
+  const removed = [...existing].filter((rel) => !(rel in files) && !TEMPLATE_PATH_RE.test(rel) && rel !== CALENDAR_PATH && !AI_PROMPT_PATH_RE.test(rel)).sort();
   writeTransaction(root, changed, removed);
   return { written: Object.keys(changed).sort(), removed };
 }

@@ -121,6 +121,7 @@
 <ul><li><code>schemaVersion</code> を保持。起動時に古ければマイグレーションし、「データ形式を更新しました」を1コミットとして記録。</li>
 <li>新しいバージョンのデータを古いアプリが開いた場合は読み取り専用で警告。</li></ul>
 <h2 id="ai-changeset">6. AI 提案（ChangeSet）</h2>
+<div class="note"><strong>実装（2026-11-08。<code>src/domain/ai/changeset.ts</code>）</strong>: 下の例のとおり <code>op</code> と ID で表す。実装した <code>op</code> は addProject / updateProject / deleteProject / addEvent / updateEvent / deleteEvent / addMilestone / updateMilestone / deleteMilestone / addDependency / updateDependency / deleteDependency。更新は変更するフィールドだけを持つ（<code>eventId</code>・<code>milestoneId</code>・<code>projectId</code>・<code>dependencyId</code> で指す）。追加には <code>tempId</code> を付けられ、同じ提案内の後続の変更から参照できる（承認時に新しい ID に置き換える）。依存の種類は <code>kind</code>（FS/SS/FF/SF）。1 つの提案は 1〜200 件の変更。承認されたものは、1 つの batch コマンド（Undo 1 単位）として適用する。</div>
 <p>AI が返す日程変更案の形式。<strong>ドメインのコマンド列</strong>であり、UI の編集操作と同じ経路で適用される。<strong>Git には保存しない</strong>（ローカルのアプリデータ領域、F-710）。承認・適用された結果だけが通常のデータ変更として保存・commit される。</p>
 <pre>{
   "id": "cs-20261107-001",

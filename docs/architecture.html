@@ -530,5 +530,28 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <tr><td>主要ブラウザでの確認</td><td>Chromium（Electron）のみ確認。Firefox / Safari での動作は未確認（NF-020 ②）。<code>DecompressionStream</code> は最新版の主要ブラウザで利用可能</td></tr>
 <tr><td>開発モード（<code>npm run dev</code>）での HTML 出力</td><td>ビューアは <code>out/viewer/viewer.js</code> を読むので、先に <code>npm run build</code>（または <code>vite build -c vite.viewer.config.ts</code>）が要る。無ければ出力は失敗して理由が出る</td></tr>
 <tr><td>大きな PDF / SVG</td><td>25,000 イベントの全体を出すと巨大になる。サイズの実測は未実施</td></tr></table>
+<h2 id="r4-ai">17. R4: AI（提案・評価・指摘）の実装状況（2026-11-08）</h2>
+<p>要件 F-701〜F-713（F-604 は Phase 3 で実装済み）、NF-012〜NF-015。設計は 6。<strong>接続先（GitHub Copilot SDK）のアダプタだけが未実装</strong>で、それ以外は SDK に依存しない形で実装し、テスト用プロバイダで通した。</p>
+<h3>17.1 構成</h3>
+<table><tr><th>層</th><th>内容</th></tr>
+<tr><td>domain（<code>src/domain/ai/</code>）</td><td><code>changeset.ts</code>: 提案（ChangeSet）の zod スキーマ（<code>op</code> は 12 種。未知の op・余分なフィールド・不正な日付・空の変更・200 件超は拒否）と <code>evaluateChangeSet</code>（tempId を新しい ID に置換 → 1 つの batch コマンド・適用後の日程・変更一覧（<code>diffSchedule</code>）・新たな指摘（<code>newIssues</code>）。失敗時は「何番目の変更が、なぜ不正か」を AI に返す文言）。<code>context.ts</code>: AI に渡すデータ（範囲 = 選択プロジェクト（子孫を含む）/ 表示中の期間 / 全体、メモ・担当者の有無。<strong>送信前プレビューと get_schedule は同じ関数の出力</strong>）。<code>prompt.ts</code>: 固定の基本プロンプト + 利用者の指示・観点（2 層。後者は前者を上書きできない）、データは <code>&lt;data&gt;</code> で区切って渡す、プリセット、共有用の保存形式（<code>ai-prompts/&lt;id&gt;.json</code>）。<code>tools.ts</code>: <code>AiToolbox</code>（SDK に依存しないツールの実体）と <code>toolSpecs</code>。</td></tr>
+<tr><td>main（<code>src/main/ai/</code>）</td><td><code>provider.ts</code>: <strong>SDK の差し替え口</strong>（<code>AiProvider</code>。NF-014）と、接続先が無いときの <code>NullProvider</code>。<code>service.ts</code>: <code>AiService</code>（依頼 → データ・プロンプトの組み立て → プロバイダ実行 → 提案・指摘の回収。応答はイベントで流す。キャンセル可。日程には書き込まない）。<code>store.ts</code>: 個人設定（有効/無効・モデル・件数の警告しきい値・個人用の指示）と会話・提案のログ（<strong>アプリのデータ領域。Git 管理外・共有されない</strong>。削除可）。<code>mockProvider.ts</code>: テスト用。<code>index.ts</code>: プロバイダの選択（<code>PSE_AI_MOCK=1</code> は開発・E2E のみ。パッケージ版では見ない）。</td></tr>
+<tr><td>ipc / preload</td><td><code>ai:*</code> チャネル（zod で入出力を検証）。<strong>Main → Renderer のイベント（<code>ai:event</code>）のため、preload に購読 <code>on</code> を追加</strong>（許可したチャネルのみ。<code>invoke</code> の方針は変えない）。AI の依頼は、Renderer が自動保存を完了させた後、Main が<strong>ディスクから日程を読み直して</strong>使う（日程全体を IPC で送らない）。</td></tr>
+<tr><td>renderer</td><td><code>AiPanel.tsx</code>: 画面を塞がないパネル（右側に重ねる。待機中も編集できる）。チャット（ストリーミング・中止）、送信前プレビュー、範囲・メモ/担当者の選択、指示・観点（プリセット + 個人用 + 共有）の選択と編集、提案の差分確認と「承認して適用 / 破棄」、評価・矛盾チェックと該当項目へのジャンプ、設定、ログ。承認は <code>commit</code>（通常の編集と同じ経路。Undo 1 単位。正式版の直接編集の確認も効く）。</td></tr></table>
+<h3>17.2 安全性（NF-012）の作り</h3>
+<ul>
+<li><strong>公開するツールは 5 つだけ</strong>（<code>get_schedule</code> / <code>get_validation_issues</code> / <code>get_calendar</code> / <code>propose_changes</code> / <code>report_findings</code>）。書き込み・ファイル・シェル系は存在しない。ここに無い名前の呼び出しは実行せずに拒否する（<code>isAllowedTool</code>。権限ハンドラの代わり）。</li>
+<li><strong>AI は日程を書き換えられない。</strong>提案は検証されて「提案」として保持されるだけで、反映は利用者が差分を確認して承認したときだけ（決定 E3）。件数が閾値（既定 20）を超える提案は、確認のチェックが無いと適用できない（F-709）。承認後は「AI提案: 要約」が、履歴に残すときのメモに付記される（F-711）。</li>
+<li><strong>最小送信</strong>: AI は対象範囲のデータだけ読め、範囲外の項目への提案も拒否する。送信前に、AI に渡る内容そのものをプレビューできる（F-707）。メモ・担当者は既定で含める（決定 E2）が、外せる。</li>
+<li><strong>プロンプトインジェクション</strong>: 基本プロンプトは固定で、利用者の指示は後ろに足されるだけ。データは <code>&lt;data&gt;</code> で区切り、データ側の <code>&lt;/data&gt;</code> では閉じられない。最悪でも、承認画面で止まる。</li>
+<li>接続先が使えない・無効なとき: AI だけが無効になり、理由が画面に出る。他の機能は影響を受けない（F-708）。</li>
+</ul>
+<h3>17.3 未実装・保留（ユーザー確認が必要なもの）</h3>
+<table><tr><th>項目</th><th>状況</th></tr>
+<tr><td><strong>Copilot SDK のアダプタ（<code>src/main/ai/copilot.ts</code>）</strong></td><td><strong>未実装</strong>。①<strong>I2（ランタイム同梱の承認。展開 約181MB）が未決定</strong>（open-questions）②SDK（<code>@github/copilot-sdk</code>）は新しい依存で、追加は承認が必要（CLAUDE.md ルール 6）③実契約での動作検証（認証 = <code>gitHubToken</code>・GCM のトークン、ツール制限の実挙動（<code>availableTools</code> / <code>excludedTools</code> / <code>onPermissionRequest</code>）、EMU、<code>listModels</code>）が未実施。実装は <code>AiProvider</code> を実装して <code>createProvider</code> から返すだけで済む（<code>toolSpecs</code> を <code>defineTool</code> に写し、呼ばれたら <code>AiToolbox.invoke</code>）。</td></tr>
+<tr><td>実際の AI での挙動</td><td>未確認（プロンプトの調整・指示への追従・日本語の品質）。テストは SDK のモックのみ</td></tr>
+<tr><td>モデル一覧（F-713）</td><td>プロバイダの <code>status().models</code> から取る設計。Copilot の一覧取得は未接続</td></tr>
+<tr><td>承認前に日程が変わった場合</td><td>提案は依頼時点の日程に対して検証済み。承認時に不整合（存在しない ID など）なら、<code>applyCommand</code> が拒否して理由を出す</td></tr>
+<tr><td>F-710 の「提案ログ」</td><td>会話・提案（要約・変更一覧・適用済みか）・指摘を保存。適用の取り消し（Undo）の記録はしない</td></tr></table>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>

@@ -32,7 +32,19 @@ test('Renderer から Node.js に触れない（nodeIntegration 無効・context
   }));
   expect(result.require).toBe('undefined');
   expect(result.process).toBe('undefined');
-  expect(result.apiKeys).toEqual(['invoke']);
+  expect(result.apiKeys).toEqual(['invoke', 'on']); // invoke と、許可したイベント（ai:event）の購読だけ
+});
+
+test('許可していないイベントチャネルは購読できない', async () => {
+  const message = await page.evaluate(() => {
+    try {
+      (window.api.on as (channel: string, l: () => void) => () => void)('app:secret', () => undefined);
+      return 'subscribed';
+    } catch (e) {
+      return String(e);
+    }
+  });
+  expect(message).toContain('unknown event channel');
 });
 
 test('定義されていない IPC チャネルは拒否される', async () => {

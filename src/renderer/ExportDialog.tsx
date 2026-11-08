@@ -24,6 +24,8 @@ export interface TimelineApi {
   visibleRange(): { from: DateStr; to: DateStr };
   selectedProjectId(): Id | null;
   headerMode(): HeaderMode;
+  /** 項目（またはプロジェクト）を選択して、その位置へ移動する（AI の提案・指摘のリンク。F-706）。 */
+  jumpTo(id: Id): void;
 }
 
 type Format = 'html' | 'png' | 'svg' | 'pdf';
