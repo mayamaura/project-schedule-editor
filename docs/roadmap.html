@@ -139,6 +139,7 @@
 <tr><td>設計</td><td>優先順位は<strong>パイロットや利用状況の声</strong>で決め、着手する項目ごとに ui-design / git-ux に詳細を追記する。F-303 は依存の判定式（data-model 11）とデータ形式の変更を伴うため、schemaVersion とマイグレーションを設計する。F-521 は反映・競合解決の途中状態の保存方式（git-ux）を決める</td></tr>
 <tr><td>実装</td><td>項目ごとに小さなスライスで実装する。例: F-203・F-207（編集操作。Phase 3 の操作ステートマシンに追加）／F-402・F-403（フィルタとビュー。共有ビューは Git 管理、個人用はローカル）／F-303・F-306（依存）／F-516・F-519・F-521（作業版の運用）</td></tr>
 <tr><td>テスト</td><td>各項目の単体テスト（ドメインに寄せる）と、主要フローの E2E。形式を変える項目はマイグレーションの往復テスト</td></tr>
+<tr><td><strong>進捗（2026-11-08）</strong></td><td>R5 の全項目を実装: <strong>F-203</strong>（矢印キー・コピー &amp; 貼り付け・Delete）、<strong>F-207</strong>（Ctrl/Shift+クリックの複数選択、Alt+矢印・ダイアログでの一括移動。子孫ごとの移動は純関数で対応）、<strong>F-306</strong>（上流・下流の強調）、<strong>F-402</strong>（フィルタ）、<strong>F-403</strong>（ビューの保存・切替。共有は <code>views/</code>、個人用はこの PC）、<strong>F-516</strong>（作業版のバックアップ）、<strong>F-519</strong>（整理・復元）、<strong>F-521</strong>（中断からの再開）。F-303 は Phase 3 で実装済みと確認。詳細・制約は <a href="architecture.html#r5">architecture 18</a>。<strong>未実装</strong>: 複数選択のドラッグ移動、F-404（バックログ）。</td></tr>
 <tr><td>完了条件</td><td>項目ごとに、要件の受け入れ条件を満たす（リリースとしてのまとまった完了はない）</td></tr></table>
 <p><strong>バックログ（任意 C）:</strong> F-404 F-605 F-609 F-806 — 必要になったら検討する。</p>
 

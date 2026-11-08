@@ -188,3 +188,9 @@ button[aria-pressed="true"] { background: var(--acc); color: #fff; border-color:
 .ai-finding.warning { border-left: 4px solid #e0a800; }
 .ai-input textarea { width: 100%; font: inherit; }
 .ai-input .actions, .ai-proposal .actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
+
+/* フィルタ・ビュー */
+.filterbar { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: flex-start; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--bg); font-size: 12px; }
+.flt-group { display: flex; flex-wrap: wrap; gap: 4px 8px; border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; margin: 0; }
+.flt-group legend { font-size: 11px; opacity: .75; }
+.flt-views { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto; }

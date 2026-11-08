@@ -1,6 +1,6 @@
 // @req F-501, F-101, F-206, F-208, F-210, F-211
 import { useEffect, useRef, useState } from 'react';
-import { History, defaultCalendar, diffSchedule, exportRows, newIssues, parseAiPrompts, generateSample, parseCalendar, parseSchedule, parseTemplates, serializeCalendar, serializeSchedule, serializeTemplate, summarizeChange, type Calendar, type Command, type PromptTemplate, type Id, type Schedule, type ParseIssue, type Template } from '@domain/index';
+import { History, defaultCalendar, diffSchedule, exportRows, newIssues, parseAiPrompts, parseViews, serializeView, generateSample, parseCalendar, parseSchedule, parseTemplates, serializeCalendar, serializeSchedule, serializeTemplate, summarizeChange, type Calendar, type Command, type PromptTemplate, type SavedView, type Id, type Schedule, type ParseIssue, type Template } from '@domain/index';
 import { t } from './i18n';
 import { AiPanel } from './AiPanel';
 import { CalendarDialog } from './CalendarDialog';
@@ -73,6 +73,45 @@ export function App() {
   const [aiNotes, setAiNotes] = useState<string[]>([]);
   const pendingAiNote = useRef<string | null>(null); // 確認（F-520）を挟んで適用される AI 提案の要約
   const [sharedPrompts, setSharedPrompts] = useState<PromptTemplate[]>([]);
+  const [sharedViews, setSharedViews] = useState<SavedView[]>([]);
+  const [personalViews, setPersonalViews] = useState<SavedView[]>([]);
+  // 個人用のビューは、この PC（ブラウザ領域）にだけ保存する。フォルダごとに分ける（F-403）
+  const personalKey = loaded?.path ? `pse.views:${loaded.path}` : null;
+  useEffect(() => {
+    if (!personalKey) return setPersonalViews([]);
+    try {
+      const raw = JSON.parse(localStorage.getItem(personalKey) ?? '[]') as SavedView[];
+      setPersonalViews(Array.isArray(raw) ? raw.map((v) => ({ ...v, shared: false })) : []);
+    } catch {
+      setPersonalViews([]);
+    }
+  }, [personalKey]);
+  const storePersonal = (list: SavedView[]): void => {
+    setPersonalViews(list);
+    if (!personalKey) return;
+    try {
+      localStorage.setItem(personalKey, JSON.stringify(list));
+    } catch {
+      /* 保存できなくても、画面の操作は続けられる */
+    }
+  };
+  const saveView = async (v: SavedView): Promise<string | null> => {
+    if (!v.shared) {
+      storePersonal([...personalViews, v]);
+      return null;
+    }
+    try {
+      await window.api.invoke('view:save', { id: v.id, text: serializeView(v) });
+      setSharedViews((l) => [...l.filter((x) => x.id !== v.id), v]);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  };
+  const deleteView = (v: SavedView): void => {
+    if (!v.shared) return storePersonal(personalViews.filter((x) => x.id !== v.id));
+    void window.api.invoke('view:delete', { id: v.id }).then(() => setSharedViews((l) => l.filter((x) => x.id !== v.id)));
+  };
   const timelineApi = useRef<TimelineApi | null>(null);
   const [csv, setCsv] = useState<{ fileName: string; rows: string[][] } | null>(null);
   const [expand, setExpand] = useState<ExpandPreset | null>(null);
@@ -103,6 +142,7 @@ export function App() {
       setTemplates(loadTemplates(r.files));
       setCalendar(loadCalendar(r.files));
       setSharedPrompts(parseAiPrompts(r.files).prompts);
+      setSharedViews(parseViews(r.files).views);
       setAiNotes([]);
       setLoaded({
         history: new History(parsed.schedule),
@@ -224,6 +264,7 @@ export function App() {
     setTemplates(loadTemplates(r.files));
     setCalendar(loadCalendar(r.files));
     setSharedPrompts(parseAiPrompts(r.files).prompts);
+    setSharedViews(parseViews(r.files).views);
     setEditError('');
     setMainOk(false);
   };
@@ -493,6 +534,7 @@ export function App() {
                 templates={templates}
                 calendar={calendar}
                 sharedPrompts={sharedPrompts}
+                sharedViews={sharedViews}
                 aiNotes={aiNotes}
                 onSaved={() => setAiNotes([])}
                 edits={edits}
@@ -517,7 +559,7 @@ export function App() {
               {t('app.redo')}
             </button>
           </div>
-          <TimelineView schedule={loaded.history.present} docKey={loaded.history} commit={commit} calendar={calendar} apiRef={timelineApi} {...(loaded.path ? { onExpand: setExpand, onSaveAsTemplate: setSaveAs } : {})} />
+          <TimelineView schedule={loaded.history.present} docKey={loaded.history} commit={commit} calendar={calendar} apiRef={timelineApi} views={[...sharedViews, ...personalViews]} onSaveView={saveView} onDeleteView={deleteView} canShareViews={!!loaded.path} {...(loaded.path ? { onExpand: setExpand, onSaveAsTemplate: setSaveAs } : {})} />
           {aiOpen && loaded.path ? (
             <AiPanel
               schedule={loaded.history.present}

@@ -131,7 +131,7 @@ describe('パスの安全性（ルートの外に書かない）', () => {
     expect(() => writeTransaction(root, {}, ['../x'])).toThrow('パス');
   });
   it('saveFiles は日程データ以外のパスを拒否する', () => {
-    expect(() => saveFiles(root, { 'views/x.json': '{}' })).toThrow('保存できない');
+    expect(() => saveFiles(root, { 'other/x.json': '{}' })).toThrow('保存できない');
     expect(() => saveFiles(root, { '.git/config': '' })).toThrow('保存できない');
   });
 });

@@ -53,18 +53,21 @@ export interface Theme {
   readonly hover: string;
   readonly dep: string;
   readonly depViolation: string;
+  /** 影響範囲の強調（F-306）: 上流・下流の枠の色。 */
+  readonly impactUp: string;
+  readonly impactDown: string;
   readonly palette: readonly string[];
 }
 
 export const lightTheme: Theme = {
   bg: '#ffffff', headerBg: '#f5f7fa', text: '#1f2933', onColor: '#ffffff', grid: '#eef1f5', gridStrong: '#cbd2d9', weekend: '#f3f4f6', today: '#e03131',
-  rowLine: '#d9e2ec', selection: '#f08c00', hover: '#74c0fc', dep: '#5f6b7a', depViolation: '#e03131',
+  rowLine: '#d9e2ec', selection: '#f08c00', hover: '#74c0fc', dep: '#5f6b7a', depViolation: '#e03131', impactUp: '#e8590c', impactDown: '#1971c2',
   palette: ['#2364aa', '#2d7d46', '#c0392b', '#8e44ad', '#d68910', '#16a085', '#7f8c8d', '#b03a6e'],
 };
 
 export const darkTheme: Theme = {
   bg: '#161b22', headerBg: '#1f252d', text: '#e4e7eb', onColor: '#0b0f14', grid: '#222a33', gridStrong: '#3a4552', weekend: '#1b222b', today: '#ff6b6b',
-  rowLine: '#30363d', selection: '#ffa94d', hover: '#4dabf7', dep: '#9aa5b1', depViolation: '#ff6b6b',
+  rowLine: '#30363d', selection: '#ffa94d', hover: '#4dabf7', dep: '#9aa5b1', depViolation: '#ff6b6b', impactUp: '#ff922b', impactDown: '#4dabf7',
   palette: ['#6cb2ff', '#51cf66', '#ff8787', '#b197fc', '#ffa94d', '#38d9a9', '#adb5bd', '#f783ac'],
 };
 
@@ -89,6 +92,8 @@ export interface DrawOptions {
   readonly theme?: Theme;
   /** 稼働日でない日か（通算日数。祝日・会社の休日・休みの曜日。F-603）。指定すると、週末の代わりにこの日を塗る。 */
   readonly nonWorkingDay?: (day: number) => boolean;
+  /** 影響範囲の強調（F-306）。選択項目の上流・下流に枠を付け、関係のない項目を薄くし、依存線はその中でつながるものだけを描く。 */
+  readonly emphasis?: { readonly up: ReadonlySet<Id>; readonly down: ReadonlySet<Id> };
 }
 
 /** 種別の色。種別マスタに無ければ、種別名から決めた既定のパレット色（同じ名前は常に同じ色）。 */
@@ -299,6 +304,8 @@ export function buildDrawList(s: Schedule, layout: Layout, o: DrawOptions): Draw
     const a = analyze(s);
     const margin = 24;
     const sel = o.selection;
+    const emph = o.emphasis;
+    const inEmph = (id: Id): boolean => (sel?.has(id) ?? false) || (emph?.up.has(id) ?? false) || (emph?.down.has(id) ?? false);
     const geom = (id: Id): { cy: number; x0: number; x1: number } | null => {
       const pos = layout.itemPos.get(id);
       const dt = a.dates.get(id);
@@ -313,6 +320,7 @@ export function buildDrawList(s: Schedule, layout: Layout, o: DrawOptions): Draw
     };
     for (const d of a.deps) {
       if (mode === 'selected' && !(sel?.has(d.from.id) || sel?.has(d.to.id))) continue;
+      if (emph && !(inEmph(d.from.id) && inEmph(d.to.id))) continue;
       const f = geom(d.from.id);
       const t = geom(d.to.id);
       if (!f || !t) continue;
@@ -323,9 +331,19 @@ export function buildDrawList(s: Schedule, layout: Layout, o: DrawOptions): Draw
       const B = { x: toStart ? t.x0 : t.x1, y: t.cy };
       if (Math.max(A.x, B.x) < -margin || Math.min(A.x, B.x) > width + margin) continue;
       const violated = a.violations.has(d.id);
-      const emphasized = mode === 'selected' || (sel?.has(d.from.id) ?? false) || (sel?.has(d.to.id) ?? false);
+      const emphasized = emph !== undefined || mode === 'selected' || (sel?.has(d.from.id) ?? false) || (sel?.has(d.to.id) ?? false);
       deps.push({ t: 'poly', points: routeDependency(A, fromEnd, B, toStart, laneH), color: violated ? theme.depViolation : theme.dep, width: violated || emphasized ? 1.75 : 1, arrow: true });
       depCount++;
+    }
+  }
+
+  // --- 影響範囲の強調（F-306）---
+  if (o.emphasis) {
+    const { up, down } = o.emphasis;
+    for (const b of hitBoxes) {
+      if (up.has(b.id)) overlay.push({ t: 'rect', x: b.x - 2, y: b.y - 2, w: b.w + 4, h: b.h + 4, stroke: theme.impactUp, lineWidth: 2.5, radius: 3 });
+      else if (down.has(b.id)) overlay.push({ t: 'rect', x: b.x - 2, y: b.y - 2, w: b.w + 4, h: b.h + 4, stroke: theme.impactDown, lineWidth: 2.5, radius: 3 });
+      else if (!o.selection?.has(b.id)) overlay.push({ t: 'rect', x: b.x, y: b.y, w: b.w, h: b.h, fill: theme.bg, alpha: 0.65 });
     }
   }
 

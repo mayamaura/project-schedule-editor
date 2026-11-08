@@ -556,5 +556,23 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <tr><td>モデル一覧（F-713）</td><td>プロバイダの <code>status().models</code> から取る設計。Copilot の一覧取得は未接続</td></tr>
 <tr><td>承認前に日程が変わった場合</td><td>提案は依頼時点の日程に対して検証済み。承認時に不整合（存在しない ID など）なら、<code>applyCommand</code> が拒否して理由を出す</td></tr>
 <tr><td>F-710 の「提案ログ」</td><td>会話・提案（要約・変更一覧・適用済みか）・指摘を保存。適用の取り消し（Undo）の記録はしない</td></tr></table>
+<h2 id="r5">18. R5: 運用の質の実装状況（2026-11-08）</h2>
+<p>要件 F-203, F-207, F-303（Phase 3 で実装済みを確認）, F-306, F-402, F-403, F-516, F-519, F-521。</p>
+<table><tr><th>要件</th><th>実装</th></tr>
+<tr><td>F-203 キーボード操作 / F-207 一括移動</td><td>domain <code>multi.ts</code>（純関数）: <code>neighborItem</code>（矢印キーで、同じ行は開始日の前後、上下は隣の表示行で開始日が近い項目へ）、<code>shiftCommand</code>（選んだ項目・プロジェクトを日数ずらす。<strong>プロジェクトを選ぶとその項目を全て、子孫ごと動かすか選べる</strong>。重複しても二重に動かさない）、<code>copyItems</code> / <code>pasteCommand</code>（新しい ID。日付・種別・メモは同じ。依存は写さない）、<code>deleteItemsCommand</code>。画面: 矢印キー = 選択の移動、<strong>Alt+←/→ = 選択を 1 日ずらす（Shift で 7 日）</strong>、Ctrl+C / X / V、Delete（複数可）、<strong>Ctrl / Shift + クリック = 選択に加える・外す</strong>、右クリック「選択した N 件を日数ずらす…」「コピー」「貼り付け」。全て 1 つの batch（Undo 1 単位）。コピーはアプリ内のみ（OS のクリップボードは使わない）。</td></tr>
+<tr><td>F-303 依存タイプ</td><td>FS / SS / FF / SF とラグ（日）は、Phase 3 の詳細パネルで編集でき、判定・線の描画も 4 種類に対応済み（<code>shortfallDays</code>、<code>routeDependency</code>）。R5 では追加の実装なし。</td></tr>
+<tr><td>F-306 影響範囲</td><td>domain <code>impact.ts</code>: <code>impactOf</code>（上流・下流を推移的にたどる。循環でも止まる）。<code>buildDrawList</code> の <code>emphasis</code>: 上流は橙・下流は青の枠、関係のない項目は薄くし、<strong>依存線は選択・上流・下流の中でつながるものだけ</strong>を描く。ツールバーの「影響範囲」（項目を選んだときだけ）。</td></tr>
+<tr><td>F-402 フィルタ</td><td>domain <code>filter.ts</code>: <code>filterSchedule</code>（名称検索 = 項目名・メモ・プロジェクト名、状態・担当・タグ（項目内は OR、条件どうしは AND）、期間）。<strong>日程は変えず、表示用の絞り込んだコピー</strong>を描く（ID は同じなので、選択・編集は元の日程に対して行える）。一致したプロジェクトの祖先は文脈として残す。依存は両端が残るものだけ。</td></tr>
+<tr><td>F-403 ビューの保存・切替</td><td>domain <code>view.ts</code>（ビュー = フィルタ + 日付ヘッダ + 依存線の表示 + 折りたたみ）。<strong>共有ビューは Git の <code>views/&lt;id&gt;.json</code></strong>（日程の自動保存の対象外。<code>view:save</code> / <code>view:delete</code>。他の人の更新とはファイル単位の 3 版で合わせる。履歴に残す前の変更一覧に出る）、<strong>個人用はこの PC（ブラウザ領域）にフォルダごとに保存</strong>。画面: 「フィルタ・ビュー」。</td></tr>
+<tr><td>F-516 バックアップ</td><td><code>GitService.backupWork</code>: 作業版を共有先へ <code>push -u origin &lt;作業版&gt;</code>（<strong>強制しない</strong>。作業版でだけ）。状態は「なし / 済み / バックアップ後に進んだ」（共有先の追跡参照と比べる）。作業版の一覧に「バックアップ」。既定は手動（決定 G2）。</td></tr>
+<tr><td>F-519 整理</td><td><code>archiveWork</code>: <code>branch.&lt;名&gt;.pse-archived</code> を設定して一覧から隠す。<strong>履歴（ブランチ）は消さない</strong>。一覧の「整理した作業版」から戻せる。反映の完了画面に「続ける / 整理する」（整理 = 正式版へ戻して隠す）。</td></tr>
+<tr><td>F-521 中断からの再開</td><td>反映・共有のウィザードを始めると <code>.autosave/flow.json</code> を作り、終了・やめたら消す（アプリが途中で落ちたときだけ残る）。開き直したとき、この印か <strong>merge の途中（<code>MERGE_HEAD</code>）</strong>があれば「続きから再開 / 最初からやり直し」を出す。どちらも、途中の取り込みは <code>merge --abort</code> で安全に取りやめ（保存した履歴は失われない）、「続きから再開」はウィザードを最初の確認から開く（進みは Git の状態から再計算）。</td></tr></table>
+<h3>18.1 未実装・制約</h3>
+<table><tr><th>項目</th><th>状況</th></tr>
+<tr><td>複数選択のドラッグ移動</td><td>未実装。Alt+矢印・右クリックの「日数ずらす」・ダイアログで一括移動する（ドラッグは 1 項目ずつ）</td></tr>
+<tr><td>コピー &amp; 貼り付け</td><td>アプリ内のみ。貼り付けは同じ日付（コピー元と同じ位置）。貼り付け先は選択中のプロジェクト</td></tr>
+<tr><td>フィルタ中の編集</td><td>絞り込んだ表示の上でも編集できる。作成した項目がフィルタに合わないと、すぐ非表示になる</td></tr>
+<tr><td>個人用ビュー</td><td>この PC のブラウザ領域にのみ保存（アプリのデータ消去で消える。他の PC・他の人には共有されない）</td></tr>
+<tr><td>F-404（列の表示切替）</td><td>バックログ（C）のまま</td></tr></table>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>

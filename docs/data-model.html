@@ -39,6 +39,7 @@
 │   └─ tpl-release-std.json
 └─ ai-prompts/              # AI への共有指示・観点
     └─ pt-release-risk.json</pre>
+<div class="note">共有ビュー（F-403）: <code>views/&lt;id&gt;.json</code> = <code>{ id, name, shared, filter, headerMode, dependencies, collapsed }</code>（<code>src/domain/view.ts</code>。他と同じ出力規則）。日程の自動保存の対象外で、<code>view:save</code> / <code>view:delete</code> で個別に保存する。個人用ビューはこのファイルにならず、この PC にのみ保存する。architecture 18。</div>
 <h3 id="calendar-file">2.1 calendar.json（カレンダー設定。F-603）</h3>
 <pre>{
   "holidays": { "2026-12-29": "年末休業" },   // 会社の休日・追加の休み（日付 → 名称）

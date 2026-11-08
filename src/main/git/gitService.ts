@@ -7,8 +7,9 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { AI_PROMPT_PATH_RE } from '../../domain/ai/prompt';
 import { CALENDAR_PATH } from '../../domain/calendar';
+import { VIEW_PATH_RE } from '../../domain/view';
 import { TEMPLATE_PATH_RE } from '../../domain/template';
-import { deleteAiPrompt, deleteTemplate, isKnown, saveAiPrompt, saveCalendar, saveFiles, saveTemplate } from '../fileRepository';
+import { deleteAiPrompt, deleteTemplate, deleteView, isKnown, saveAiPrompt, saveCalendar, saveFiles, saveTemplate, saveView } from '../fileRepository';
 
 export type GitSource = 'external' | 'bundled';
 export type Version = readonly [number, number, number];
@@ -90,6 +91,8 @@ export interface GitState {
   /** 最後に保存した版の日程データ。履歴が無ければ null。 */
   readonly head: Files | null;
   readonly hasRemote: boolean;
+  /** 取り込み・反映の途中で終了した状態（merge の途中）が残っている（F-521）。 */
+  readonly inMerge: boolean;
 }
 
 export type SaveStatus = { readonly status: 'ok'; readonly hash: string } | { readonly status: 'nothing' } | { readonly status: 'identity-required' } | { readonly status: 'error'; readonly message: string };
@@ -122,6 +125,10 @@ export interface WorkVersion {
   readonly date: string;
   /** 正式版より先に進んでいる履歴の件数。 */
   readonly ahead: number;
+  /** 一覧から隠している（整理済み。F-519）。履歴は消えていない。 */
+  readonly archived: boolean;
+  /** 共有先へのバックアップの状態（F-516）: none = まだ / done = 最新を送信済み / outdated = 送信後に進んでいる。 */
+  readonly backup: 'none' | 'done' | 'outdated';
 }
 
 export type MergeInputs =
@@ -221,12 +228,12 @@ export class GitService {
   }
 
   async state(): Promise<GitState> {
-    if (!(await this.isRepo())) return { isRepo: false, branch: null, dirty: false, head: null, hasRemote: false };
+    if (!(await this.isRepo())) return { isRepo: false, branch: null, dirty: false, head: null, hasRemote: false, inMerge: false };
     this.ensureExcluded();
     const branch = await this.text(['symbolic-ref', '--short', '-q', 'HEAD']);
     const dirty = ((await this.text(['status', '--porcelain']))?.length ?? 0) > 0;
     const head = (await this.hasCommits()) ? await this.filesAt('HEAD') : null;
-    return { isRepo: true, branch, dirty, head, hasRemote: await this.hasRemote() };
+    return { isRepo: true, branch, dirty, head, hasRemote: await this.hasRemote(), inMerge: await this.mergeInProgress() };
   }
 
   /** 指定した版（コミット）の日程データのファイルを全て読む。 */
@@ -344,6 +351,35 @@ export class GitService {
     return (await this.run(['merge-base', '--is-ancestor', a, b])).ok;
   }
 
+  // ---- 作業版のバックアップ・整理・途中状態（F-516, F-519, F-521）----
+  /** 今の作業版を共有先へ送る（PC の故障への備え）。他の人には正式版としては扱われない。強制はしない。 */
+  async backupWork(): Promise<{ ok: true } | { ok: false; message: string }> {
+    const cur = await this.currentBranch();
+    if (!cur || !BRANCH_RE.test(cur) || !cur.startsWith('work/')) return { ok: false, message: 'バックアップできるのは作業版です（正式版ではありません）' };
+    if (!(await this.hasRemote())) return { ok: false, message: '共有先が設定されていません' };
+    const p = await this.run(['push', '-u', 'origin', cur], { timeoutMs: 120_000 });
+    return p.ok ? { ok: true } : { ok: false, message: p.stderr };
+  }
+
+  /** 作業版を一覧から隠す / 戻す。履歴（ブランチ）は消さない。 */
+  async archiveWork(name: string, archived: boolean): Promise<{ ok: true } | { ok: false; message: string }> {
+    if (!BRANCH_RE.test(name) || !name.startsWith('work/') || !(await this.rev(name))) return { ok: false, message: '整理できるのは、存在する作業版だけです' };
+    const r = archived ? await this.run(['config', '--local', `branch.${name}.pse-archived`, 'true']) : await this.run(['config', '--local', '--unset', `branch.${name}.pse-archived`]);
+    return r.ok || !archived ? { ok: true } : { ok: false, message: r.stderr };
+  }
+
+  /** 取り込み・反映の途中で終了した状態（merge の途中）が残っているか。 */
+  async mergeInProgress(): Promise<boolean> {
+    return (await this.run(['rev-parse', '-q', '--verify', 'MERGE_HEAD'])).ok;
+  }
+
+  /** 途中の取り込みを取りやめて、保存済みの状態へ戻す（保存した履歴は失われない）。途中でなければ何もしない。 */
+  async abortMerge(): Promise<{ ok: true } | { ok: false; message: string }> {
+    if (!(await this.mergeInProgress())) return { ok: true };
+    const r = await this.run(['merge', '--abort']);
+    return r.ok ? { ok: true } : { ok: false, message: r.stderr };
+  }
+
   // ---- 作業版（F-513, F-514, F-515）----
   async workVersions(): Promise<WorkVersion[]> {
     const r = await this.text(['for-each-ref', '--format=%(refname:short)%1f%(committerdate:iso-strict)', 'refs/heads/work/']);
@@ -355,7 +391,11 @@ export class GitService {
       if (!BRANCH_RE.test(name)) continue;
       const display = (await this.text(['config', '--get', `branch.${name}.description`])) || name;
       const ahead = Number((await this.text(['rev-list', '--count', `${main}..${name}`])) ?? 0);
-      out.push({ name, display, date, ahead });
+      const archived = (await this.text(['config', '--get', `branch.${name}.pse-archived`])) === 'true';
+      const remoteTip = await this.rev(`refs/remotes/origin/${name}`);
+      const localTip = await this.rev(name);
+      const backup = remoteTip === null ? 'none' : remoteTip === localTip ? 'done' : 'outdated';
+      out.push({ name, display, date, ahead, archived, backup });
     }
     return out.sort((x, y) => (x.date < y.date ? 1 : -1));
   }
@@ -454,13 +494,19 @@ export class GitService {
     const baseHash = await this.text(['merge-base', 'HEAD', theirsRef]);
     if (!baseHash) return;
     const [b, o, t] = [await this.filesAt(baseHash), await this.filesAt('HEAD'), await this.filesAt(theirsRef)];
-    const paths = new Set([...Object.keys(b), ...Object.keys(o), ...Object.keys(t)].filter((p) => TEMPLATE_PATH_RE.test(p) || p === CALENDAR_PATH || AI_PROMPT_PATH_RE.test(p)));
+    const paths = new Set([...Object.keys(b), ...Object.keys(o), ...Object.keys(t)].filter((p) => TEMPLATE_PATH_RE.test(p) || p === CALENDAR_PATH || AI_PROMPT_PATH_RE.test(p) || VIEW_PATH_RE.test(p)));
     for (const p of paths) {
       const [bv, ov, tv] = [b[p], o[p], t[p]];
       const result = ov === tv ? ov : ov === bv ? tv : tv === bv ? ov : ov;
       if (result === ov) continue;
       if (p === CALENDAR_PATH) {
         if (result !== undefined) saveCalendar(this.root, result); // 削除はしない（設定の既定に戻るだけ）
+        continue;
+      }
+      if (VIEW_PATH_RE.test(p)) {
+        const vid = p.slice('views/'.length, -'.json'.length);
+        if (result === undefined) deleteView(this.root, vid);
+        else saveView(this.root, vid, result);
         continue;
       }
       if (AI_PROMPT_PATH_RE.test(p)) {

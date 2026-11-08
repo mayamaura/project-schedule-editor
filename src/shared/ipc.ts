@@ -104,6 +104,7 @@ export const ipcSchemas = {
       dirty: z.boolean(),
       head: z.record(z.string(), z.string()).nullable(),
       hasRemote: z.boolean(),
+      inMerge: z.boolean(),
     }),
   },
   /** データの場所を新規作成する（版管理を始める）。 */
@@ -128,11 +129,21 @@ export const ipcSchemas = {
     output: z.object({
       current: z.string().nullable(),
       hasRemote: z.boolean(),
-      items: z.array(z.object({ name: z.string(), display: z.string(), date: z.string(), ahead: z.number() })),
+      items: z.array(z.object({ name: z.string(), display: z.string(), date: z.string(), ahead: z.number(), archived: z.boolean(), backup: z.enum(['none', 'done', 'outdated']) })),
     }),
   },
   /** 作業版を作る（正式版の最新から。保存前の変更は元の版に退避）。 */
   'work:create': { input: z.object({ display: z.string().min(1).max(100) }), output: z.object({ ok: z.boolean(), message: z.string().optional() }) },
+  /** 今の作業版を共有先へバックアップする（F-516）。 */
+  'work:backup': { input: z.undefined(), output: z.object({ ok: z.boolean(), message: z.string().optional() }) },
+  /** 作業版を一覧から隠す / 戻す（整理。履歴は消さない。F-519）。 */
+  'work:archive': { input: z.object({ name: z.string().max(100), archived: z.boolean() }), output: z.object({ ok: z.boolean(), message: z.string().optional() }) },
+  /** 反映・共有の途中の印（F-521）。アプリが落ちたあとに、再開かやり直しを選べるようにする。 */
+  'flow:get': { input: z.undefined(), output: z.object({ kind: z.enum(['reflect', 'share']), startedAt: z.string() }).nullable() },
+  'flow:set': { input: z.object({ kind: z.enum(['reflect', 'share']) }), output: z.undefined() },
+  'flow:clear': { input: z.undefined(), output: z.undefined() },
+  /** 途中で終了した取り込みを取りやめる（保存した履歴は失われない。F-521）。 */
+  'git:abortMerge': { input: z.undefined(), output: z.object({ ok: z.boolean(), message: z.string().optional() }) },
   /** 版を切り替える（保存前の変更は自動で退避・復元）。 */
   'work:switch': { input: z.object({ name: z.string().max(100) }), output: z.object({ ok: z.boolean(), message: z.string().optional() }) },
   /** 作業ツリーの日程データを読み直す（切替・取り込みの後）。 */
@@ -191,6 +202,9 @@ export const ipcSchemas = {
   'ai:prompts': { input: z.undefined(), output: z.array(promptTemplateSchema) },
   'ai:prompt-save': { input: z.object({ prompt: promptTemplateSchema }), output: z.undefined() },
   'ai:prompt-delete': { input: z.object({ id: z.string().max(80), shared: z.boolean() }), output: z.undefined() },
+  /** チーム共有のビューの保存・削除（F-403）。内容は Main でも検証する。 */
+  'view:save': { input: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), text: z.string().max(2_000_000) }), output: z.undefined() },
+  'view:delete': { input: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/) }), output: z.undefined() },
   'repo:reload': { input: z.undefined(), output: z.object({ files: z.record(z.string(), z.string()) }) },
   /** 取り込みの準備: 共有先の最新を取得し、3 版の材料を返す（F-511, F-518）。main = 正式版の最新（作業版のとき）。 */
   'sync:prepare': {

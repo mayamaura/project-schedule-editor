@@ -135,13 +135,14 @@ test('評価・指摘は「指摘・疑い」として出て、該当項目へ�
 
 test('実行中は中止できる。待機中も他の操作ができる（NF-013）', async () => {
   await app.close();
-  ({ app, page } = await launch({ PSE_AI_MOCK: '1', PSE_AI_MOCK_DELAY: '80' }));
+  ({ app, page } = await launch({ PSE_AI_MOCK: '1', PSE_AI_MOCK_DELAY: '400' }));
   await openDir(app, page, dir);
   await page.getByTestId('ai-open').click();
   await page.getByTestId('ai-input').fill('こんにちは、これは少し長めの確認の文章です');
   await page.getByTestId('ai-send').click();
   await expect(page.getByTestId('ai-stop')).toBeVisible();
   await expect(page.getByTestId('timeline-canvas')).toBeVisible();
+  await expect(page.getByTestId('branch-band')).toContainText('正式版'); // 版の情報が読み込まれてから編集する（確認の判定に必要）
   await page.getByTestId('add-project').click(); // 待機中でも編集できる
   await page.getByTestId('direct-go').click(); // 正式版の直接編集の確認（F-520）
   await expect(page.locator('.tree-row')).toHaveCount(3);

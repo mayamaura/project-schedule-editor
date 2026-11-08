@@ -67,6 +67,13 @@ export function SyncWizard({ mode, display, schedule, flush, onClose }: { mode: 
   const [remoteUrl, setRemoteUrl] = useState('');
   const [reload, setReload] = useState(false);
   const retried = useRef(0);
+  // 途中の印（F-521）: 始めたら付け、終わり・やめたら外す。アプリが途中で落ちたときだけ残る
+  useEffect(() => {
+    void window.api.invoke('flow:set', { kind: mode === 'main' ? 'share' : 'reflect' });
+  }, []);
+  const closeAll = (r: boolean): void => {
+    void window.api.invoke('flow:clear').then(() => onClose(r));
+  };
 
   const prepare = async (): Promise<void> => {
     setPhase('checking');
@@ -174,7 +181,7 @@ export function SyncWizard({ mode, display, schedule, flush, onClose }: { mode: 
             <p role="alert" data-testid="sync-error">{message ? t('sync.failed', { message }) : t('sync.fetchFailed')}</p>
             <div className="actions">
               <button type="button" onClick={() => void prepare()}>再試行</button>
-              <button type="button" onClick={() => onClose(reload)}>{t('sync.close')}</button>
+              <button type="button" onClick={() => closeAll(reload)}>{t('sync.close')}</button>
             </div>
           </>
         ) : null}
@@ -182,7 +189,7 @@ export function SyncWizard({ mode, display, schedule, flush, onClose }: { mode: 
         {phase === 'dirty' ? (
           <>
             <p role="alert" data-testid="sync-dirty">{t('sync.dirty')}</p>
-            <div className="actions"><button type="button" onClick={() => onClose(reload)}>{t('sync.close')}</button></div>
+            <div className="actions"><button type="button" onClick={() => closeAll(reload)}>{t('sync.close')}</button></div>
           </>
         ) : null}
 
@@ -196,7 +203,7 @@ export function SyncWizard({ mode, display, schedule, flush, onClose }: { mode: 
             {message ? <p role="alert">{message}</p> : null}
             <div className="actions">
               <button type="button" data-testid="remote-set" disabled={remoteUrl.trim() === ''} onClick={() => void setRemote()}>{t('sync.setRemote')}</button>
-              <button type="button" onClick={() => onClose(reload)}>{t('sync.cancel')}</button>
+              <button type="button" onClick={() => closeAll(reload)}>{t('sync.cancel')}</button>
             </div>
           </>
         ) : null}
@@ -230,7 +237,7 @@ export function SyncWizard({ mode, display, schedule, flush, onClose }: { mode: 
             </ul>
             <div className="actions">
               <button type="button" data-testid="conflicts-next" disabled={merged.conflicts.length > 0} onClick={() => setPhase('confirm')}>{t('sync.next')}</button>
-              <button type="button" onClick={() => onClose(reload)}>{t('sync.cancel')}</button>
+              <button type="button" onClick={() => closeAll(reload)}>{t('sync.cancel')}</button>
             </div>
           </>
         ) : null}
@@ -276,7 +283,7 @@ export function SyncWizard({ mode, display, schedule, flush, onClose }: { mode: 
               <button type="button" data-testid="sync-go" disabled={blocked} onClick={() => void apply()}>
                 {t(mode === 'work' ? 'sync.go.work' : 'sync.go.main')}
               </button>
-              <button type="button" onClick={() => onClose(reload)}>{t('sync.cancel')}</button>
+              <button type="button" onClick={() => closeAll(reload)}>{t('sync.cancel')}</button>
             </div>
           </>
         ) : null}
@@ -285,7 +292,26 @@ export function SyncWizard({ mode, display, schedule, flush, onClose }: { mode: 
           <>
             <p data-testid="sync-done">{t(mode === 'work' ? 'sync.done.work' : 'sync.done.main')}</p>
             <div className="actions">
-              <button type="button" data-testid="sync-close" onClick={() => onClose(true)}>{t(mode === 'work' ? 'sync.continue' : 'sync.close')}</button>
+              <button type="button" data-testid="sync-close" onClick={() => closeAll(true)}>{t(mode === 'work' ? 'sync.continue' : 'sync.close')}</button>
+              {mode === 'work' ? (
+                <button
+                  type="button"
+                  data-testid="sync-archive"
+                  title={t('work.archiveHint')}
+                  onClick={() =>
+                    void (async () => {
+                      const st = await window.api.invoke('git:state');
+                      if (st.branch) {
+                        await window.api.invoke('work:switch', { name: 'main' });
+                        await window.api.invoke('work:archive', { name: st.branch, archived: true });
+                      }
+                      closeAll(true);
+                    })()
+                  }
+                >
+                  {t('work.archive')}
+                </button>
+              ) : null}
             </div>
           </>
         ) : null}

@@ -148,6 +148,46 @@ test('同じ項目がぶつかったら、項目ごとに選んで解決して�
   await expect(page.getByTestId('unsaved')).toHaveText('未記録の変更なし');
 });
 
+test('作業版を共有先へバックアップでき、整理して一覧から隠し、あとで戻せる。履歴は消えない（F-516, F-519）', async () => {
+  await page.getByTestId('branch-band').click();
+  await expect(page.getByTestId('work-backup-state')).toContainText('バックアップなし');
+  await page.getByTestId('work-backup').click();
+  await expect(page.getByTestId('work-backup-state')).toContainText('バックアップ済み');
+  expect(git(remote, 'branch', '--list', 'work/*')).toContain('work/'); // 共有先に作業版がある
+  expect(git(remote, 'log', '--first-parent', '--format=%s', '-n1', 'main')).not.toContain('バックアップ'); // 正式版は変わらない
+  await page.getByRole('button', { name: '閉じる' }).first().click();
+
+  // 反映したあと「整理する」を選ぶと、正式版に戻り、作業版は一覧から隠れる
+  await rename('設計（整理前）');
+  await recordHistory();
+  await page.getByTestId('ver-sync').click();
+  await page.getByTestId('sync-go').click();
+  await expect(page.getByTestId('sync-done')).toBeVisible();
+  await page.getByTestId('sync-archive').click();
+  await expect(page.getByTestId('branch-band')).toContainText('正式版');
+  await page.getByTestId('branch-band').click();
+  await expect(page.getByTestId('work-item')).toHaveCount(1); // 正式版だけ
+  await page.getByTestId('works-archived').locator('summary').click();
+  await expect(page.getByTestId('work-archived-item')).toHaveCount(1);
+  await page.getByTestId('work-restore').click();
+  await expect(page.getByTestId('work-item')).toHaveCount(2);
+  expect(git(a, 'branch', '--list', 'work/*')).toContain('work/'); // ブランチは消えていない
+  await page.getByRole('button', { name: '閉じる' }).first().click();
+});
+
+test('反映の途中で終了していたら、開き直したときに、続きから再開かやり直しを選べる（F-521）', async () => {
+  mkdirSync(join(a, '.autosave'), { recursive: true });
+  writeFileSync(join(a, '.autosave', 'flow.json'), JSON.stringify({ kind: 'reflect', startedAt: new Date().toISOString() }));
+  await app.evaluate(({ dialog }, d) => {
+    dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [d] })) as never;
+  }, a);
+  await page.getByTestId('open').click();
+  await expect(page.getByTestId('resume-body')).toContainText('途中');
+  await page.getByTestId('resume-restart').click();
+  await expect(page.getByTestId('resume-body')).toBeHidden();
+  expect(() => readFileSync(join(a, '.autosave', 'flow.json'))).toThrow(); // 印は消えた
+});
+
 test('共有先のアドレスを入れ、空のフォルダを選ぶと、共有先から取得して開ける（F-501）', async () => {
   const dest = join(top, 'cloned');
   mkdirSync(dest);

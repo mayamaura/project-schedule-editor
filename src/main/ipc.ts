@@ -6,6 +6,7 @@ import { basename } from 'node:path';
 import { emptySchedule, type Schedule } from '../domain/model';
 import { serializeSchedule } from '../domain/serialize';
 import { parseCalendar, type Calendar } from '../domain/calendar';
+import { parseView } from '../domain/view';
 import { parseCsv, toCsv } from '../domain/csv';
 import { serializeAiPrompt } from '../domain/ai/prompt';
 import { defaultCalendar } from '../domain/calendar';
@@ -15,7 +16,7 @@ import { AiService } from './ai/service';
 import { AiStore } from './ai/store';
 import { buildHtmlFile, renderPdf } from './export';
 import { parseTemplate } from '../domain/template';
-import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveAiPrompt, deleteAiPrompt, saveCalendar, saveFiles, saveTemplate, writeAtomic } from './fileRepository';
+import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveAiPrompt, deleteAiPrompt, saveView, deleteView, readFlow, writeFlow, clearFlow, saveCalendar, saveFiles, saveTemplate, writeAtomic } from './fileRepository';
 
 // 開いているフォルダ（Renderer からパスは受け取らない。NF-007）
 let currentRoot: string | null = null;
@@ -89,7 +90,7 @@ export function registerIpc(): void {
     return { written: saveFiles(currentRoot, files).written.length };
   });
   handle('git:state', async () => {
-    if (!gitService) return { available: false, isRepo: false, branch: null, dirty: false, head: null, hasRemote: false };
+    if (!gitService) return { available: false, isRepo: false, branch: null, dirty: false, head: null, hasRemote: false, inMerge: false };
     return { available: true, ...(await gitService.state()) };
   });
   handle('git:init', async () => {
@@ -110,6 +111,27 @@ export function registerIpc(): void {
   });
   handle('work:create', async ({ display }) => {
     const r = await needGit().createWork(display);
+    return r.ok ? { ok: true } : { ok: false, message: r.message };
+  });
+  handle('work:backup', async () => {
+    const r = await needGit().backupWork();
+    return r.ok ? { ok: true } : { ok: false, message: r.message };
+  });
+  handle('work:archive', async ({ name, archived }) => {
+    const r = await needGit().archiveWork(name, archived);
+    return r.ok ? { ok: true } : { ok: false, message: r.message };
+  });
+  handle('flow:get', () => (currentRoot ? readFlow(currentRoot) : null));
+  handle('flow:set', ({ kind }) => {
+    if (currentRoot) writeFlow(currentRoot, kind);
+    return undefined;
+  });
+  handle('flow:clear', () => {
+    if (currentRoot) clearFlow(currentRoot);
+    return undefined;
+  });
+  handle('git:abortMerge', async () => {
+    const r = await needGit().abortMerge();
     return r.ok ? { ok: true } : { ok: false, message: r.message };
   });
   handle('work:switch', async ({ name }) => {
@@ -255,6 +277,19 @@ export function registerIpc(): void {
     const p = parseCalendar(text);
     if (!p.ok) throw new Error(`カレンダーの内容が正しくありません: ${p.message}`);
     saveCalendar(currentRoot, text);
+    return undefined;
+  });
+  handle('view:save', ({ id, text }) => {
+    if (!currentRoot) throw new Error('フォルダが開かれていない');
+    const p = parseView(text);
+    if (!p.ok) throw new Error(`ビューの内容が正しくありません: ${p.message}`);
+    if (p.view.id !== id) throw new Error('ビューの id とファイル名が一致しません');
+    saveView(currentRoot, id, text);
+    return undefined;
+  });
+  handle('view:delete', ({ id }) => {
+    if (!currentRoot) throw new Error('フォルダが開かれていない');
+    deleteView(currentRoot, id);
     return undefined;
   });
   handle('template:delete', ({ id }) => {

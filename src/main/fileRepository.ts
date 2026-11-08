@@ -8,6 +8,7 @@ import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, rea
 import { dirname, join, resolve, sep } from 'node:path';
 import { AI_PROMPT_PATH_RE, aiPromptPath } from '../domain/ai/prompt';
 import { CALENDAR_PATH } from '../domain/calendar';
+import { VIEW_PATH_RE, viewPath } from '../domain/view';
 import { TEMPLATE_PATH_RE, templatePath } from '../domain/template';
 
 export type Files = Record<string, string>;
@@ -136,13 +137,13 @@ export function recover(root: string): RecoverResult {
   return { completedTransaction: completed, removedTmpFiles: removeOrphanTmp(root) };
 }
 
-const KNOWN = [/^schedule\.json$/, /^types\.json$/, /^projects\/[A-Za-z0-9_-]+\.json$/, /^dependencies\/[A-Za-z0-9_-]+\.json$/, TEMPLATE_PATH_RE, /^calendar\.json$/, AI_PROMPT_PATH_RE];
+const KNOWN = [/^schedule\.json$/, /^types\.json$/, /^projects\/[A-Za-z0-9_-]+\.json$/, /^dependencies\/[A-Za-z0-9_-]+\.json$/, TEMPLATE_PATH_RE, /^calendar\.json$/, AI_PROMPT_PATH_RE, VIEW_PATH_RE];
 export const isKnown = (rel: string): boolean => KNOWN.some((r) => r.test(rel));
 
 function listKnown(root: string): string[] {
   const out: string[] = [];
   for (const rel of ['schedule.json', 'types.json', CALENDAR_PATH]) if (existsSync(join(root, rel))) out.push(rel);
-  for (const dir of ['projects', 'dependencies', 'templates', 'ai-prompts']) {
+  for (const dir of ['projects', 'dependencies', 'templates', 'ai-prompts', 'views']) {
     const d = join(root, dir);
     if (!existsSync(d)) continue;
     for (const name of readdirSync(d)) if (isKnown(`${dir}/${name}`)) out.push(`${dir}/${name}`);
@@ -161,6 +162,26 @@ export function loadFiles(root: string): Files {
 export function saveTemplate(root: string, id: string, text: string): void {
   writeTransaction(root, { [templatePath(id)]: text });
 }
+/** 反映・共有の途中の印（.autosave/flow.json。Git 管理外。F-521）。 */
+export function readFlow(root: string): { kind: 'reflect' | 'share'; startedAt: string } | null {
+  try {
+    const f = JSON.parse(readFileSync(join(root, AUTOSAVE_DIR, 'flow.json'), 'utf8')) as { kind?: string; startedAt?: string };
+    return (f.kind === 'reflect' || f.kind === 'share') && typeof f.startedAt === 'string' ? { kind: f.kind, startedAt: f.startedAt } : null;
+  } catch {
+    return null;
+  }
+}
+export function writeFlow(root: string, kind: 'reflect' | 'share'): void {
+  writeAtomic(join(root, AUTOSAVE_DIR, 'flow.json'), JSON.stringify({ kind, startedAt: new Date().toISOString() }));
+}
+export function clearFlow(root: string): void {
+  try {
+    unlinkSync(join(root, AUTOSAVE_DIR, 'flow.json'));
+  } catch {
+    /* 無ければ何もしない */
+  }
+}
+
 /** カレンダー設定の保存（F-603）。 */
 export function saveCalendar(root: string, text: string): void {
   writeTransaction(root, { [CALENDAR_PATH]: text });
@@ -171,6 +192,13 @@ export function saveAiPrompt(root: string, id: string, text: string): void {
 }
 export function deleteAiPrompt(root: string, id: string): void {
   writeTransaction(root, {}, [aiPromptPath(id)]);
+}
+/** チーム共有のビュー（views/）の保存・削除（F-403）。 */
+export function saveView(root: string, id: string, text: string): void {
+  writeTransaction(root, { [viewPath(id)]: text });
+}
+export function deleteView(root: string, id: string): void {
+  writeTransaction(root, {}, [viewPath(id)]);
 }
 export function deleteTemplate(root: string, id: string): void {
   writeTransaction(root, {}, [templatePath(id)]);
@@ -193,7 +221,7 @@ export function saveFiles(root: string, files: Files): SaveResult {
     if (!existing.has(rel) || readFileSync(join(root, rel), 'utf8') !== text) changed[rel] = text;
   }
   // 標準日程（templates/）とカレンダー（calendar.json）は日程の自動保存の対象外: 渡されなくても消さない（削除は deleteTemplate）
-  const removed = [...existing].filter((rel) => !(rel in files) && !TEMPLATE_PATH_RE.test(rel) && rel !== CALENDAR_PATH && !AI_PROMPT_PATH_RE.test(rel)).sort();
+  const removed = [...existing].filter((rel) => !(rel in files) && !TEMPLATE_PATH_RE.test(rel) && rel !== CALENDAR_PATH && !AI_PROMPT_PATH_RE.test(rel) && !VIEW_PATH_RE.test(rel)).sort();
   writeTransaction(root, changed, removed);
   return { written: Object.keys(changed).sort(), removed };
 }

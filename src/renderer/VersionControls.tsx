@@ -2,7 +2,7 @@
 // 履歴に残す・履歴・戻す・診断、作業版（現在地の常時表示・切替・作成）、正式版への反映 / 共有。
 // UI に Git 用語を出さない（docs/git-ux.html）。「未記録の変更」は、最後に履歴に残した版と今の日程の diffSchedule（F-509）。
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { diffSchedule, newIssues, parseSchedule, defaultCalendar, parseAiPrompts, parseCalendar, parseTemplates, serializeCalendar, serializeTemplate, summarizeChange, type Calendar, type Id, type PromptTemplate, type Schedule, type Template } from '@domain/index';
+import { diffSchedule, newIssues, parseSchedule, defaultCalendar, parseAiPrompts, parseViews, parseCalendar, parseTemplates, serializeCalendar, serializeTemplate, summarizeChange, type Calendar, type Id, type PromptTemplate, type SavedView, type Schedule, type Template } from '@domain/index';
 import { t } from './i18n';
 import { CompareDialog, type CompareTarget } from './CompareDialog';
 import { SyncWizard } from './SyncWizard';
@@ -12,7 +12,7 @@ type LogEntry = Awaited<ReturnType<typeof window.api.invoke<'git:log'>>>[number]
 type Diag = Awaited<ReturnType<typeof window.api.invoke<'git:diagnose'>>>[number];
 type Works = Awaited<ReturnType<typeof window.api.invoke<'work:list'>>>;
 
-type Dialog = 'save' | 'history' | 'diagnose' | 'works' | 'sync' | null;
+type Dialog = 'save' | 'history' | 'diagnose' | 'works' | 'sync' | 'resume' | null;
 
 /** 画面の他の部分が知っておくべき版の状態（正式版の直接編集の確認に使う）。 */
 export interface VersionInfo {
@@ -26,6 +26,7 @@ export function VersionControls({
   templates,
   calendar,
   sharedPrompts,
+  sharedViews,
   aiNotes,
   onSaved,
   edits,
@@ -42,6 +43,8 @@ export function VersionControls({
   calendar: Calendar;
   /** チーム共有の AI の指示・観点（変更一覧に含める）。 */
   sharedPrompts: readonly PromptTemplate[];
+  /** チーム共有のビュー（変更一覧に含める）。 */
+  sharedViews: readonly SavedView[];
   /** 適用した AI 提案の要約（履歴に残すメモに「AI提案」と付記する。F-711）。 */
   aiNotes: readonly string[];
   /** 履歴に残したあと（AI 提案の記録を空にする）。 */
@@ -78,7 +81,12 @@ export function VersionControls({
     if (g.available && g.isRepo) setWorks(await window.api.invoke('work:list'));
   };
   useEffect(() => {
-    void refresh();
+    void (async () => {
+      await refresh();
+      // 反映・共有の途中で終了していたら、続きから再開かやり直しを選べる（F-521）
+      const [st, flow] = [await window.api.invoke('git:state'), await window.api.invoke('flow:get')];
+      if (flow || st.inMerge) setDialog('resume');
+    })();
   }, []);
   useEffect(() => {
     if (git) onInfo({ branch: git.branch, hasHistory: git.head !== null });
@@ -115,12 +123,19 @@ export function VersionControls({
       else if (JSON.stringify(old) !== JSON.stringify(pr)) tplLines.push(t('ai.chgEdit', { name: pr.name }));
     }
     for (const old of beforePrompts) if (!sharedPrompts.some((x) => x.id === old.id)) tplLines.push(t('ai.chgDelete', { name: old.name }));
+    const beforeViews = parseViews(git.head).views;
+    for (const vw of sharedViews) {
+      const old = beforeViews.find((x) => x.id === vw.id);
+      if (!old) tplLines.push(t('flt.chgAdd', { name: vw.name }));
+      else if (JSON.stringify(old) !== JSON.stringify(vw)) tplLines.push(t('flt.chgEdit', { name: vw.name }));
+    }
+    for (const old of beforeViews) if (!sharedViews.some((x) => x.id === old.id)) tplLines.push(t('flt.chgDelete', { name: old.name }));
     const oldCal = git.head['calendar.json'];
     const oldCalParsed = oldCal !== undefined ? parseCalendar(oldCal) : null;
     const oldText = oldCalParsed?.ok ? serializeCalendar(oldCalParsed.calendar) : serializeCalendar(defaultCalendar());
     if (oldText !== serializeCalendar(calendar)) tplLines.push(t('cal.chgEdit'));
     return [...diffSchedule(head, schedule).map(summarizeChange), ...tplLines];
-  }, [head, git, templates, calendar, sharedPrompts, schedule, edits]);
+  }, [head, git, templates, calendar, sharedPrompts, sharedViews, schedule, edits]);
 
   if (!git) return null;
   if (!git.available) return <span className="issues">{t('ver.noGit')}</span>;
@@ -378,7 +393,7 @@ export function VersionControls({
                       </div>
                     ) : null}
                   </li>
-                  {(works?.items ?? []).map((w) => (
+                  {(works?.items ?? []).filter((w) => !w.archived).map((w) => (
                     <li key={w.name} data-testid="work-item">
                       <strong className="band-text work">{w.display}</strong> {w.name === git.branch ? t('work.current') : ''}
                       <div className="mut">
@@ -388,11 +403,54 @@ export function VersionControls({
                         <button type="button" data-testid="switch-work" onClick={() => void changeVersion(() => window.api.invoke('work:switch', { name: w.name }))}>
                           {t('work.switch')}
                         </button>
+                      ) : null}{' '}
+                      {git.hasRemote ? (
+                        <span data-testid="work-backup-state" className="mut">
+                          {t(w.backup === 'done' ? 'work.backupDone' : w.backup === 'outdated' ? 'work.backupOutdated' : 'work.backupNone')}
+                        </span>
+                      ) : null}{' '}
+                      {w.name === git.branch && git.hasRemote ? (
+                        <button
+                          type="button"
+                          data-testid="work-backup"
+                          disabled={w.backup === 'done'}
+                          title={t('work.backupHint')}
+                          onClick={() =>
+                            void window.api.invoke('work:backup').then(async (r) => {
+                              setNote(r.ok ? t('work.backupOk') : t('work.backupFailed', { message: r.message ?? '' }));
+                              await refresh();
+                            })
+                          }
+                        >
+                          {t('work.backup')}
+                        </button>
+                      ) : null}
+                      {w.name !== git.branch ? (
+                        <button type="button" data-testid="work-archive" title={t('work.archiveHint')} onClick={() => void window.api.invoke('work:archive', { name: w.name, archived: true }).then(refresh)}>
+                          {t('work.archive')}
+                        </button>
                       ) : null}
                     </li>
                   ))}
-                  {works && works.items.length === 0 ? <li className="mut">{t('work.none')}</li> : null}
+                  {works && works.items.filter((w) => !w.archived).length === 0 ? <li className="mut">{t('work.none')}</li> : null}
                 </ul>
+                {works && works.items.some((w) => w.archived) ? (
+                  <details data-testid="works-archived">
+                    <summary>{t('work.archivedTitle', { n: String(works.items.filter((w) => w.archived).length) })}</summary>
+                    <ul className="history">
+                      {works.items
+                        .filter((w) => w.archived)
+                        .map((w) => (
+                          <li key={w.name} data-testid="work-archived-item">
+                            <span>{w.display}</span>{' '}
+                            <button type="button" data-testid="work-restore" onClick={() => void window.api.invoke('work:archive', { name: w.name, archived: false }).then(refresh)}>
+                              {t('work.restore')}
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                  </details>
+                ) : null}
                 <h3>{t('work.create')}</h3>
                 <p className="mut">{t('work.createHint')}</p>
                 <label className="field">
@@ -406,6 +464,42 @@ export function VersionControls({
                   </button>
                   <button type="button" onClick={() => setDialog(null)}>
                     {t('ver.cancel')}
+                  </button>
+                </div>
+              </>
+            ) : null}
+            {dialog === 'resume' ? (
+              <>
+                <h2>{t('resume.title')}</h2>
+                <p data-testid="resume-body">{t('resume.body')}</p>
+                <div className="actions">
+                  <button
+                    type="button"
+                    data-testid="resume-continue"
+                    onClick={() =>
+                      void (async () => {
+                        await window.api.invoke('git:abortMerge'); // 途中の状態は安全に取りやめ、最初の確認から続ける
+                        await window.api.invoke('flow:clear');
+                        await refresh();
+                        setDialog('sync');
+                      })()
+                    }
+                  >
+                    {t('resume.continue')}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="resume-restart"
+                    onClick={() =>
+                      void (async () => {
+                        await window.api.invoke('git:abortMerge');
+                        await window.api.invoke('flow:clear');
+                        await refresh();
+                        setDialog(null);
+                      })()
+                    }
+                  >
+                    {t('resume.restart')}
                   </button>
                 </div>
               </>

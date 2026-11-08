@@ -228,6 +228,67 @@ describe('正式版へ反映（F-517, F-518, F-511, F-506）', () => {
   });
 });
 
+describe('作業版のバックアップ・整理・途中状態（F-516, F-519, F-521）', () => {
+  it('バックアップ: 作業版を共有先へ送れる。正式版は変わらず、状態が「済み / 古い」で分かる（強制はしない）', async () => {
+    await svc.createWork('11月改訂案');
+    const name = (await svc.state()).branch!;
+    expect((await svc.workVersions())[0]).toMatchObject({ backup: 'none' });
+    write(a, serializeSchedule(apply(load(a), { type: 'updateEvent', id: 'e1', patch: { name: '作業1' } })));
+    await svc.save('作業1', id);
+    expect(await svc.backupWork()).toEqual({ ok: true });
+    expect(git(remote, 'rev-parse', name)).toBe(git(a, 'rev-parse', 'HEAD')); // 共有先に作業版がある
+    expect(git(remote, 'rev-parse', 'main')).not.toBe(git(a, 'rev-parse', 'HEAD')); // 正式版は変わらない
+    expect((await svc.workVersions())[0]).toMatchObject({ backup: 'done' });
+    write(a, serializeSchedule(apply(load(a), { type: 'updateEvent', id: 'e1', patch: { name: '作業2' } })));
+    await svc.save('作業2', id);
+    expect((await svc.workVersions())[0]).toMatchObject({ backup: 'outdated' });
+    expect(await svc.backupWork()).toEqual({ ok: true });
+    expect((await svc.workVersions())[0]).toMatchObject({ backup: 'done' });
+  });
+  it('バックアップは作業版でだけ。正式版・共有先なしは理由を返す', async () => {
+    expect(await svc.backupWork()).toMatchObject({ ok: false, message: expect.stringContaining('作業版') });
+    const solo = mkdtempSync(join(tmpdir(), 'gitflow-solo-'));
+    git(solo, 'init', '-b', 'main');
+    git(solo, 'config', 'user.name', 'x');
+    git(solo, 'config', 'user.email', 'x@example.com');
+    write(solo, serializeSchedule(basic()));
+    git(solo, 'add', '-A');
+    git(solo, 'commit', '-m', 'init');
+    const s2 = new GitService(resolveGit({})!, solo);
+    await s2.createWork('x');
+    expect(await s2.backupWork()).toMatchObject({ ok: false, message: expect.stringContaining('共有先') });
+    rmSync(solo, { recursive: true, force: true });
+  });
+  it('整理: 一覧から隠せて、復元できる。履歴は消さない（ブランチは残る）', async () => {
+    await svc.createWork('古い案');
+    const name = (await svc.state()).branch!;
+    await svc.switchTo('main');
+    expect((await svc.workVersions())[0]).toMatchObject({ archived: false });
+    expect(await svc.archiveWork(name, true)).toEqual({ ok: true });
+    expect((await svc.workVersions())[0]).toMatchObject({ name, archived: true });
+    expect(git(a, 'branch', '--list', name)).toContain(name); // 消えていない
+    expect(await svc.archiveWork(name, false)).toEqual({ ok: true });
+    expect((await svc.workVersions())[0]).toMatchObject({ archived: false });
+    expect(await svc.archiveWork('main', true)).toMatchObject({ ok: false }); // 作業版以外は整理できない
+    expect(await svc.archiveWork('work/nope', true)).toMatchObject({ ok: false });
+  });
+  it('途中で終了した取り込み（merge の途中）を検出でき、安全にやり直せる。保存した履歴は失われない', async () => {
+    await svc.createWork('案');
+    write(a, serializeSchedule(apply(load(a), { type: 'updateEvent', id: 'e1', patch: { name: '作業' } })));
+    await svc.save('作業', id);
+    otherPushes({ type: 'updateEvent', id: 'e2', patch: { name: '相手' } });
+    await svc.fetch();
+    git(a, 'merge', '--no-commit', '--no-ff', 'origin/main'); // 取り込みの途中で落ちた状態を作る
+    expect(await svc.mergeInProgress()).toBe(true);
+    expect((await svc.state()).inMerge).toBe(true);
+    expect(await svc.abortMerge()).toEqual({ ok: true });
+    expect(await svc.mergeInProgress()).toBe(false);
+    expect(git(a, 'status', '--porcelain')).toBe('');
+    expect(load(a).projects['A']!.events['e1']!.name).toBe('作業'); // 作業版の保存済みの内容は残る
+    expect(await svc.abortMerge()).toEqual({ ok: true }); // 途中でなくても失敗しない
+  });
+});
+
 describe('標準日程の取り込み（F-807）', () => {
   const tpl = (name: string): string => `{"adjust":"none","dayMode":"calendar","dependencies":{},"events":{},"id":"t1","milestones":{},"name":"${name}"}
 `;

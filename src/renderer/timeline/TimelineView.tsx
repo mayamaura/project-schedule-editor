@@ -28,6 +28,20 @@ import {
   toDays,
   validateSchedule,
   nonWorkingDayFn,
+  impactOf,
+  filterOptions,
+  copyItems,
+  deleteItemsCommand,
+  neighborItem,
+  pasteCommand,
+  shiftCommand,
+  type ClipItem,
+  type Layout,
+  type NavDir,
+  filterSchedule,
+  isFilterActive,
+  type SavedView,
+  type ViewFilter,
   type Calendar,
   visibleRowRange,
   zoomAt,
@@ -42,6 +56,7 @@ import {
 } from '@domain/index';
 import { t } from '../i18n';
 import type { TimelineApi } from '../ExportDialog';
+import { FilterBar } from '../FilterBar';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { DetailPanel, type Sel } from './DetailPanel';
 
@@ -65,6 +80,17 @@ function usePrefersDark(): boolean {
 
 const DRAG_THRESHOLD_PX = 4;
 
+/** 何も選んでいないときの矢印キーで選ぶ、最初の項目（表示順で先頭の行の、開始日が最も早い項目）。 */
+function firstItemId(s: Schedule, layout: Layout): Id | null {
+  for (const row of layout.rows) {
+    const p = s.projects[row.projectId];
+    if (!p) continue;
+    const all = [...Object.entries(p.events).map(([id, e]) => [id, e.start] as const), ...Object.entries(p.milestones).map(([id, m]) => [id, m.date] as const)];
+    if (all.length > 0) return all.sort((x, y) => (x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0))[0]![0];
+  }
+  return null;
+}
+
 type DropHint = { readonly id: Id; readonly where: 'before' | 'after' | 'inside' };
 type MenuState = { readonly x: number; readonly y: number; readonly items: readonly MenuItem[] };
 
@@ -86,11 +112,16 @@ function describeSelection(s: Schedule, sel: Sel | null): string | null {
   return null;
 }
 
-export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTemplate, calendar, apiRef }: { schedule: Schedule; docKey: unknown; commit: (c: Command) => string | null; onExpand?: (target: { projectId: Id; date?: string }) => void; onSaveAsTemplate?: (projectId: Id) => void; calendar?: Calendar; apiRef?: React.MutableRefObject<TimelineApi | null> }) {
+export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTemplate, calendar, apiRef, views = [], onSaveView, onDeleteView, canShareViews = false }: { schedule: Schedule; docKey: unknown; commit: (c: Command) => string | null; onExpand?: (target: { projectId: Id; date?: string }) => void; onSaveAsTemplate?: (projectId: Id) => void; calendar?: Calendar; apiRef?: React.MutableRefObject<TimelineApi | null>; views?: readonly SavedView[]; onSaveView?: (v: SavedView) => Promise<string | null>; onDeleteView?: (v: SavedView) => void; canShareViews?: boolean }) {
   const dark = usePrefersDark();
   const theme = dark ? darkTheme : lightTheme;
   const [headerMode, setHeaderMode] = useState<HeaderMode>('weekMonth');
   const [deps, setDeps] = useState<DepMode>('all');
+  const [showImpact, setShowImpact] = useState(false); // 選択項目の上流・下流を強調する（F-306）
+  const [multi, setMulti] = useState<ReadonlySet<Id>>(new Set()); // 主の選択に加えて選んだ項目（Ctrl / Shift + クリック。F-207）
+  const clip = useRef<ClipItem[]>([]); // コピーした項目（F-203）
+  const [shiftOpen, setShiftOpen] = useState(false);
+  const [shiftDays, setShiftDays] = useState('7');
   const [collapsed, setCollapsed] = useState<ReadonlySet<Id>>(new Set());
   const [rawSel, setSelected] = useState<Sel | null>(null);
   const [scrollY, setScrollY] = useState(0);
@@ -103,7 +134,11 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
   const selLabel = describeSelection(schedule, rawSel);
   const selected = selLabel ? rawSel : null;
 
-  const layout = useMemo(() => buildLayout(schedule, { collapsed }), [schedule, collapsed]);
+  // 表示フィルタ（F-402）。日程は変えず、表示用の絞り込んだコピーを描く（ID は同じなので、選択・編集は元の日程に対して行える）
+  const [filter, setFilter] = useState<ViewFilter>({});
+  const [filterOpen, setFilterOpen] = useState(false);
+  const shown = useMemo(() => filterSchedule(schedule, filter), [schedule, filter]);
+  const layout = useMemo(() => buildLayout(shown, { collapsed }), [shown, collapsed]);
   const issues = useMemo(() => validateSchedule(schedule), [schedule]);
   const errorCount = issues.filter((i) => i.severity === 'error').length;
 
@@ -152,8 +187,9 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
     };
   }
   const nonWorking = useMemo(() => (calendar ? nonWorkingDayFn(calendar) : undefined), [calendar]);
-  const latest = useRef({ schedule, layout, headerMode, deps, theme, selected, nonWorking });
-  latest.current = { schedule, layout, headerMode, deps, theme, selected, nonWorking };
+  const emphasis = useMemo(() => (showImpact && selected && selected.kind !== 'project' ? impactOf(schedule, selected.id) : undefined), [showImpact, selected, schedule]);
+  const latest = useRef({ schedule: shown, layout, headerMode, deps, theme, selected, nonWorking, emphasis, multi });
+  latest.current = { schedule: shown, layout, headerMode, deps, theme, selected, nonWorking, emphasis, multi };
 
   const render = useCallback((): void => {
     pending.current = 0;
@@ -186,11 +222,12 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
       viewport: { ...vp, width: W, height: H - HEADER_HEIGHT },
       headerMode: mode,
       today: todayString(),
-      selection: L.selected ? new Set([L.selected.id]) : new Set(),
+      selection: new Set([...(L.selected ? [L.selected.id] : []), ...L.multi]),
       hover: hover.current,
       dependencies: L.deps,
       theme: L.theme,
       ...(L.nonWorking ? { nonWorkingDay: L.nonWorking } : {}),
+      ...(L.emphasis ? { emphasis: L.emphasis } : {}),
     });
     const t1 = performance.now();
     dl.current = list;
@@ -222,7 +259,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
   // 入力が変わったら再描画
   useEffect(() => {
     request();
-  }, [request, schedule, layout, headerMode, deps, theme, selected, nonWorking]);
+  }, [request, shown, layout, headerMode, deps, theme, selected, nonWorking, emphasis, multi]);
 
   // 文書が差し替わったら（編集ではなく）、全体の日付範囲に合わせて表示し直す
   useEffect(() => {
@@ -305,6 +342,8 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
         { label: t('menu.edit'), run: () => setSelected(s) },
         { label: t('menu.addDependency'), run: () => { setSelected(s); setLinkFrom(h.id); } },
         ...(ms && onExpand ? [{ label: t('menu.expandTemplateFromMilestone'), run: () => onExpand({ projectId: h.projectId, date: ms.date }) }] : []),
+        ...(selectionIds().length > 1 ? [{ label: t('menu.shiftSelected', { n: String(selectionIds().length) }), run: () => setShiftOpen(true) }] : []),
+        { label: t('menu.copy'), run: () => { clip.current = copyItems(schedule, selectionIds().length > 0 ? selectionIds() : [h.id]); } },
         { label: t('menu.delete'), run: () => deleteSel(s) },
       ];
     }
@@ -312,6 +351,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
       return [
         { label: t('menu.createEvent'), run: () => createAt('event', h.projectId, h.day) },
         { label: t('menu.createMilestone'), run: () => createAt('milestone', h.projectId, h.day) },
+        ...(clip.current.length > 0 ? [{ label: t('menu.paste'), run: () => { const r = pasteCommand(schedule, clip.current, h.projectId); if (r) commit(r.command); } }] : []),
         ...(onExpand ? [{ label: t('menu.expandTemplateHere'), run: () => onExpand({ projectId: h.projectId, date: fromDays(h.day) }) }] : []),
       ];
     }
@@ -404,6 +444,19 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
       }
       return;
     }
+    if (isItem && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+      // Ctrl / Shift + クリック: 選択に加える・外す（F-207）
+      setMulti((prev) => {
+        const n = new Set(prev);
+        if (selected && selected.kind !== 'project') n.add(selected.id);
+        if (n.has(h.id)) n.delete(h.id);
+        else n.add(h.id);
+        return n;
+      });
+      setSelected({ kind: h.kind as 'event' | 'milestone', id: h.id });
+      return;
+    }
+    setMulti(new Set());
     setSelected(isItem ? { kind: h.kind as 'event' | 'milestone', id: h.id } : null);
   };
   // ドラッグ中の変更先の表示（ドロップ前に新しい日付が分かるように。DOM を直接更新して React の再描画を避ける）
@@ -436,10 +489,97 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
     if (h.kind === 'event' || h.kind === 'milestone') setSelected({ kind: h.kind, id: h.id });
     openMenu(e.clientX, e.clientY, menuFor(h));
   };
+  /** 選択している項目（主の選択 + 追加で選んだもの。プロジェクトを選んでいればそれも）。 */
+  const selectionIds = (): Id[] => [...new Set([...(selected ? [selected.id] : []), ...multi])];
+  /** コピーした項目を、選択中のプロジェクト（項目を選んでいればその項目のプロジェクト）へ貼り付ける（F-203）。 */
+  const pasteSelection = (): void => {
+    let pid: Id | null = null;
+    if (selected?.kind === 'project') pid = selected.id;
+    else if (selected) for (const p of Object.values(schedule.projects)) if (p.events[selected.id] || p.milestones[selected.id]) pid = p.id;
+    pid ??= layout.rows[0]?.projectId ?? null;
+    const r = pid ? pasteCommand(schedule, clip.current, pid) : null;
+    if (!r || commit(r.command) !== null) return;
+    setMulti(new Set(r.ids.slice(1)));
+    const first = r.ids[0];
+    if (first) setSelected({ kind: clip.current[0]?.kind ?? 'event', id: first });
+  };
+  /** 項目が画面の外にあれば、見える位置へ動かす（矢印キーでの移動）。 */
+  const reveal = (id: Id): void => {
+    const L = latest.current;
+    const pos = L.layout.itemPos.get(id);
+    const row = pos ? L.layout.rows[pos.row] : undefined;
+    let day: number | null = null;
+    for (const p of Object.values(L.schedule.projects)) {
+      const e = p.events[id];
+      const m = p.milestones[id];
+      if (e) day = toDays(e.start);
+      if (m) day = toDays(m.date);
+    }
+    const v = view.current;
+    let next = v;
+    if (day !== null && (day < v.leftDay || day > v.leftDay + v.width / v.pxPerDay - 2)) next = { ...next, leftDay: day - v.width / 4 / v.pxPerDay };
+    if (row && (row.y < v.scrollY || row.y + row.height > v.scrollY + v.height)) next = { ...next, scrollY: Math.max(0, row.y - v.height / 3) };
+    if (next !== v) {
+      view.current = next;
+      request();
+    }
+  };
+
   // キーボード: メニューキー / Shift+F10 で選択項目のメニュー、Delete で削除、Esc で依存の指定を中止（F-209）
   const onKeyDown = (e: React.KeyboardEvent): void => {
-    if (e.key === 'Escape') setLinkFrom(null);
-    else if (e.key === 'Delete' && selected) deleteSel(selected);
+    const sel = selectionIds();
+    const itemKind = (id: Id): 'event' | 'milestone' | null => {
+      for (const p of Object.values(schedule.projects)) {
+        if (p.events[id]) return 'event';
+        if (p.milestones[id]) return 'milestone';
+      }
+      return null;
+    };
+    const arrow: Record<string, NavDir> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
+    const mod = e.ctrlKey || e.metaKey;
+    if (arrow[e.key] && !mod && !(e.target as HTMLElement).closest('input,textarea,select')) {
+      e.preventDefault();
+      if (e.altKey) {
+        // Alt + ←/→: 選択した項目を 1 日ずらす（Shift で 7 日。F-207）
+        const dir = arrow[e.key]!;
+        if ((dir === 'left' || dir === 'right') && sel.length > 0) {
+          const cmd = shiftCommand(schedule, sel, (e.shiftKey ? 7 : 1) * (dir === 'left' ? -1 : 1));
+          if (cmd) commit(cmd);
+        }
+        return;
+      }
+      // 矢印キーで、選択を隣の項目へ（F-203）
+      const base = selected && selected.kind !== 'project' ? selected.id : null;
+      const next = base ? neighborItem(shown, layout, base, arrow[e.key]!) : firstItemId(shown, layout);
+      const k = next ? itemKind(next) : null;
+      if (next && k) {
+        setMulti(new Set());
+        setSelected({ kind: k, id: next });
+        reveal(next);
+      }
+      return;
+    }
+    if (mod && (e.key === 'c' || e.key === 'C' || e.key === 'x' || e.key === 'X') && sel.length > 0) {
+      e.preventDefault();
+      clip.current = copyItems(schedule, sel);
+      if (e.key.toLowerCase() === 'x') {
+        const del = deleteItemsCommand(schedule, sel);
+        if (del) commit(del);
+      }
+      return;
+    }
+    if (mod && (e.key === 'v' || e.key === 'V') && clip.current.length > 0) {
+      e.preventDefault();
+      pasteSelection();
+      return;
+    }
+    if (e.key === 'Escape') {
+      setLinkFrom(null);
+      setMulti(new Set());
+    } else if (e.key === 'Delete' && multi.size > 0) {
+      const del = deleteItemsCommand(schedule, sel);
+      if (del && commit(del) === null) setMulti(new Set());
+    } else if (e.key === 'Delete' && selected) deleteSel(selected);
     else if ((e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) && selected && selected.kind !== 'project') {
       const box = dl.current?.hitBoxes.find((b) => b.id === selected.id);
       const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -510,6 +650,12 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
         <button type="button" data-testid="today" onClick={goToday}>
           {t('timeline.today')}
         </button>
+        <button type="button" data-testid="filter-toggle" aria-pressed={filterOpen || isFilterActive(filter)} onClick={() => setFilterOpen((v) => !v)}>
+          {isFilterActive(filter) ? t('flt.openActive') : t('flt.open')}
+        </button>
+        <button type="button" data-testid="impact" aria-pressed={showImpact} disabled={!selected || selected.kind === 'project'} title={t('timeline.impactHint')} onClick={() => setShowImpact((v) => !v)}>
+          {t('timeline.impact')}
+        </button>
         <label>
           {t('timeline.deps')}{' '}
           <select value={deps} data-testid="deps" onChange={(e) => setDeps(e.target.value as DepMode)}>
@@ -519,6 +665,26 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
           </select>
         </label>
       </div>
+      {filterOpen ? (
+        <FilterBar
+          filter={filter}
+          onFilter={setFilter}
+          options={filterOptions(schedule)}
+          views={views}
+          canShare={canShareViews}
+          onApplyView={(v) => {
+            setFilter(v.filter);
+            setHeaderMode(v.headerMode);
+            setDeps(v.dependencies);
+            setCollapsed(new Set(v.collapsed));
+          }}
+          onSaveView={async (name, shared) => {
+            if (!onSaveView) return null;
+            return onSaveView({ id: `v-${Math.random().toString(36).slice(2, 10)}`, name, shared, filter, headerMode, dependencies: deps, collapsed: [...collapsed] });
+          }}
+          onDeleteView={(v) => onDeleteView?.(v)}
+        />
+      ) : null}
       <div className="panes">
         <div className="tree" role="tree" aria-label={t('timeline.projects')}>
           <div className="tree-head" style={{ height: HEADER_HEIGHT }}>
@@ -627,6 +793,34 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
             </li>
           ))}
         </ul>
+      ) : null}
+      {shiftOpen ? (
+        <div className="modal-back" onKeyDown={(e) => e.key === 'Escape' && setShiftOpen(false)}>
+          <div className="modal" role="dialog" aria-modal="true" data-testid="dialog-shift">
+            <h2>{t('shift.title', { n: String(selectionIds().length) })}</h2>
+            <label className="field">
+              <span>{t('shift.days')}</span>
+              <input type="number" data-testid="shift-days" value={shiftDays} onChange={(e) => setShiftDays(e.target.value)} autoFocus />
+            </label>
+            <p className="hint">{t('shift.hint')}</p>
+            <div className="actions">
+              <button
+                type="button"
+                data-testid="shift-go"
+                onClick={() => {
+                  const cmd = shiftCommand(schedule, selectionIds(), Math.trunc(Number(shiftDays) || 0));
+                  setShiftOpen(false);
+                  if (cmd) commit(cmd);
+                }}
+              >
+                {t('shift.go')}
+              </button>
+              <button type="button" onClick={() => setShiftOpen(false)}>
+                {t('sync.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
       {menu ? <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={closeMenu} /> : null}
       {/* Canvas はスクリーンリーダに読まれないため、選択項目を読み上げ用に通知する（NF-010） */}
