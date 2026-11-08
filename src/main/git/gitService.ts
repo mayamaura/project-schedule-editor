@@ -308,6 +308,12 @@ export class GitService {
     return r.ok ? { ok: true } : { ok: false, message: r.stderr };
   }
 
+  /** 履歴がまだ無いとき、最初の版を載せる版の名前を main にする（空の共有先を取得した直後など。共有先の既定の名前に依らない）。 */
+  async ensureMainBranch(): Promise<void> {
+    if (await this.hasCommits()) return;
+    await this.run(['symbolic-ref', 'HEAD', 'refs/heads/main']);
+  }
+
   /** 共有先の最新を取得する。共有先が無ければ何もしない。利用者の操作として実行するので、認証が必要ならブラウザでのサインインが出る。 */
   async fetch(): Promise<OpResult> {
     if (!(await this.hasRemote())) return { ok: true };

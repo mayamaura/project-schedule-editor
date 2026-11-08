@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { applyCommand, type Command } from '../../src/domain/commands';
+import { emptySchedule } from '../../src/domain/model';
+import { createEmpty } from '../../src/main/fileRepository';
 import { mergeSchedules } from '../../src/domain/merge';
 import type { Schedule } from '../../src/domain/model';
 import { parseSchedule, serializeSchedule, type Files } from '../../src/domain/serialize';
@@ -264,5 +266,24 @@ describe('共有先の設定と取得（F-501）', () => {
   it('存在しない共有先は失敗し、理由が返る', async () => {
     const r = await GitService.clone(resolveGit({})!, join(top, 'nothing.git'), join(top, 'c2'));
     expect(r.ok).toBe(false);
+  });
+});
+
+describe('空の共有先から始める（F-501）', () => {
+  it('取得した空のフォルダに新規作成し、最初の履歴を残して共有できる（共有先の既定の名前が main でなくても）', async () => {
+    const emptyRemote = join(top, 'empty.git');
+    git(top, 'init', '--bare', '-b', 'master', emptyRemote); // 作ったばかりの共有先
+    const dest = join(top, 'fresh');
+    expect(await GitService.clone(resolveGit({})!, emptyRemote, dest)).toEqual({ ok: true });
+    const s = new GitService(resolveGit({})!, dest);
+    expect((await s.state()).head).toBeNull(); // 履歴なし
+
+    expect(createEmpty(dest, serializeSchedule(emptySchedule()))).toEqual({ ok: true });
+    await s.ensureMainBranch();
+    expect((await s.state()).branch).toBe('main');
+    expect(await s.save('最初の版', id)).toMatchObject({ status: 'ok' });
+    expect(await s.mergeInputs()).toMatchObject({ status: 'up-to-date' }); // 取り込む更新なし
+    expect(await s.push()).toMatchObject({ status: 'ok' });
+    expect(git(emptyRemote, 'log', '--format=%s', 'main')).toBe('最初の版');
   });
 });

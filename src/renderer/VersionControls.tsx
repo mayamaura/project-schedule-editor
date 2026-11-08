@@ -1,7 +1,7 @@
 // @req F-502, F-504, F-513, F-514, F-515, F-517, F-520, F-523, NF-019
 // 履歴に残す・履歴・戻す・診断、作業版（現在地の常時表示・切替・作成）、正式版への反映 / 共有。
 // UI に Git 用語を出さない（docs/git-ux.html）。「未記録の変更」は、最後に履歴に残した版と今の日程の diffSchedule（F-509）。
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { diffSchedule, parseSchedule, summarizeChange, type Schedule } from '@domain/index';
 import { t } from './i18n';
 import { SyncWizard } from './SyncWizard';
@@ -63,8 +63,11 @@ export function VersionControls({
   useEffect(() => {
     if (git) onInfo({ branch: git.branch, hasHistory: git.head !== null });
   }, [git]);
+  // 合図が「増えたとき」だけ開く（作り直されたときに、過去の合図で勝手に開かない）
+  const seenSignal = useRef(openWorksSignal);
   useEffect(() => {
-    if (openWorksSignal > 0) {
+    if (openWorksSignal !== seenSignal.current) {
+      seenSignal.current = openWorksSignal;
       setNote('');
       setDialog('works');
     }

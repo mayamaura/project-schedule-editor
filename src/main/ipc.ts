@@ -135,6 +135,11 @@ export function registerIpc(): void {
     if (!info) return { status: 'failed' as const, message: 'Git が見つかりません。Git をインストールしてください' };
     const r = await GitService.clone(info, url, root);
     if (!r.ok) return { status: 'failed' as const, message: r.message };
+    // 作ったばかりの空の共有先: 日程データがまだ無いので、新規作成と同じく空の日程データを用意する（F-501）
+    if (!('schedule.json' in loadFiles(root))) {
+      if (!createEmpty(root, serializeSchedule(emptySchedule())).ok) return { status: 'failed' as const, message: '取得したフォルダに日程データが見つかりません。日程データのある共有先を指定してください' };
+      await new GitService(info, root).ensureMainBranch();
+    }
     return { status: 'ok' as const, ...activate(root) };
   });
   handle('git:diagnose', () => needGit().diagnose());

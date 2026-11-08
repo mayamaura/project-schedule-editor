@@ -49,6 +49,8 @@ export function App() {
   const [opened, setOpened] = useState(0); // フォルダを開き直すたびに増える（版の表示を作り直す）
   const [cloneOpen, setCloneOpen] = useState(false);
   const [cloneUrl, setCloneUrl] = useState('');
+  const [cloneBusy, setCloneBusy] = useState(false);
+  const [cloneError, setCloneError] = useState('');
 
   useEffect(() => {
     void window.api.invoke('app:getVersion').then(setVersion);
@@ -110,13 +112,21 @@ export function App() {
 
   // 共有先から取得（F-501 の (a)）
   const cloneFolder = async (): Promise<void> => {
-    const r = await window.api.invoke('repo:clone', { url: cloneUrl.trim() });
-    if (r.status === 'ok') {
-      setCloneOpen(false);
-      applyOpened(r);
-    } else if (r.status === 'not-empty') setMessage(t('app.createNotEmpty'));
-    else if (r.status === 'failed') setMessage(t('clone.failed', { message: r.message }));
-    setProblems([]);
+    setCloneError('');
+    setCloneBusy(true);
+    try {
+      const r = await window.api.invoke('repo:clone', { url: cloneUrl.trim() });
+      if (r.status === 'ok') {
+        setCloneOpen(false);
+        setProblems([]);
+        applyOpened(r);
+      } else if (r.status === 'not-empty') setCloneError(t('clone.notEmpty'));
+      else if (r.status === 'failed') setCloneError(t('clone.failed', { message: r.message }));
+    } catch (e) {
+      setCloneError(t('clone.failed', { message: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      setCloneBusy(false);
+    }
   };
 
   const h = loaded?.history;
@@ -233,7 +243,10 @@ export function App() {
         <button type="button" data-testid="create" onClick={() => void createFolder()}>
           {t('app.create')}
         </button>
-        <button type="button" data-testid="clone" onClick={() => setCloneOpen(true)}>
+        <button type="button" data-testid="clone" onClick={() => {
+            setCloneError('');
+            setCloneOpen(true);
+          }}>
           {t('app.clone')}
         </button>
         <button type="button" data-testid="open" onClick={() => void openFolder()}>
@@ -283,11 +296,13 @@ export function App() {
               <span>{t('sync.remoteLabel')}</span>
               <input data-testid="clone-url" value={cloneUrl} onChange={(e) => setCloneUrl(e.target.value)} />
             </label>
+            {cloneBusy ? <p role="status" data-testid="clone-busy">{t('clone.busy')}</p> : null}
+            {cloneError ? <p role="alert" data-testid="clone-error">{cloneError}</p> : null}
             <div className="actions">
-              <button type="button" data-testid="clone-go" disabled={cloneUrl.trim() === ''} onClick={() => void cloneFolder()}>
+              <button type="button" data-testid="clone-go" disabled={cloneUrl.trim() === '' || cloneBusy} onClick={() => void cloneFolder()}>
                 {t('clone.go')}
               </button>
-              <button type="button" onClick={() => setCloneOpen(false)}>
+              <button type="button" disabled={cloneBusy} onClick={() => setCloneOpen(false)}>
                 {t('sync.cancel')}
               </button>
             </div>

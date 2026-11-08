@@ -161,3 +161,58 @@ test('共有先のアドレスを入れ、空のフォルダを選ぶと、共�
   await expect(page.getByTestId('branch-band')).toContainText('正式版');
   await expect(page.getByTestId('info')).toContainText(dest);
 });
+
+test('作ったばかりの空の共有先を指定すると、新規作成と同じように始められ、履歴に残して共有できる（F-501）', async () => {
+  const emptyRemote = join(top, 'empty.git');
+  git(top, 'init', '--bare', '-b', 'master', emptyRemote);
+  const dest = join(top, 'fresh');
+  mkdirSync(dest);
+  await app.evaluate(({ dialog }, d) => {
+    dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [d] })) as never;
+  }, dest);
+  await page.getByTestId('clone').click();
+  await page.getByTestId('clone-url').fill(emptyRemote);
+  await page.getByTestId('clone-go').click();
+  await expect(page.getByTestId('dialog-clone')).toBeHidden();
+  await expect(page.getByTestId('timeline-canvas')).toBeVisible();
+  await expect(page.getByTestId('notice')).toBeHidden();
+  await expect(page.getByTestId('branch-band')).toContainText('正式版');
+  await expect(page.getByTestId('unsaved')).toHaveText('最初の記録がまだです');
+
+  await page.getByTestId('add-project').click();
+  await expect(page.locator('.tree-row')).toHaveCount(1);
+  await page.getByTestId('ver-save').click();
+  await page.getByTestId('ver-do-save').click();
+  if (await page.getByTestId('ver-name').isVisible()) {
+    await page.getByTestId('ver-name').fill('山田');
+    await page.getByTestId('ver-email').fill('y@example.com');
+    await page.getByTestId('ver-do-save').click();
+  }
+  await expect(page.getByTestId('dialog-save')).toBeHidden();
+
+  await page.getByTestId('ver-sync').click();
+  await page.getByTestId('sync-go').click();
+  await expect(page.getByTestId('sync-done')).toBeVisible();
+  await page.getByTestId('sync-close').click();
+  expect(git(emptyRemote, 'log', '--format=%s', 'main')).not.toBe('');
+});
+
+test('取得に失敗したときは、理由が取得の画面の中に出る。空でないフォルダも理由が出る', async () => {
+  const empty = join(top, 'empty-dest');
+  mkdirSync(empty);
+  await app.evaluate(({ dialog }, d) => {
+    dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [d] })) as never;
+  }, empty);
+  await page.getByTestId('clone').click();
+  await page.getByTestId('clone-url').fill(join(top, 'no-such-remote.git'));
+  await page.getByTestId('clone-go').click();
+  await expect(page.getByTestId('clone-error')).toContainText('取得できませんでした');
+  await expect(page.getByTestId('dialog-clone')).toBeVisible();
+
+  // 空でないフォルダ（さきほど始めた場所）を選ぶと、取得せずに理由を出す
+  await app.evaluate(({ dialog }, d) => {
+    dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [d] })) as never;
+  }, join(top, 'fresh'));
+  await page.getByTestId('clone-go').click();
+  await expect(page.getByTestId('clone-error')).toContainText('空ではない');
+});
