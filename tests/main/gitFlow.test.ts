@@ -228,6 +228,47 @@ describe('正式版へ反映（F-517, F-518, F-511, F-506）', () => {
   });
 });
 
+describe('標準日程の取り込み（F-807）', () => {
+  const tpl = (name: string): string => `{"adjust":"none","dayMode":"calendar","dependencies":{},"events":{},"id":"t1","milestones":{},"name":"${name}"}
+`;
+  const tplB = (name: string): string => tpl(name).replace('"t1"', '"t2"');
+
+  it('他の人が追加した標準日程は取り込まれる。自分が変えていないものは相手の版になる', async () => {
+    write(a, { 'templates/t1.json': tpl('元') });
+    await svc.save('標準日程を追加', id);
+    git(a, 'push', 'origin', 'main');
+    git(b, 'pull', '--no-rebase', 'origin', 'main');
+    // 相手: t1 を変更し、t2 を追加して送る。自分: 日程だけ変更して履歴に残す
+    write(b, { 'templates/t1.json': tpl('相手が改名'), 'templates/t2.json': tplB('相手が追加') });
+    git(b, 'add', '-A');
+    git(b, 'commit', '-m', '相手の標準日程');
+    git(b, 'push', 'origin', 'main');
+    write(a, serializeSchedule(apply(load(a), { type: 'updateEvent', id: 'e1', patch: { name: '自分の変更' } })));
+    await svc.save('自分の変更', id);
+
+    const { conflicts } = await pullIn();
+    expect(conflicts).toBe(0);
+    expect(readFileSync(join(a, 'templates/t1.json'), 'utf8')).toContain('相手が改名');
+    expect(readFileSync(join(a, 'templates/t2.json'), 'utf8')).toContain('相手が追加');
+    expect(git(a, 'status', '--porcelain')).toBe('');
+  });
+
+  it('双方が同じ標準日程を変えたら自分の版を残す', async () => {
+    write(a, { 'templates/t1.json': tpl('元') });
+    await svc.save('標準日程を追加', id);
+    git(a, 'push', 'origin', 'main');
+    git(b, 'pull', '--no-rebase', 'origin', 'main');
+    write(b, { 'templates/t1.json': tpl('相手') });
+    git(b, 'add', '-A');
+    git(b, 'commit', '-m', '相手');
+    git(b, 'push', 'origin', 'main');
+    write(a, { 'templates/t1.json': tpl('自分') });
+    await svc.save('自分', id);
+    await pullIn();
+    expect(readFileSync(join(a, 'templates/t1.json'), 'utf8')).toContain('自分');
+  });
+});
+
 describe('正式版の直接編集と共有（F-520, F-503）', () => {
   it('履歴に残してから共有すると、他の人の更新を取り込んで送信される', async () => {
     write(a, serializeSchedule(apply(load(a), { type: 'updateEvent', id: 'e2', patch: { name: '自分の更新' } })));

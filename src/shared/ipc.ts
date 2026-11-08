@@ -81,6 +81,9 @@ export const ipcSchemas = {
   /** 版を切り替える（保存前の変更は自動で退避・復元）。 */
   'work:switch': { input: z.object({ name: z.string().max(100) }), output: z.object({ ok: z.boolean(), message: z.string().optional() }) },
   /** 作業ツリーの日程データを読み直す（切替・取り込みの後）。 */
+  /** 標準日程 1 件の保存・削除（F-801, F-807）。内容は Main でも検証する。 */
+  'template:save': { input: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), text: z.string().max(2_000_000) }), output: z.undefined() },
+  'template:delete': { input: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/) }), output: z.undefined() },
   'repo:reload': { input: z.undefined(), output: z.object({ files: z.record(z.string(), z.string()) }) },
   /** 取り込みの準備: 共有先の最新を取得し、3 版の材料を返す（F-511, F-518）。main = 正式版の最新（作業版のとき）。 */
   'sync:prepare': {

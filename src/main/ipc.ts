@@ -4,7 +4,8 @@ import { GitService, resolveGit } from './git/gitService';
 import { readdirSync } from 'node:fs';
 import { emptySchedule } from '../domain/model';
 import { serializeSchedule } from '../domain/serialize';
-import { beginSession, createEmpty, endSession, loadFiles, recover, saveFiles } from './fileRepository';
+import { parseTemplate } from '../domain/template';
+import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveFiles, saveTemplate } from './fileRepository';
 
 // 開いているフォルダ（Renderer からパスは受け取らない。NF-007）
 let currentRoot: string | null = null;
@@ -103,6 +104,19 @@ export function registerIpc(): void {
   handle('work:switch', async ({ name }) => {
     const r = await needGit().switchTo(name);
     return r.ok ? { ok: true } : { ok: false, message: r.message };
+  });
+  handle('template:save', ({ id, text }) => {
+    if (!currentRoot) throw new Error('フォルダが開かれていない');
+    const p = parseTemplate(text);
+    if (!p.ok) throw new Error(`標準日程の内容が正しくありません: ${p.message}`);
+    if (p.template.id !== id) throw new Error('標準日程の id とファイル名が一致しません');
+    saveTemplate(currentRoot, id, text);
+    return undefined;
+  });
+  handle('template:delete', ({ id }) => {
+    if (!currentRoot) throw new Error('フォルダが開かれていない');
+    deleteTemplate(currentRoot, id);
+    return undefined;
   });
   handle('repo:reload', () => {
     if (!currentRoot) throw new Error('フォルダが開かれていない');

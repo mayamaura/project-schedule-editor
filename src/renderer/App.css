@@ -102,3 +102,14 @@ button[aria-pressed="true"] { background: var(--acc); color: #fff; border-color:
 .conflicts .choice[aria-pressed="true"] { background: var(--acc); color: #fff; border-color: var(--acc); }
 .conflicts .manual { display: inline-flex; gap: 4px; }
 .conflicts .manual input { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; width: 9em; }
+
+.tpl-list { list-style: none; margin: 0; padding: 0; }
+.tpl-list li { display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); padding: 6px 0; }
+.tpl-list .tpl-name { flex: 1; }
+.tpl-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; font-size: 13px; }
+.tpl-row > input { width: 9em; }
+.offset { display: inline-flex; gap: 4px; align-items: center; }
+.off-num input { width: 3.6em; }
+.modal .hint { font-size: 12px; opacity: .75; margin: 2px 0; }
+.modal fieldset.field { border: 1px solid var(--line); margin: 8px 0; }
+.modal fieldset.field label { display: block; margin: 2px 0; }

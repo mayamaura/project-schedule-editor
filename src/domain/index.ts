@@ -11,6 +11,7 @@ export * from './order';
 export * from './sample';
 export * from './serialize';
 export * from './summary';
+export * from './template';
 export * from './timeline/axis';
 export * from './timeline/draw';
 export * from './timeline/drawlist';

@@ -1,7 +1,8 @@
 // @req F-501, F-101, F-206, F-208, F-210, F-211
 import { useEffect, useRef, useState } from 'react';
-import { History, diffSchedule, generateSample, parseSchedule, serializeSchedule, summarizeChange, type Command, type Schedule, type ParseIssue } from '@domain/index';
+import { History, diffSchedule, generateSample, parseSchedule, parseTemplates, serializeSchedule, serializeTemplate, summarizeChange, type Command, type Id, type Schedule, type ParseIssue, type Template } from '@domain/index';
 import { t } from './i18n';
+import { ExpandDialog, TemplateManager, type ExpandPreset } from './Templates';
 import { TimelineView } from './timeline/TimelineView';
 import { VersionControls, type VersionInfo } from './VersionControls';
 
@@ -51,6 +52,9 @@ export function App() {
   const [cloneUrl, setCloneUrl] = useState('');
   const [cloneBusy, setCloneBusy] = useState(false);
   const [cloneError, setCloneError] = useState('');
+  const [templates, setTemplates] = useState<Readonly<Record<Id, Template>>>({});
+  const [tplOpen, setTplOpen] = useState(false);
+  const [expand, setExpand] = useState<ExpandPreset | null>(null);
 
   useEffect(() => {
     void window.api.invoke('app:getVersion').then(setVersion);
@@ -74,6 +78,7 @@ export function App() {
       setMessage('');
       setEditError('');
       setSave({ kind: 'idle' });
+      setTemplates(loadTemplates(r.files));
       setLoaded({
         history: new History(parsed.schedule),
         path: r.path,
@@ -131,6 +136,26 @@ export function App() {
 
   const h = loaded?.history;
 
+  // 標準日程（F-801）: 画面上の操作の確定ごとに 1 件ずつ書く（日程の自動保存とは別）
+  const loadTemplates = (files: Record<string, string>): Readonly<Record<Id, Template>> => {
+    const r = parseTemplates(files);
+    if (r.errors.length > 0) setMessage(t('tpl.readError', { count: String(r.errors.length), detail: r.errors.map((e) => `${e.path}: ${e.message}`).join(' / ') }));
+    return r.templates;
+  };
+  const saveTemplate = async (tp: Template): Promise<string | null> => {
+    try {
+      await window.api.invoke('template:save', { id: tp.id, text: serializeTemplate(tp) });
+      setTemplates((m) => ({ ...m, [tp.id]: tp }));
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  };
+  const deleteTemplate = async (id: Id): Promise<void> => {
+    await window.api.invoke('template:delete', { id });
+    setTemplates((m) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== id)));
+  };
+
   // 版の切り替え・取り込みの後に、作業ツリーの日程データを読み直す（履歴は新しく始める）
   const reloadFromDisk = async (): Promise<void> => {
     const r = await window.api.invoke('repo:reload');
@@ -140,6 +165,7 @@ export function App() {
       return;
     }
     setLoaded({ ...loaded, history: new History(parsed.schedule) });
+    setTemplates(loadTemplates(r.files));
     setEditError('');
     setMainOk(false);
   };
@@ -357,9 +383,20 @@ export function App() {
             {loaded.errors + loaded.warnings > 0 ? <span className="issues">{t('app.issues', { errors: String(loaded.errors), warnings: String(loaded.warnings) })}</span> : null}
             <span className="spacer" />
             {loaded.path ? (
+              <>
+                <button type="button" data-testid="tpl-add-project" onClick={() => setExpand({})}>
+                  {t('tpl.addProject')}
+                </button>
+                <button type="button" data-testid="tpl-open" onClick={() => setTplOpen(true)}>
+                  {t('tpl.open')}
+                </button>
+              </>
+            ) : null}
+            {loaded.path ? (
               <VersionControls
                 key={opened}
                 schedule={loaded.history.present}
+                templates={templates}
                 edits={edits}
                 flush={flush}
                 onReload={reloadFromDisk}
@@ -382,7 +419,20 @@ export function App() {
               {t('app.redo')}
             </button>
           </div>
-          <TimelineView schedule={loaded.history.present} docKey={loaded.history} commit={commit} />
+          <TimelineView schedule={loaded.history.present} docKey={loaded.history} commit={commit} {...(loaded.path ? { onExpand: setExpand } : {})} />
+          {tplOpen ? <TemplateManager templates={templates} typeNames={Object.keys(loaded.history.present.types)} onSave={saveTemplate} onDelete={deleteTemplate} onClose={() => setTplOpen(false)} /> : null}
+          {expand ? (
+            <ExpandDialog
+              schedule={loaded.history.present}
+              templates={templates}
+              preset={expand}
+              onApply={(c) => {
+                commit(c);
+                setExpand(null);
+              }}
+              onClose={() => setExpand(null)}
+            />
+          ) : null}
         </>
       ) : (
         <p className="empty" data-testid="empty">

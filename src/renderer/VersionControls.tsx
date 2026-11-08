@@ -2,7 +2,7 @@
 // 履歴に残す・履歴・戻す・診断、作業版（現在地の常時表示・切替・作成）、正式版への反映 / 共有。
 // UI に Git 用語を出さない（docs/git-ux.html）。「未記録の変更」は、最後に履歴に残した版と今の日程の diffSchedule（F-509）。
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { diffSchedule, parseSchedule, summarizeChange, type Schedule } from '@domain/index';
+import { diffSchedule, parseSchedule, parseTemplates, serializeTemplate, summarizeChange, type Id, type Schedule, type Template } from '@domain/index';
 import { t } from './i18n';
 import { SyncWizard } from './SyncWizard';
 
@@ -22,6 +22,7 @@ export interface VersionInfo {
 
 export function VersionControls({
   schedule,
+  templates,
   edits,
   flush,
   onRestore,
@@ -30,6 +31,8 @@ export function VersionControls({
   openWorksSignal,
 }: {
   schedule: Schedule;
+  /** 標準日程（履歴に残す変更の一覧と件数に含める）。 */
+  templates: Readonly<Record<Id, Template>>;
   /** 編集のたびに増える（未記録の変更を数え直す合図）。 */
   edits: number;
   /** 自動保存の書き出しを完了させる（履歴に残す直前などに呼ぶ）。 */
@@ -78,7 +81,18 @@ export function VersionControls({
     const p = parseSchedule(git.head);
     return p.status === 'ok' ? p.schedule : null;
   }, [git]);
-  const lines = useMemo(() => (head ? diffSchedule(head, schedule).map(summarizeChange) : []), [head, schedule, edits]);
+  const lines = useMemo(() => {
+    if (!head || !git?.head) return [];
+    const before = parseTemplates(git.head).templates;
+    const tplLines: string[] = [];
+    for (const [id, tp] of Object.entries(templates)) {
+      const old = before[id];
+      if (!old) tplLines.push(t('tpl.chgAdd', { name: tp.name }));
+      else if (serializeTemplate(old) !== serializeTemplate(tp)) tplLines.push(t('tpl.chgEdit', { name: tp.name }));
+    }
+    for (const [id, tp] of Object.entries(before)) if (!templates[id]) tplLines.push(t('tpl.chgDelete', { name: tp.name }));
+    return [...diffSchedule(head, schedule).map(summarizeChange), ...tplLines];
+  }, [head, git, templates, schedule, edits]);
 
   if (!git) return null;
   if (!git.available) return <span className="issues">{t('ver.noGit')}</span>;

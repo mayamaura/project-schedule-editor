@@ -6,6 +6,7 @@
 // ドメイン層（純関数）が作る「パス → 内容」を受け渡すだけで、データの意味は知らない。
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, unlinkSync, writeSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
+import { TEMPLATE_PATH_RE, templatePath } from '../domain/template';
 
 export type Files = Record<string, string>;
 
@@ -132,13 +133,13 @@ export function recover(root: string): RecoverResult {
   return { completedTransaction: completed, removedTmpFiles: removeOrphanTmp(root) };
 }
 
-const KNOWN = [/^schedule\.json$/, /^types\.json$/, /^projects\/[A-Za-z0-9_-]+\.json$/, /^dependencies\/[A-Za-z0-9_-]+\.json$/];
+const KNOWN = [/^schedule\.json$/, /^types\.json$/, /^projects\/[A-Za-z0-9_-]+\.json$/, /^dependencies\/[A-Za-z0-9_-]+\.json$/, TEMPLATE_PATH_RE];
 export const isKnown = (rel: string): boolean => KNOWN.some((r) => r.test(rel));
 
 function listKnown(root: string): string[] {
   const out: string[] = [];
   for (const rel of ['schedule.json', 'types.json']) if (existsSync(join(root, rel))) out.push(rel);
-  for (const dir of ['projects', 'dependencies']) {
+  for (const dir of ['projects', 'dependencies', 'templates']) {
     const d = join(root, dir);
     if (!existsSync(d)) continue;
     for (const name of readdirSync(d)) if (isKnown(`${dir}/${name}`)) out.push(`${dir}/${name}`);
@@ -146,11 +147,19 @@ function listKnown(root: string): string[] {
   return out.sort();
 }
 
-/** 日程データのファイル（schedule.json / types.json / projects/ / dependencies/）を全て読む。 */
+/** 日程データのファイル（schedule.json / types.json / projects/ / dependencies/ / templates/）を全て読む。 */
 export function loadFiles(root: string): Files {
   const files: Files = {};
   for (const rel of listKnown(root)) files[rel] = readFileSync(join(root, rel), 'utf8');
   return files;
+}
+
+/** 標準日程 1 件の保存・削除（F-801, F-807）。日程の自動保存とは別に、操作の確定時に呼ぶ。 */
+export function saveTemplate(root: string, id: string, text: string): void {
+  writeTransaction(root, { [templatePath(id)]: text });
+}
+export function deleteTemplate(root: string, id: string): void {
+  writeTransaction(root, {}, [templatePath(id)]);
 }
 
 export interface SaveResult {
@@ -169,7 +178,8 @@ export function saveFiles(root: string, files: Files): SaveResult {
   for (const [rel, text] of Object.entries(files)) {
     if (!existing.has(rel) || readFileSync(join(root, rel), 'utf8') !== text) changed[rel] = text;
   }
-  const removed = [...existing].filter((rel) => !(rel in files)).sort();
+  // 標準日程（templates/）は日程の自動保存の対象外: 渡されなくても消さない（削除は deleteTemplate）
+  const removed = [...existing].filter((rel) => !(rel in files) && !TEMPLATE_PATH_RE.test(rel)).sort();
   writeTransaction(root, changed, removed);
   return { written: Object.keys(changed).sort(), removed };
 }

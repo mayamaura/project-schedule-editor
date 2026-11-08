@@ -5,7 +5,8 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { isKnown, saveFiles } from '../fileRepository';
+import { TEMPLATE_PATH_RE } from '../../domain/template';
+import { deleteTemplate, isKnown, saveFiles, saveTemplate } from '../fileRepository';
 
 export type GitSource = 'external' | 'bundled';
 export type Version = readonly [number, number, number];
@@ -435,6 +436,26 @@ export class GitService {
     return { status: 'merge', mode, theirsRef, fastForward, base: await this.filesAt(baseHash), ours: await this.filesAt('HEAD'), theirs: await this.filesAt(theirsRef) };
   }
 
+  /**
+   * 標準日程（templates/）は項目ごとの比較をせず、ファイル単位で 3 版を合わせる: 自分が変えていなければ相手の版、
+   * 相手が変えていなければ自分の版、双方が別々に変えたら自分の版を残す。
+   * ponytail: 双方が同じ標準日程を変えた場合は自分の版が勝つ（相手の変更は履歴に残る）。競合の解決 UI は R5 で検討。
+   */
+  private async mergeTemplates(theirsRef: string): Promise<void> {
+    const baseHash = await this.text(['merge-base', 'HEAD', theirsRef]);
+    if (!baseHash) return;
+    const [b, o, t] = [await this.filesAt(baseHash), await this.filesAt('HEAD'), await this.filesAt(theirsRef)];
+    const paths = new Set([...Object.keys(b), ...Object.keys(o), ...Object.keys(t)].filter((p) => TEMPLATE_PATH_RE.test(p)));
+    for (const p of paths) {
+      const [bv, ov, tv] = [b[p], o[p], t[p]];
+      const result = ov === tv ? ov : ov === bv ? tv : tv === bv ? ov : ov;
+      if (result === ov) continue;
+      const id = p.slice('templates/'.length, -'.json'.length);
+      if (result === undefined) deleteTemplate(this.root, id);
+      else saveTemplate(this.root, id, result);
+    }
+  }
+
   /** 正式版の最新（共有先があればそれ）の日程データ。 */
   async mainFiles(): Promise<Files> {
     return this.filesAt(await this.mainRef());
@@ -471,6 +492,7 @@ export class GitService {
     if (!m.ok) return { status: 'error', message: m.stderr || m.stdout.toString('utf8') };
     try {
       saveFiles(this.root, merged);
+      await this.mergeTemplates(theirsRef);
       const add = await this.run(['add', '-A']);
       const commit = add.ok ? await this.run(['commit', '-m', message]) : add;
       if (!commit.ok) throw new Error(commit.stderr || commit.stdout.toString('utf8'));

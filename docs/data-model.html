@@ -148,8 +148,8 @@
 // 項目側の上書き
 "e2": { "name": "試作", "start": "2027-01-05", "end": "2027-03-31", "type": "phase", "style": "striped" }</pre>
 
-<h2>8. 標準日程（Template）</h2>
-<p>よく使う日程のひな形。<strong>起点（0ヶ月 / 0週）からの相対オフセット</strong>（ヶ月・日。負=起点より前、正=後）で保持し、展開時に起点の日付を与えて実日付に変換する。起点はマイルストーンである必要はなく、標準日程上の基準となる点（0）である（F-801〜F-808）。チーム共有のため Git の <code>templates/&lt;id&gt;.json</code>（1標準日程1ファイル、他と同じ出力規則）に保存する。</p>
+<h2 id="templates">8. 標準日程（Template）</h2>
+<p>実装: <code>src/domain/template.ts</code>（<a href="architecture.html#r2-templates">architecture 15</a>）。よく使う日程のひな形。<strong>起点（0ヶ月 / 0週）からの相対オフセット</strong>（ヶ月・日。負=起点より前、正=後）で保持し、展開時に起点の日付を与えて実日付に変換する。起点はマイルストーンである必要はなく、標準日程上の基準となる点（0）である（F-801〜F-808）。チーム共有のため Git の <code>templates/&lt;id&gt;.json</code>（1標準日程1ファイル、他と同じ出力規則）に保存する。</p>
 <pre>{
   "id": "tpl-release-std",
   "name": "標準リリース日程",
@@ -174,7 +174,9 @@
   }
 }</pre>
 <ul><li><strong>オフセット</strong>は <code>{ "months": 整数, "days": 整数 }</code>（どちらも省略可、省略は 0。符号は負=前、正=後）。画面では 日/週/ヶ月 の単位で入力でき、週は日（×7）に換算して保存する。</li>
-<li>起点より前（負）の項目も後（正）の項目も、同じ標準日程に定義できる。</li></ul>
+<li>起点より前（負）の項目も後（正）の項目も、同じ標準日程に定義できる。</li>
+<li>ヶ月と日を併用するときは<strong>同じ向き</strong>（両方が負、または両方が正）にする（読み込み時に検査する）。</li>
+<li>標準日程は日程（Schedule）とは別のファイル群で、自動保存の対象外。他の人の更新とは、<strong>ファイル単位の 3 版</strong>で合わせる（双方が同じ標準日程を変えたら自分の版を残す。architecture 15.1）。</li></ul>
 <h3>展開の計算</h3>
 <ol>
 <li>展開時に、起点（0）の実日付 <em>D<sub>0</sub></em> を決める（F-802）。(a) <strong>マイルストーン起点</strong>: 標準日程内の任意のマイルストーン <em>M</em>（既定は <code>defaultAnchor</code>）を選び、その実日付 <em>D<sub>M</sub></em> を指定する → <em>D<sub>0</sub></em> = <em>D<sub>M</sub></em> に <em>M</em> のオフセットを逆向きに適用した日付（<em>M</em> のオフセットが 0 なら <em>D<sub>0</sub></em> = <em>D<sub>M</sub></em>）。(b) <strong>起点の日付</strong>: <em>D<sub>0</sub></em> を直接指定する。</li>

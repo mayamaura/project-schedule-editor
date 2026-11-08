@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { emptySchedule } from '../../src/domain/model';
 import { parseSchedule, serializeSchedule } from '../../src/domain/serialize';
-import { beginSession, createEmpty, endSession, loadFiles, recover, saveFiles, writeAtomic, writeTransaction } from '../../src/main/fileRepository';
+import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveFiles, saveTemplate, writeAtomic, writeTransaction } from '../../src/main/fileRepository';
 import { basic } from '../domain/fixtures';
 
 let root: string;
@@ -213,5 +213,18 @@ describe('新規作成（F-501）', () => {
     writeFileSync(join(root, 'memo.txt'), 'x');
     expect(createEmpty(root, serializeSchedule(emptySchedule()))).toEqual({ ok: false, reason: 'not-empty' });
     expect(existsSync(join(root, 'schedule.json'))).toBe(false);
+  });
+});
+
+describe('標準日程のファイル（F-801, F-807）', () => {
+  it('日程の保存では消されず、読み込みに含まれる。個別に保存・削除できる', () => {
+    saveFiles(root, serializeSchedule(basic()));
+    saveTemplate(root, 't1', '{"id":"t1"}\n');
+    expect(loadFiles(root)['templates/t1.json']).toBe('{"id":"t1"}\n');
+    saveFiles(root, serializeSchedule(basic())); // 自動保存（標準日程を含まない）
+    expect(existsSync(join(root, 'templates/t1.json'))).toBe(true);
+    deleteTemplate(root, 't1');
+    expect(existsSync(join(root, 'templates/t1.json'))).toBe(false);
+    deleteTemplate(root, 't1'); // 無くても失敗しない
   });
 });

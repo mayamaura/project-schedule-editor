@@ -83,7 +83,7 @@ function describeSelection(s: Schedule, sel: Sel | null): string | null {
   return null;
 }
 
-export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule; docKey: unknown; commit: (c: Command) => string | null }) {
+export function TimelineView({ schedule, docKey, commit, onExpand }: { schedule: Schedule; docKey: unknown; commit: (c: Command) => string | null; onExpand?: (target: { projectId: Id; date?: string }) => void }) {
   const dark = usePrefersDark();
   const theme = dark ? darkTheme : lightTheme;
   const [headerMode, setHeaderMode] = useState<HeaderMode>('weekMonth');
@@ -261,9 +261,11 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
   const menuFor = (h: Hit): MenuItem[] => {
     if (h.kind === 'event' || h.kind === 'milestone') {
       const s: Sel = { kind: h.kind, id: h.id };
+      const ms = h.kind === 'milestone' ? schedule.projects[h.projectId]?.milestones[h.id] : undefined;
       return [
         { label: t('menu.edit'), run: () => setSelected(s) },
         { label: t('menu.addDependency'), run: () => { setSelected(s); setLinkFrom(h.id); } },
+        ...(ms && onExpand ? [{ label: t('menu.expandTemplateFromMilestone'), run: () => onExpand({ projectId: h.projectId, date: ms.date }) }] : []),
         { label: t('menu.delete'), run: () => deleteSel(s) },
       ];
     }
@@ -271,6 +273,7 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
       return [
         { label: t('menu.createEvent'), run: () => createAt('event', h.projectId, h.day) },
         { label: t('menu.createMilestone'), run: () => createAt('milestone', h.projectId, h.day) },
+        ...(onExpand ? [{ label: t('menu.expandTemplateHere'), run: () => onExpand({ projectId: h.projectId, date: fromDays(h.day) }) }] : []),
       ];
     }
     if (h.kind === 'header') {
@@ -432,6 +435,7 @@ export function TimelineView({ schedule, docKey, commit }: { schedule: Schedule;
     { label: t('menu.edit'), run: () => setSelected({ kind: 'project', id: projectId }) },
     { label: t('menu.addChild'), run: () => createProject(projectId) },
     { label: t('menu.addSibling'), run: () => createProject(schedule.projects[projectId]?.parentId ?? null) },
+    ...(onExpand ? [{ label: t('menu.expandTemplate'), run: () => onExpand({ projectId }) }] : []),
     { label: t('menu.delete'), run: () => deleteSel({ kind: 'project', id: projectId }) },
   ];
 

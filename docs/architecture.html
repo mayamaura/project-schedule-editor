@@ -431,7 +431,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <tr><td>依存線の右クリック</td><td>依存線のヒットテストが無いため、依存の編集・削除は詳細パネルで行う</td></tr>
 <tr><td>別プロジェクト行への項目の移動</td><td>決定 F5 により対象外（<code>moveEvent</code> / <code>moveMilestone</code> コマンドはあるが UI なし）</td></tr>
 <tr><td>複製・切り取り・コピー・貼り付け、Shift で子も移動、Alt でスナップ無効、矢印キーでの項目の移動</td><td>未実装（F-203 / F-207 とともに R5）</td></tr>
-<tr><td>標準日程の展開・色・表示方法のメニュー項目</td><td>R2 以降（F-805, F-102 の編集 UI）</td></tr>
+<tr><td>標準日程の展開のメニュー項目</td><td>実装済み（15。F-805）。色・表示方法のメニュー項目は R2 以降（F-102 の編集 UI）</td></tr>
 <tr><td>複数選択</td><td>未実装（単一選択のみ）</td></tr>
 <tr><td>プロジェクトの削除</td><td>確認なしで即時（Undo で戻る）。パイロットで事故が出たら確認を追加</td></tr></table>
 <h2 id="phase4">14. Phase 4（Git）の詳細設計と実装状況（2026-11-08）</h2>
@@ -467,5 +467,27 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <tr><td>競合予告（反映前に、競合しそうな項目を知らせる）</td><td><code>merge-tree</code> ではなく、取り込みの最初の段階で <code>mergeSchedules</code> を実行して競合の有無を出す（同じ計算なので結果が一致する）。取り込みと反映は同じウィザード内で行う</td></tr>
 <tr><td>過去の版の読み取り専用表示（F-504）・版の比較（F-505）</td><td>「この版に戻す」（未記録の変更として取り込む）のみ。読み取り専用で見る画面は未実装（R2 の F-505 とあわせて）</td></tr>
 <tr><td>起動時・定期の最新確認（バックグラウンドの fetch）</td><td>未実装。取り込みは「共有する」「正式版に反映する」を押したときに最新を確認する</td></tr></table>
+<h2 id="r2-templates">15. R2: 標準日程（テンプレート）の設計と実装状況（2026-11-08）</h2>
+<p>要件 F-801〜F-805, F-807〜F-809（F-806 は C のため未着手）。データ形式は <a href="data-model.html#templates">data-model 8</a>。</p>
+<h3>15.1 構成</h3>
+<table><tr><th>層</th><th>内容</th></tr>
+<tr><td>domain</td><td><code>src/domain/template.ts</code>: zod スキーマ、<code>applyOffset</code> / <code>reverseOffset</code>（ヶ月 → 日 → 非稼働日の補正）、<code>makeOffset</code> / <code>splitOffset</code>（週↔日の単位変換）、<code>validateTemplate</code>、<code>expandTemplate</code>（新しい ID を振った <code>batch</code> コマンド + 適用後の日程 + プレビュー用の一覧）、<code>parseTemplates</code> / <code>serializeTemplate</code>。Schedule とは独立の型で、コマンド・Undo の対象外（展開の結果だけがコマンド）。</td></tr>
+<tr><td>main</td><td><code>fileRepository.ts</code>: <code>templates/&lt;id&gt;.json</code> を既知のファイルに追加（履歴・差分・復旧の対象）。<strong>日程の自動保存（<code>saveFiles</code>）は templates/ を消さない</strong>（保存・削除は <code>saveTemplate</code> / <code>deleteTemplate</code> で個別に行う）。IPC: <code>template:save</code>（Main でも内容を検証）/ <code>template:delete</code>。</td></tr>
+<tr><td>git</td><td>取り込み（<code>completeMerge</code>）は、日程は <code>mergeSchedules</code>、<strong>標準日程はファイル単位の 3 版</strong>で合わせる（自分が変えていなければ相手の版、相手が変えていなければ自分の版、双方が別々に変えたら自分の版）。</td></tr>
+<tr><td>renderer</td><td><code>Templates.tsx</code>: 管理画面（一覧・新規・編集・複製・削除）と展開ダイアログ（プレビューつき）。入口は、ヘッダの「標準日程」「標準日程から追加」、右クリック（空白: この日を起点 / ◆: ここを起点 / プロジェクト行: 展開）。展開は <code>commit()</code> を通るので、正式版の直接編集の確認（F-520）と Undo 1 単位が効く。履歴に残す前の変更一覧・件数に、標準日程の追加・変更・削除を含める。</td></tr></table>
+<h3>15.2 決めたこと（仮定）</h3>
+<ul>
+<li><strong>マイルストーン起点の逆算</strong>: 起点（0）= 選んだマイルストーンの日付から、そのオフセットを<strong>日 → ヶ月の順に逆向き</strong>に適用した日付。選んだマイルストーン自身は、指定した日付に必ず一致させる（月末丸めのずれを出さない）。</li>
+<li><strong>終了が開始より前になったとき</strong>（稼働日・補正の結果）は、終了を開始に揃える（拒否しない）。</li>
+<li><strong>稼働日 = 土日以外</strong>。祝日（F-603）は未実装のため、<code>isWorkday</code> を差し替え可能にしてある（<code>weekendWorkday</code> が既定）。</li>
+<li>ヶ月と日は<strong>同じ向き</strong>（前か後）で指定する（スキーマで検査）。画面は「ヶ月・週・日 + 前/後」で、週は日（×7）に換算して保存する。</li>
+</ul>
+<h3>15.3 未実装・制約</h3>
+<table><tr><th>項目</th><th>状況</th></tr>
+<tr><td>祝日・稼働日カレンダー（F-603）</td><td>未実装。稼働日は土日のみ。「標準日程」画面に注記を出している</td></tr>
+<tr><td>タイムライン上の仮表示（F-803）</td><td>ダイアログ内の一覧（種別・名称・日付）でプレビュー。タイムライン上の仮表示と <code>diffSchedule</code> の再利用は未実装</td></tr>
+<tr><td>既存プロジェクトを標準日程として保存（F-806）</td><td>未着手（C）</td></tr>
+<tr><td>標準日程どうしの競合の解決 UI</td><td>双方が同じ標準日程を変えたら自分の版を残す（相手の変更は履歴に残る）。解決 UI は R5 で検討</td></tr>
+<tr><td>過去の版に戻す（F-504）と標準日程</td><td>戻すのは日程のみ。標準日程は戻さない</td></tr></table>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>
