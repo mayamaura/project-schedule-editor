@@ -14,6 +14,7 @@
     "tests/lint/**/*",
     "tests/unit/**/*",
     "electron.vite.config.ts",
+    "vite.viewer.config.ts",
     "vitest.config.mts",
     "playwright.config.ts"
   ]

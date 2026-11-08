@@ -10,6 +10,12 @@ const reflectResultSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('error'), message: z.string() }),
 ]);
 
+const exportResultSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('cancelled') }),
+  z.object({ status: z.literal('ok'), path: z.string(), bytes: z.number() }),
+  z.object({ status: z.literal('failed'), message: z.string() }),
+]);
+
 // IPC チャネルの定義（唯一の正）。入出力は zod で検証する。
 // 新しいチャネルは必ずここに追加し、Main 側は handle() で実装する（architecture 2）。
 export const ipcSchemas = {
@@ -105,6 +111,10 @@ export const ipcSchemas = {
     input: z.object({ rows: z.array(z.array(z.string())).max(1_000_000) }),
     output: z.discriminatedUnion('status', [z.object({ status: z.literal('cancelled') }), z.object({ status: z.literal('ok'), path: z.string() }), z.object({ status: z.literal('failed'), message: z.string() })]),
   },
+  /** 出力ファイルの保存（F-601, F-606, F-607）。保存先は利用者が選ぶ。 */
+  'export:html': { input: z.object({ payload: z.string().max(400_000_000), title: z.string().max(500) }), output: exportResultSchema },
+  'export:file': { input: z.object({ kind: z.enum(['svg', 'png']), data: z.string().max(400_000_000) }), output: exportResultSchema },
+  'export:pdf': { input: z.object({ svg: z.string().max(400_000_000), paper: z.enum(['A4', 'A3']), landscape: z.boolean() }), output: exportResultSchema },
   'repo:reload': { input: z.undefined(), output: z.object({ files: z.record(z.string(), z.string()) }) },
   /** 取り込みの準備: 共有先の最新を取得し、3 版の材料を返す（F-511, F-518）。main = 正式版の最新（作業版のとき）。 */
   'sync:prepare': {

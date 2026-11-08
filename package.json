@@ -8,7 +8,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "electron-vite build && vite build -c vite.viewer.config.ts",
     "typecheck": "tsc -p tsconfig.domain.json && tsc -p tsconfig.node.json && tsc -p tsconfig.web.json && tsc -p tsconfig.e2e.json",
     "lint": "eslint .",
     "test": "vitest run --coverage",

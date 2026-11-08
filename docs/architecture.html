@@ -507,5 +507,28 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <tr><td>展開前の仮表示（F-803）</td><td>展開ダイアログに、本体と同じ <code>buildDrawList</code> / <code>draw</code> で描いたタイムライン（<code>MiniTimeline.tsx</code>。展開される項目だけの日程）を出す。<code>diffSchedule</code> の差分表示との共有は行わず、一覧と併記する。</td></tr>
 <tr><td>Excel の取り込み・書き出し（F-602）</td><td><strong>未実装</strong>。Excel のファイルを扱うには新しい依存（候補: <code>read-excel-file</code> と <code>write-excel-file</code>。いずれも MIT・小さい依存）が要るが、追加は承認待ち（CLAUDE.md ルール 6）。表の変換は CSV と共通（<code>importRows</code> / <code>exportRows</code>）なので、追加すれば Main でファイルを表にして渡すだけで済む。当面は「Excel で CSV として保存して取り込む」。</td></tr>
 <tr><td>制約</td><td>CSV の取り込みは「追加」のみ（既存項目の更新・突き合わせはしない）。比較のタイムラインは変化のあった項目のうち 40 件まで。比較は日程（プロジェクト・イベント・マイルストーン）のみで、依存・標準日程・カレンダーの変化は比べない（変更一覧には出る）。</td></tr></table>
+<h2 id="r3-export">16. R3: 出力（HTML ビューア・PDF・SVG・PNG）の実装状況（2026-11-08）</h2>
+<p>要件 F-601, F-606, F-607, F-608, NF-020（F-609 はバックログ）。設計は 10。ここは、実装で決めたことと結果。</p>
+<h3>16.1 構成</h3>
+<table><tr><th>層</th><th>内容</th></tr>
+<tr><td>domain</td><td><code>src/domain/export/</code>: <code>snapshot.ts</code>（<code>buildSnapshot</code>: 範囲（全体 / 選択プロジェクトと子孫）・期間・メモ/担当者の除外（<strong>データ自体から除く</strong>）・依存線の有無。<code>scheduleFromSnapshot</code>: ビューア用の読み戻し）、<code>svg.ts</code>（<code>SvgCanvas</code>: <code>Canvas2D</code> の呼び出しを SVG に記録する偽の Canvas。<strong><code>draw</code> をそのまま呼ぶので、画面と同じ見た目で、新しい描画コードが無い</strong>。<code>drawListToSvg</code>）、<code>image.ts</code>（<code>buildImageDrawList</code>: 画面の DrawList の左にプロジェクト名の列を足す。<code>fitPxPerDay</code>: 画像の大きさを上限 16,000px に収める）、<code>html.ts</code>（<code>buildViewerHtml</code>: CSP・<code>&lt;</code> のエスケープ・<code>&lt;/script&gt;</code> 対策）。</td></tr>
+<tr><td>viewer</td><td><code>src/viewer/index.ts</code>（React 非依存の素の TypeScript）: 左のツリー（折りたたみ）、Canvas（<code>buildDrawList</code> / <code>draw</code> / <code>hitTest</code> / <code>zoomAt</code> / <code>effectiveHeaderMode</code> を共有）、ツールバー（年月週⇔年月・拡大縮小・今日・依存線の表示切替）、ホバーの詳細（<code>textContent</code>）、クリックで選択、ホイール（Ctrl=ズーム、Shift=横）・ドラッグでパン・ピンチ・キーボード、<code>@media print</code>。データは <code>&lt;script type="application/json"&gt;</code>（大きければ gzip + base64 を <code>DecompressionStream</code> で展開）。<strong>約 117KB（gzip 約 36KB）</strong>。</td></tr>
+<tr><td>ビルド</td><td><code>vite.viewer.config.ts</code>: ビューアを 1 つの IIFE（<code>out/viewer/viewer.js</code>）にまとめる。<code>npm run build</code> は <code>electron-vite build</code> の後にこれを実行する。出力時に Main が読み、HTML に埋め込む。新しい依存は無い。</td></tr>
+<tr><td>main</td><td><code>src/main/export.ts</code>: <code>buildHtmlFile</code>（データが 1.5MB を超えたら gzip + base64）、<code>renderPdf</code>（隠しウィンドウに SVG を読み込んで <code>printToPDF</code>。用紙 A3/A4・向きを指定し、<strong>範囲全体を 1 ページに収める</strong>）。IPC: <code>export:html</code> / <code>export:file</code>（SVG・PNG）/ <code>export:pdf</code>。保存先は OS の保存ダイアログで利用者が選び、書き込みは一時ファイル + rename。</td></tr>
+<tr><td>renderer</td><td><code>ExportDialog.tsx</code>（ヘッダの「出力」）: 形式（HTML / PDF / PNG / SVG）、範囲（全体 / 選択中のプロジェクト / 表示中のビュー）、期間、依存線、日付ヘッダ、HTML ではメモ・担当者（既定は含めない）と<strong>暗号化されない旨の注意</strong>、画像では細かさ・倍率（PNG）・用紙と向き（PDF）。PNG は同じ <code>draw</code> を倍率つきの Canvas に描いて <code>toBlob</code>。</td></tr></table>
+<h3>16.2 実測と検証</h3>
+<ul>
+<li><strong>25,000 イベントの HTML</strong>: JSON 約 2.6MB → <strong>HTML 約 0.5MB</strong>（gzip 埋め込み。目標 10MB 以下）。<strong>ビューアのフレーム間隔は平均 約 18 ms（約 56fps）</strong>（ホイールでスクロール・ズームしながらの実測。隠しウィンドウは描画が間引かれるため、表示して測る）。</li>
+<li>E2E（<code>tests/e2e/export.spec.ts</code>）: 出力した HTML を <code>file://</code> で開き、①外部リソースの読み込み 0 件 ②名称に <code>&lt;/script&gt;&lt;img onerror=…&gt;</code> を含むデータで壊れず文字として表示される（インジェクションなし）③ズーム・ヘッダ形式・ツリーの折りたたみ ④メモ・担当者が既定ではファイルに含まれない、を確認。SVG（<code>&lt;text&gt;</code>・エスケープ）、PNG（シグネチャ）、PDF（<code>%PDF-</code>）、期間指定も確認。単体テストは <code>tests/domain/export*.test.ts</code>。</li>
+</ul>
+<h3>16.3 未実装・制約</h3>
+<table><tr><th>項目</th><th>状況</th></tr>
+<tr><td>F-609（HTML ビューアの補助機能: 検索・種別の表示切替・一覧表示）</td><td>バックログ（C）。未着手</td></tr>
+<tr><td>PDF の「期間・行で分割」（決定 J3）</td><td>未実装。範囲全体を 1 ページに縮小して収める方式のみ（大きな範囲は文字が小さくなる。期間・プロジェクトで絞って使う）</td></tr>
+<tr><td>出力の「表示中のビュー」</td><td>今の表示期間（と選択・ヘッダ形式の既定）を使う。折りたたみ状態は反映しない</td></tr>
+<tr><td>版の表記</td><td>「正式版 / 作業版」のみ（作業版の名前・コミットは入れない）</td></tr>
+<tr><td>主要ブラウザでの確認</td><td>Chromium（Electron）のみ確認。Firefox / Safari での動作は未確認（NF-020 ②）。<code>DecompressionStream</code> は最新版の主要ブラウザで利用可能</td></tr>
+<tr><td>開発モード（<code>npm run dev</code>）での HTML 出力</td><td>ビューアは <code>out/viewer/viewer.js</code> を読むので、先に <code>npm run build</code>（または <code>vite build -c vite.viewer.config.ts</code>）が要る。無ければ出力は失敗して理由が出る</td></tr>
+<tr><td>大きな PDF / SVG</td><td>25,000 イベントの全体を出すと巨大になる。サイズの実測は未実施</td></tr></table>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>

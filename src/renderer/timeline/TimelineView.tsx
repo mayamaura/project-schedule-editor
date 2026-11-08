@@ -41,6 +41,7 @@ import {
   type TimelineViewport,
 } from '@domain/index';
 import { t } from '../i18n';
+import type { TimelineApi } from '../ExportDialog';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { DetailPanel, type Sel } from './DetailPanel';
 
@@ -85,7 +86,7 @@ function describeSelection(s: Schedule, sel: Sel | null): string | null {
   return null;
 }
 
-export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTemplate, calendar }: { schedule: Schedule; docKey: unknown; commit: (c: Command) => string | null; onExpand?: (target: { projectId: Id; date?: string }) => void; onSaveAsTemplate?: (projectId: Id) => void; calendar?: Calendar }) {
+export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTemplate, calendar, apiRef }: { schedule: Schedule; docKey: unknown; commit: (c: Command) => string | null; onExpand?: (target: { projectId: Id; date?: string }) => void; onSaveAsTemplate?: (projectId: Id) => void; calendar?: Calendar; apiRef?: React.MutableRefObject<TimelineApi | null> }) {
   const dark = usePrefersDark();
   const theme = dark ? darkTheme : lightTheme;
   const [headerMode, setHeaderMode] = useState<HeaderMode>('weekMonth');
@@ -116,6 +117,22 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
 
   // 最新の入力を ref に持つ（rAF のコールバックが古い値を見ないように）
   const preview = useRef<Schedule | null>(null);
+  // 出力ダイアログへ、表示中の期間・選択中のプロジェクト・ヘッダ形式を渡す（F-601, F-608）
+  if (apiRef) {
+    apiRef.current = {
+      visibleRange: () => {
+        const v = view.current;
+        return { from: fromDays(Math.floor(v.leftDay)), to: fromDays(Math.ceil(v.leftDay + v.width / v.pxPerDay)) };
+      },
+      selectedProjectId: () => {
+        if (!selected) return null;
+        if (selected.kind === 'project') return selected.id;
+        for (const p of Object.values(schedule.projects)) if (p.events[selected.id] || p.milestones[selected.id]) return p.id;
+        return null;
+      },
+      headerMode: () => headerMode,
+    };
+  }
   const nonWorking = useMemo(() => (calendar ? nonWorkingDayFn(calendar) : undefined), [calendar]);
   const latest = useRef({ schedule, layout, headerMode, deps, theme, selected, nonWorking });
   latest.current = { schedule, layout, headerMode, deps, theme, selected, nonWorking };

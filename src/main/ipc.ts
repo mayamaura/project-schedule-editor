@@ -7,8 +7,9 @@ import { emptySchedule } from '../domain/model';
 import { serializeSchedule } from '../domain/serialize';
 import { parseCalendar } from '../domain/calendar';
 import { parseCsv, toCsv } from '../domain/csv';
+import { buildHtmlFile, renderPdf } from './export';
 import { parseTemplate } from '../domain/template';
-import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveCalendar, saveFiles, saveTemplate } from './fileRepository';
+import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveCalendar, saveFiles, saveTemplate, writeAtomic } from './fileRepository';
 
 // 開いているフォルダ（Renderer からパスは受け取らない。NF-007）
 let currentRoot: string | null = null;
@@ -134,6 +135,35 @@ export function registerIpc(): void {
     try {
       writeFileSync(r.filePath, `\uFEFF${toCsv(rows)}`, 'utf8'); // BOM つき UTF-8（Excel で文字化けしない）
       return { status: 'ok' as const, path: r.filePath };
+    } catch (e) {
+      return { status: 'failed' as const, message: e instanceof Error ? e.message : String(e) };
+    }
+  });
+  // 出力（F-601, F-606, F-607）。ファイルの選択は OS のダイアログ。HTML・SVG・PDF の組み立ては export.ts。
+  async function saveOut(event: IpcMainInvokeEvent, title: string, name: string, ext: string, data: string | Buffer): Promise<{ status: 'cancelled' } | { status: 'ok'; path: string; bytes: number } | { status: 'failed'; message: string }> {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options = { title, defaultPath: `${name}.${ext}`, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] };
+    const r = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+    if (r.canceled || !r.filePath) return { status: 'cancelled' };
+    try {
+      writeAtomic(r.filePath, data);
+      return { status: 'ok', path: r.filePath, bytes: Buffer.byteLength(data) };
+    } catch (e) {
+      return { status: 'failed', message: e instanceof Error ? e.message : String(e) };
+    }
+  }
+  handle('export:html', async ({ payload, title }, event) => {
+    try {
+      const { html } = buildHtmlFile(payload, title);
+      return await saveOut(event, 'HTML に出力する', '日程', 'html', html);
+    } catch (e) {
+      return { status: 'failed' as const, message: e instanceof Error ? e.message : String(e) };
+    }
+  });
+  handle('export:file', ({ kind, data }, event) => (kind === 'svg' ? saveOut(event, 'SVG に出力する', '日程', 'svg', data) : saveOut(event, 'PNG に出力する', '日程', 'png', Buffer.from(data, 'base64'))));
+  handle('export:pdf', async ({ svg, paper, landscape }, event) => {
+    try {
+      return await saveOut(event, 'PDF に出力する', '日程', 'pdf', await renderPdf(svg, paper, landscape));
     } catch (e) {
       return { status: 'failed' as const, message: e instanceof Error ? e.message : String(e) };
     }

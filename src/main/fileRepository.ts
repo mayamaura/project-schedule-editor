@@ -44,12 +44,13 @@ function renameRetry(from: string, to: string): void {
   }
 }
 
-function writeTmp(file: string, text: string): string {
+function writeTmp(file: string, text: string | Buffer): string {
   mkdirSync(dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   const fd = openSync(tmp, 'w');
   try {
-    writeSync(fd, text);
+    if (typeof text === 'string') writeSync(fd, text);
+    else for (let off = 0; off < text.length; ) off += writeSync(fd, text, off, text.length - off);
     fsyncSync(fd);
   } finally {
     closeSync(fd);
@@ -58,7 +59,7 @@ function writeTmp(file: string, text: string): string {
 }
 
 /** 1ファイルの原子的な書き込み（一時ファイル → fsync → rename）。 */
-export function writeAtomic(file: string, text: string): void {
+export function writeAtomic(file: string, text: string | Buffer): void {
   renameRetry(writeTmp(file, text), file);
 }
 

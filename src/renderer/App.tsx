@@ -4,6 +4,7 @@ import { History, defaultCalendar, diffSchedule, exportRows, newIssues, generate
 import { t } from './i18n';
 import { CalendarDialog } from './CalendarDialog';
 import { CsvImportDialog } from './CsvDialog';
+import { ExportDialog, type TimelineApi } from './ExportDialog';
 import { ExpandDialog, SaveAsTemplateDialog, TemplateManager, type ExpandPreset } from './Templates';
 import { TimelineView } from './timeline/TimelineView';
 import { VersionControls, type VersionInfo } from './VersionControls';
@@ -66,6 +67,8 @@ export function App() {
   const [calendar, setCalendar] = useState<Calendar>(defaultCalendar());
   const [calOpen, setCalOpen] = useState(false);
   const [saveAs, setSaveAs] = useState<Id | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const timelineApi = useRef<TimelineApi | null>(null);
   const [csv, setCsv] = useState<{ fileName: string; rows: string[][] } | null>(null);
   const [expand, setExpand] = useState<ExpandPreset | null>(null);
 
@@ -445,6 +448,9 @@ export function App() {
                 <button type="button" data-testid="tpl-add-project" onClick={() => setExpand({})}>
                   {t('tpl.addProject')}
                 </button>
+                <button type="button" data-testid="export-open" onClick={() => setExportOpen(true)}>
+                  {t('exp.open')}
+                </button>
                 <button type="button" data-testid="csv-import" onClick={() => void importCsv()}>
                   {t('csv.import')}
                 </button>
@@ -487,7 +493,8 @@ export function App() {
               {t('app.redo')}
             </button>
           </div>
-          <TimelineView schedule={loaded.history.present} docKey={loaded.history} commit={commit} calendar={calendar} {...(loaded.path ? { onExpand: setExpand, onSaveAsTemplate: setSaveAs } : {})} />
+          <TimelineView schedule={loaded.history.present} docKey={loaded.history} commit={commit} calendar={calendar} apiRef={timelineApi} {...(loaded.path ? { onExpand: setExpand, onSaveAsTemplate: setSaveAs } : {})} />
+          {exportOpen ? <ExportDialog schedule={loaded.history.present} calendar={calendar} versionLabel={ver.branch === 'main' || ver.branch === null ? t('exp.main') : t('exp.work')} api={timelineApi.current} onDone={setMessage} onClose={() => setExportOpen(false)} /> : null}
           {saveAs ? <SaveAsTemplateDialog schedule={loaded.history.present} projectId={saveAs} onSave={saveTemplate} onClose={() => setSaveAs(null)} /> : null}
           {csv ? (
             <CsvImportDialog

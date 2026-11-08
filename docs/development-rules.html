@@ -103,7 +103,7 @@ spike/        技術検証の使い捨てコード（本体に混ぜない）</p
 <table><tr><th>コマンド</th><th>内容</th></tr>
 <tr><td><code>npm install</code> の後に <code>node node_modules/electron/install.js</code></td><td>依存の取得と、Electron のバイナリ取得（Electron のパッケージは postinstall を持たない）</td></tr>
 <tr><td><code>npm run dev</code></td><td>開発モード（HMR）。<code>ELECTRON_RUN_AS_NODE</code> が設定されていると起動しない（<a href="architecture.html#phase0">architecture 11.4</a>）</td></tr>
-<tr><td><code>npm run build</code></td><td>main・preload・renderer をビルド（<code>out/</code>）</td></tr>
+<tr><td><code>npm run build</code></td><td>main・preload・renderer をビルド（<code>out/</code>）し、続けて HTML ビューア（<code>out/viewer/viewer.js</code>。<code>vite.viewer.config.ts</code>）をビルド</td></tr>
 <tr><td><code>npm run typecheck</code> / <code>lint</code> / <code>test</code></td><td>型（4設定）/ ESLint（レイヤ境界）/ Vitest（単体）。<code>verify</code> が自動で実行する</td></tr>
 <tr><td><code>npm run test:e2e</code></td><td>実際の Electron を起動する E2E（事前に <code>npm run build</code>）。画面にウィンドウが一瞬開く</td></tr>
 <tr><td><code>npm run pack</code> / <code>dist</code></td><td>署名なしのパッケージ（<code>dist/</code>）。<code>pack</code> は展開形式、<code>dist</code> は NSIS インストーラ</td></tr>

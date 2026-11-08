@@ -121,6 +121,7 @@
 <tr><td>設計</td><td><strong>DrawList を唯一の中間表現にする</strong>（architecture 10.1）。<code>src/viewer/</code>（React 非依存・外部通信なし・編集機能なし）が <code>src/domain/</code> の描画コードを共有する構成、単一 HTML への埋め込み（データは JSON として安全にエスケープ。<code>&lt;/script&gt;</code> 対策）、出力範囲（表示中のビュー / 選択プロジェクト / 全体）・期間・倍率・メモや担当者を含めるかの指定（F-608）、出力前の注意表示、サイズ目標 10MB 以下</td></tr>
 <tr><td>実装</td><td>S-R3-1 ビューア（<code>src/viewer/</code>）と単一 HTML 出力（ズーム・スクロール・ホバー。F-607）。S-R3-2 出力オプションと注意表示（F-608）。S-R3-3 SVG・PNG 出力（F-601。DrawList から変換）。S-R3-4 PDF 出力と印刷（F-606。ベクタで、文字を選択・検索できる。PDF 生成に新しい依存が要る場合は承認を得る）</td></tr>
 <tr><td>テスト</td><td>NF-020 の検証（<code>file://</code> で開き、外部通信 0 件、25,000 イベントでのスクロール・ズーム、<code>&lt;/script&gt;</code> を含むデータで壊れない）、DrawList → SVG の単体テスト、出力サイズの計測（Playwright の <code>file://</code>）</td></tr>
+<tr><td><strong>進捗（2026-11-08）</strong></td><td>S-R3-1〜S-R3-4 を実装: 閲覧専用 HTML ビューア（<code>src/viewer/</code>。画面と同じ描画コードを共有）・出力オプション（範囲・期間・メモ/担当者・依存線・日付ヘッダ、暗号化されない旨の注意）・SVG（<code>draw</code> を SVG に記録する偽の Canvas で生成）・PNG（倍率）・PDF（<code>printToPDF</code>。ベクタ、1 ページに収める）。<strong>25,000 イベントで HTML 約 0.5MB、ビューアのフレーム間隔 平均 約 18ms</strong>。E2E で、外部通信 0 件・名称の <code>&lt;/script&gt;</code> でも壊れないことを確認。詳細・制約は <a href="architecture.html#r3-export">architecture 16</a>。<strong>未実装</strong>: F-609（バックログ）、PDF の期間・行での分割（J3）、Firefox / Safari での動作確認。</td></tr>
 <tr><td>完了条件</td><td>閲覧専用の単一 HTML を、メールやファイル共有で配布でき、受け取った人がブラウザで見られる。PNG・SVG・PDF も出力できる</td></tr></table>
 
 <h3>R4: AI（約6週）</h3>

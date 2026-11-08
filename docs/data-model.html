@@ -201,7 +201,7 @@
 <li>起動時にスキーマ検証と参照整合の検証を行い、不整合は修復案とともに提示する（データを黙って削除しない）。詳細は <a href="architecture.html#autosave">architecture 8</a>。</li>
 </ul>
 <h2 id="export-snapshot">10. 出力用スナップショット（HTML ビューア）</h2>
-<p>HTML 出力（F-607）に埋め込むデータ。アプリのデータの<strong>読み取り専用のコピー</strong>で、Git には保存しない（出力ファイルにのみ存在する）。</p>
+<p>HTML 出力（F-607）に埋め込むデータ。アプリのデータの<strong>読み取り専用のコピー</strong>で、Git には保存しない（出力ファイルにのみ存在する）。実装: <code>src/domain/export/snapshot.ts</code>（<a href="architecture.html#r3-export">architecture 16</a>）。実装では <code>source</code> は <code>label</code>（正式版 / 作業版）のみ、<code>title</code> を持ち、<code>calendar</code> は <a href="#calendar-file">calendar.json</a> の設定そのもの（祝日・休日の背景をビューアでも計算するため）。</p>
 <pre>{
   "snapshotVersion": 1,
   "generatedAt": "2026-11-07T10:00:00+09:00",
