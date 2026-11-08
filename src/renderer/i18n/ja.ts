@@ -230,6 +230,7 @@ export const ja = {
   'ai.discard': '破棄',
   'ai.applied': '適用しました（「元に戻す」で取り消せます）',
   'ai.discarded': '破棄しました',
+  'ai.unknownRef': '（日程にない項目）',
   'ai.findingsNote': '以下は AI の指摘・疑いです（確定ではありません）。',
   'ai.history': '会話・提案のログ',
   'ai.historyNote': 'このパソコンにだけ保存され、他の人には共有されません。削除できます。',

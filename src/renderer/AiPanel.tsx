@@ -201,13 +201,16 @@ export function AiPanel({
   const setProposal = (turn: Turn, id: string, patch: Partial<Turn['proposals'][number]>): void => setTurns((l) => l.map((x) => (x.id === turn.id ? { ...x, proposals: x.proposals.map((q) => (q.id === id ? { ...q, ...patch } : q)) } : x)));
 
   const loadHistory = async (): Promise<void> => setHistory([...(await window.api.invoke('ai:history'))].reverse());
+  /** 指摘の対象の表示名。項目は「プロジェクト / 名称」、依存は「先行 → 後続」。ID は出さない。 */
   const nameOf = (id: Id): string => {
     for (const pr of Object.values(schedule.projects)) {
       if (pr.id === id) return pr.name;
-      if (pr.events[id]) return pr.events[id]!.name;
-      if (pr.milestones[id]) return pr.milestones[id]!.name;
+      const it = pr.events[id] ?? pr.milestones[id];
+      if (it) return `${pr.name} / ${it.name}`;
     }
-    return id;
+    const d = schedule.dependencies[id];
+    if (d) return `${nameOf(d.from.id)} → ${nameOf(d.to.id)}`;
+    return t('ai.unknownRef');
   };
 
   // 接続の確認が済むまで（Copilot の実行本体の起動に数秒かかる）は、送信できない
@@ -380,8 +383,8 @@ export function AiPanel({
                     <strong>{f.severity === 'warning' ? '⚠ ' : 'ℹ '}{f.title}</strong>
                     <p>{f.detail}</p>
                     {f.refs.map((r) => (
-                      <button key={`${r.kind}${r.id}`} type="button" data-testid="ai-jump" onClick={() => api?.jumpTo(r.id)}>
-                        → {nameOf(r.id)}
+                      <button key={`${r.kind}${r.id}`} type="button" data-testid="ai-jump" onClick={() => api?.jumpTo(schedule.dependencies[r.id]?.from.id ?? r.id)}>
+                        {r.kind === 'dependency' ? '' : '→ '}{nameOf(r.id)}
                       </button>
                     ))}
                   </div>
