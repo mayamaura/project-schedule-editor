@@ -485,9 +485,9 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <h3>15.3 未実装・制約</h3>
 <table><tr><th>項目</th><th>状況</th></tr>
 <tr><td>祝日・稼働日カレンダー（F-603）</td><td>実装済み（15.4）</td></tr>
-<tr><td>タイムライン上の仮表示（F-803）</td><td>ダイアログ内の一覧（種別・名称・日付）でプレビュー。タイムライン上の仮表示と <code>diffSchedule</code> の再利用は未実装</td></tr>
+<tr><td>タイムライン上の仮表示（F-803）</td><td>実装済み（15.5。展開ダイアログ内のミニタイムライン）。<code>diffSchedule</code> の差分表示の再利用はしていない</td></tr>
 <tr><td>グラフ編集の制約</td><td>横軸は平均月長（約 30.4 日）の目安。ヶ月単位のドラッグは日を保ち、ヶ月と日の向きが食い違う結果になるときは近い位置のヶ月（または日）に丸める。編集中の Undo は無い（「やめる」で破棄）。依存の作成はグラフ上では未実装（一覧）</td></tr>
-<tr><td>既存プロジェクトを標準日程として保存（F-806）</td><td>未着手（C）</td></tr>
+<tr><td>既存プロジェクトを標準日程として保存（F-806）</td><td>実装済み（15.5）</td></tr>
 <tr><td>標準日程どうしの競合の解決 UI</td><td>双方が同じ標準日程を変えたら自分の版を残す（相手の変更は履歴に残る）。解決 UI は R5 で検討</td></tr>
 <tr><td>過去の版に戻す（F-504）と標準日程</td><td>戻すのは日程のみ。標準日程は戻さない</td></tr></table>
 <h3 id="r2-calendar">15.4 カレンダー（F-603）と整合性チェックの拡充（F-704, F-512）</h3>
@@ -498,5 +498,14 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <tr><td>整合性チェック（F-704）</td><td>既存の規則（依存違反・循環・終了＜開始・親の期間の逸脱・ID 重複 ほか）に、<strong>同一項目の重複</strong>（<code>duplicate-item</code>。同じプロジェクトで名称・日付・種別が同じ項目。警告）を追加。</td></tr>
 <tr><td>新規発生の警告（F-512）</td><td><code>newIssues(before, after)</code>（純関数）: 変更前に無く、変更後に生じた指摘。編集の直後に画面上部へ「この変更で新たに N 件の指摘が出ました」と出す（編集は止めない。A2）。履歴に残す前の確認と、反映前の確認（F-518）にも同じ関数を使う。</td></tr>
 <tr><td>制約</td><td>祝日の対象は 1980〜2099 年（春分・秋分は近似式）。会社の休日は手入力（一括取り込みなし）。祝日・休日に当たる項目の警告は出さない。新規発生の指摘は編集の直後の 1 回だけ表示する（一覧は常に問題一覧で見られる）。</td></tr></table>
+<h3 id="r2-compare">15.5 版の比較・履歴の変更要約・CSV・標準日程の保存と仮表示（R2 の残り）</h3>
+<table><tr><th>項目</th><th>内容</th></tr>
+<tr><td>版の比較（F-505）</td><td><code>src/domain/compare.ts</code>（純関数）: <code>compareSchedules(前, 後)</code> が、項目ごとに「追加 / 削除 / 日付が動いた（動いた日数。後ろ倒しは正）/ 日付以外の変更」を返す。ID が同じなら別のプロジェクトへ移っても同じ項目として比べる。画面は <code>CompareDialog.tsx</code>（前・後の版を履歴または現在の作業から選ぶ。前後の位置を重ねたタイムライン（灰色の枠が前・色つきが後）と一覧）。</td></tr>
+<tr><td>履歴の変更要約（F-510）</td><td>履歴の各版に「変更を見る」（同じ比較画面。その版と 1 つ前の版を <code>git:commitChange</code> で取得）。<strong>後ろ倒しだけを遅れの大きい順</strong>に出すスイッチ（<code>delayedItems</code>）、比較画面でのプロジェクト・期間の絞り込み（<code>filterChanges</code>）、履歴の一覧での作者・期間の絞り込み。</td></tr>
+<tr><td>CSV の取り込み・書き出し（F-602）</td><td><code>src/domain/csv.ts</code>: <code>parseCsv</code> / <code>toCsv</code>（RFC 4180。BOM・CRLF 可）、<code>normalizeDate</code>（2026/1/5・2026年12月15日・Excel のシリアル値も可）、<code>exportRows</code>、<code>importRows</code>（見出しの列名で対応づけ。プロジェクトは「親 / 子」の階層で、同名があればそこへ・無ければ作る。おかしな行は理由つきで飛ばし、取り込める行を 1 つの batch コマンド（Undo 1 単位）にする）。Main は <code>csv:import</code>（UTF-8 で読めなければ Shift_JIS で読む）と <code>csv:export</code>（BOM つき UTF-8）でファイルを読み書きする。</td></tr>
+<tr><td>標準日程として保存（F-806）</td><td><code>templateFromProject</code>: プロジェクトの項目を、起点（マイルストーンまたは日付）からの相対<strong>日数</strong>に変換し、種別・メモ・プロジェクト内の依存も写す。右クリック「標準日程として保存」から。</td></tr>
+<tr><td>展開前の仮表示（F-803）</td><td>展開ダイアログに、本体と同じ <code>buildDrawList</code> / <code>draw</code> で描いたタイムライン（<code>MiniTimeline.tsx</code>。展開される項目だけの日程）を出す。<code>diffSchedule</code> の差分表示との共有は行わず、一覧と併記する。</td></tr>
+<tr><td>Excel の取り込み・書き出し（F-602）</td><td><strong>未実装</strong>。Excel のファイルを扱うには新しい依存（候補: <code>read-excel-file</code> と <code>write-excel-file</code>。いずれも MIT・小さい依存）が要るが、追加は承認待ち（CLAUDE.md ルール 6）。表の変換は CSV と共通（<code>importRows</code> / <code>exportRows</code>）なので、追加すれば Main でファイルを表にして渡すだけで済む。当面は「Excel で CSV として保存して取り込む」。</td></tr>
+<tr><td>制約</td><td>CSV の取り込みは「追加」のみ（既存項目の更新・突き合わせはしない）。比較のタイムラインは変化のあった項目のうち 40 件まで。比較は日程（プロジェクト・イベント・マイルストーン）のみで、依存・標準日程・カレンダーの変化は比べない（変更一覧には出る）。</td></tr></table>
 <div class="todo">技術選定への意見・制約（社内標準、使用不可ライブラリ、対象OS等）を追記。</div>
 </main></body></html>

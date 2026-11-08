@@ -73,6 +73,27 @@ test('履歴に保存が並び、前の版に戻すと未保存の変更にな�
   await expect(page.getByTestId('save-state')).toHaveText('自動保存済み');
 });
 
+test('履歴の絞り込みと、各版の変更要約・版の比較（F-510, F-505）', async () => {
+  await page.getByTestId('ver-history').click();
+  await page.getByTestId('history-author').selectOption('テスト');
+  await expect(page.getByTestId('history-item')).toHaveCount(2);
+  await page.getByTestId('history-to').fill('2000-01-01'); // 期間で絞る
+  await expect(page.getByTestId('history-item')).toHaveCount(0);
+  await page.getByTestId('history-to').fill('');
+  await page.getByTestId('history-item').first().getByTestId('history-changes').click();
+  await expect(page.getByTestId('dialog-compare')).toBeVisible();
+  await expect(page.getByTestId('cmp-summary')).toContainText('日付以外の変更 1 件');
+  await expect(page.getByTestId('cmp-item')).toContainText('設計（改）');
+  await page.getByTestId('cmp-close').click();
+
+  // 最後に履歴に残した版と、今の作業（前の版に戻した状態）を比べる
+  await page.getByTestId('ver-compare').click();
+  await expect(page.getByTestId('cmp-item')).toHaveCount(1);
+  await expect(page.getByTestId('cmp-item')).toContainText('設計');
+  await expect(page.getByTestId('cmp-chart')).toBeVisible();
+  await page.getByTestId('cmp-close').click();
+});
+
 test('診断が項目別に出る（F-523）', async () => {
   await page.getByTestId('ver-diagnose').click();
   const list = page.getByTestId('diag-list');

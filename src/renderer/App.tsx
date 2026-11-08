@@ -1,9 +1,10 @@
 // @req F-501, F-101, F-206, F-208, F-210, F-211
 import { useEffect, useRef, useState } from 'react';
-import { History, defaultCalendar, diffSchedule, newIssues, generateSample, parseCalendar, parseSchedule, parseTemplates, serializeCalendar, serializeSchedule, serializeTemplate, summarizeChange, type Calendar, type Command, type Id, type Schedule, type ParseIssue, type Template } from '@domain/index';
+import { History, defaultCalendar, diffSchedule, exportRows, newIssues, generateSample, parseCalendar, parseSchedule, parseTemplates, serializeCalendar, serializeSchedule, serializeTemplate, summarizeChange, type Calendar, type Command, type Id, type Schedule, type ParseIssue, type Template } from '@domain/index';
 import { t } from './i18n';
 import { CalendarDialog } from './CalendarDialog';
-import { ExpandDialog, TemplateManager, type ExpandPreset } from './Templates';
+import { CsvImportDialog } from './CsvDialog';
+import { ExpandDialog, SaveAsTemplateDialog, TemplateManager, type ExpandPreset } from './Templates';
 import { TimelineView } from './timeline/TimelineView';
 import { VersionControls, type VersionInfo } from './VersionControls';
 
@@ -64,6 +65,8 @@ export function App() {
   const [tplOpen, setTplOpen] = useState(false);
   const [calendar, setCalendar] = useState<Calendar>(defaultCalendar());
   const [calOpen, setCalOpen] = useState(false);
+  const [saveAs, setSaveAs] = useState<Id | null>(null);
+  const [csv, setCsv] = useState<{ fileName: string; rows: string[][] } | null>(null);
   const [expand, setExpand] = useState<ExpandPreset | null>(null);
 
   useEffect(() => {
@@ -172,6 +175,18 @@ export function App() {
     } catch (e) {
       return e instanceof Error ? e.message : String(e);
     }
+  };
+  // CSV の取り込み・書き出し（F-602）
+  const importCsv = async (): Promise<void> => {
+    const r = await window.api.invoke('csv:import');
+    if (r.status === 'ok') setCsv({ fileName: r.fileName, rows: r.rows });
+    else if (r.status === 'failed') setMessage(t('csv.failed', { message: r.message }));
+  };
+  const exportCsv = async (): Promise<void> => {
+    if (!h) return;
+    const r = await window.api.invoke('csv:export', { rows: exportRows(h.present) });
+    if (r.status === 'ok') setMessage(t('csv.exported', { path: r.path }));
+    else if (r.status === 'failed') setMessage(t('csv.failed', { message: r.message }));
   };
   const saveTemplate = async (tp: Template): Promise<string | null> => {
     try {
@@ -430,6 +445,12 @@ export function App() {
                 <button type="button" data-testid="tpl-add-project" onClick={() => setExpand({})}>
                   {t('tpl.addProject')}
                 </button>
+                <button type="button" data-testid="csv-import" onClick={() => void importCsv()}>
+                  {t('csv.import')}
+                </button>
+                <button type="button" data-testid="csv-export" onClick={() => void exportCsv()}>
+                  {t('csv.export')}
+                </button>
                 <button type="button" data-testid="cal-open" onClick={() => setCalOpen(true)}>
                   {t('cal.open')}
                 </button>
@@ -466,7 +487,20 @@ export function App() {
               {t('app.redo')}
             </button>
           </div>
-          <TimelineView schedule={loaded.history.present} docKey={loaded.history} commit={commit} calendar={calendar} {...(loaded.path ? { onExpand: setExpand } : {})} />
+          <TimelineView schedule={loaded.history.present} docKey={loaded.history} commit={commit} calendar={calendar} {...(loaded.path ? { onExpand: setExpand, onSaveAsTemplate: setSaveAs } : {})} />
+          {saveAs ? <SaveAsTemplateDialog schedule={loaded.history.present} projectId={saveAs} onSave={saveTemplate} onClose={() => setSaveAs(null)} /> : null}
+          {csv ? (
+            <CsvImportDialog
+              fileName={csv.fileName}
+              rows={csv.rows}
+              schedule={loaded.history.present}
+              onApply={(c) => {
+                commit(c);
+                setCsv(null);
+              }}
+              onClose={() => setCsv(null)}
+            />
+          ) : null}
           {calOpen ? <CalendarDialog calendar={calendar} onSave={saveCalendar} onClose={() => setCalOpen(false)} /> : null}
           {tplOpen ? <TemplateManager templates={templates} typeNames={Object.keys(loaded.history.present.types)} onSave={saveTemplate} onDelete={deleteTemplate} onClose={() => setTplOpen(false)} /> : null}
           {expand ? (

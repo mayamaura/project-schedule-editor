@@ -86,6 +86,25 @@ export const ipcSchemas = {
   'template:delete': { input: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/) }), output: z.undefined() },
   /** カレンダー設定の保存（F-603）。内容は Main でも検証する。 */
   'calendar:save': { input: z.object({ text: z.string().max(2_000_000) }), output: z.undefined() },
+  /** ある版と、その 1 つ前の版の日程データ（履歴の変更要約。F-510）。 */
+  'git:commitChange': {
+    input: z.object({ hash: z.string().regex(/^[0-9a-f]{7,40}$/) }),
+    output: z.object({ before: z.record(z.string(), z.string()).nullable(), after: z.record(z.string(), z.string()) }),
+  },
+  /** CSV ファイルを選んで読み、表にする（F-602）。 */
+  'csv:import': {
+    input: z.undefined(),
+    output: z.discriminatedUnion('status', [
+      z.object({ status: z.literal('cancelled') }),
+      z.object({ status: z.literal('ok'), fileName: z.string(), rows: z.array(z.array(z.string())) }),
+      z.object({ status: z.literal('failed'), message: z.string() }),
+    ]),
+  },
+  /** 表を CSV ファイルに書き出す（F-602）。保存先は利用者が選ぶ。 */
+  'csv:export': {
+    input: z.object({ rows: z.array(z.array(z.string())).max(1_000_000) }),
+    output: z.discriminatedUnion('status', [z.object({ status: z.literal('cancelled') }), z.object({ status: z.literal('ok'), path: z.string() }), z.object({ status: z.literal('failed'), message: z.string() })]),
+  },
   'repo:reload': { input: z.undefined(), output: z.object({ files: z.record(z.string(), z.string()) }) },
   /** 取り込みの準備: 共有先の最新を取得し、3 版の材料を返す（F-511, F-518）。main = 正式版の最新（作業版のとき）。 */
   'sync:prepare': {

@@ -85,7 +85,7 @@ function describeSelection(s: Schedule, sel: Sel | null): string | null {
   return null;
 }
 
-export function TimelineView({ schedule, docKey, commit, onExpand, calendar }: { schedule: Schedule; docKey: unknown; commit: (c: Command) => string | null; onExpand?: (target: { projectId: Id; date?: string }) => void; calendar?: Calendar }) {
+export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTemplate, calendar }: { schedule: Schedule; docKey: unknown; commit: (c: Command) => string | null; onExpand?: (target: { projectId: Id; date?: string }) => void; onSaveAsTemplate?: (projectId: Id) => void; calendar?: Calendar }) {
   const dark = usePrefersDark();
   const theme = dark ? darkTheme : lightTheme;
   const [headerMode, setHeaderMode] = useState<HeaderMode>('weekMonth');
@@ -440,6 +440,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, calendar }: {
     { label: t('menu.addChild'), run: () => createProject(projectId) },
     { label: t('menu.addSibling'), run: () => createProject(schedule.projects[projectId]?.parentId ?? null) },
     ...(onExpand ? [{ label: t('menu.expandTemplate'), run: () => onExpand({ projectId }) }] : []),
+    ...(onSaveAsTemplate ? [{ label: t('menu.saveAsTemplate'), run: () => onSaveAsTemplate(projectId) }] : []),
     { label: t('menu.delete'), run: () => deleteSel({ kind: 'project', id: projectId }) },
   ];
 

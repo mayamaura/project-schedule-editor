@@ -6,6 +6,7 @@ import {
   expandTemplate,
   makeOffset,
   splitOffset,
+  templateFromProject,
   validateTemplate,
   workdayFn,
   type Calendar,
@@ -17,6 +18,7 @@ import {
   type Template,
 } from '@domain/index';
 import { t } from './i18n';
+import { MiniTimeline } from './MiniTimeline';
 import { ResizableModal } from './ResizableModal';
 import { TemplateTimeline, type TplSel } from './TemplateTimeline';
 
@@ -395,6 +397,7 @@ export function ExpandDialog({
               </label>
             </fieldset>
             <h3>{t('tpl.preview')}</h3>
+            {result?.ok ? <MiniTimeline items={result.items} /> : null}
             {result && !result.ok ? (
               <p role="alert" className="issues" data-testid="expand-error">
                 {result.message}
@@ -423,6 +426,70 @@ export function ExpandDialog({
             {t('tpl.apply')}
           </button>
           <button type="button" data-testid="expand-cancel" onClick={onClose}>
+            {t('sync.cancel')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 既存プロジェクトを標準日程として保存する（F-806）。起点はプロジェクト内のマイルストーンか、日付の直接指定。 */
+export function SaveAsTemplateDialog({ schedule, projectId, onSave, onClose }: { schedule: Schedule; projectId: Id; onSave: (t: Template) => Promise<string | null>; onClose: () => void }) {
+  const p = schedule.projects[projectId];
+  const ms = Object.entries(p?.milestones ?? {}).sort(([, a], [, b]) => (a.date < b.date ? -1 : 1));
+  const [name, setName] = useState(p ? t('tpl.saveAsName', { name: p.name }) : '');
+  const [kind, setKind] = useState<'milestone' | 'date'>(ms.length > 0 ? 'milestone' : 'date');
+  const [milestoneId, setMilestoneId] = useState(ms[0]?.[0] ?? '');
+  const [date, setDate] = useState(todayString());
+  const [error, setError] = useState('');
+  if (!p) return null;
+  const go = async (): Promise<void> => {
+    const r = templateFromProject(schedule, projectId, { id: randomId('tpl-'), name: name.trim(), anchor: kind === 'milestone' ? { kind, milestoneId } : { kind, date } });
+    if (!r.ok) {
+      setError(r.message);
+      return;
+    }
+    const e = await onSave(r.template);
+    if (e) setError(e);
+    else onClose();
+  };
+  return (
+    <div className="modal-back" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
+      <div className="modal" role="dialog" aria-modal="true" data-testid="dialog-save-template">
+        <h2>{t('tpl.saveAsTitle', { name: p.name })}</h2>
+        <p>{t('tpl.saveAsBody')}</p>
+        <label className="field">
+          <span>{t('tpl.name')}</span>
+          <input data-testid="saveas-name" value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <fieldset className="field">
+          <legend>{t('tpl.anchor')}</legend>
+          <label>
+            <input type="radio" name="saveas-anchor" data-testid="saveas-ms" checked={kind === 'milestone'} disabled={ms.length === 0} onChange={() => setKind('milestone')} /> {t('tpl.saveAsMilestone')}
+            <select data-testid="saveas-milestone" disabled={kind !== 'milestone'} value={milestoneId} onChange={(e) => setMilestoneId(e.target.value)}>
+              {ms.map(([id, m]) => (
+                <option key={id} value={id}>
+                  {m.name}（{m.date}）
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <input type="radio" name="saveas-anchor" data-testid="saveas-date" checked={kind === 'date'} onChange={() => setKind('date')} /> {t('tpl.anchorDate')}
+            <input type="date" value={date} disabled={kind !== 'date'} onChange={(e) => setDate(e.target.value)} />
+          </label>
+        </fieldset>
+        {error ? (
+          <p role="alert" className="issues" data-testid="saveas-error">
+            {error}
+          </p>
+        ) : null}
+        <div className="actions">
+          <button type="button" data-testid="saveas-go" disabled={name.trim() === ''} onClick={() => void go()}>
+            {t('tpl.saveAsGo')}
+          </button>
+          <button type="button" onClick={onClose}>
             {t('sync.cancel')}
           </button>
         </div>

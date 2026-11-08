@@ -1,10 +1,12 @@
 import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { ipcSchemas, type IpcChannel, type IpcInput, type IpcOutput } from '@shared/ipc';
 import { GitService, resolveGit } from './git/gitService';
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename } from 'node:path';
 import { emptySchedule } from '../domain/model';
 import { serializeSchedule } from '../domain/serialize';
 import { parseCalendar } from '../domain/calendar';
+import { parseCsv, toCsv } from '../domain/csv';
 import { parseTemplate } from '../domain/template';
 import { beginSession, createEmpty, deleteTemplate, endSession, loadFiles, recover, saveCalendar, saveFiles, saveTemplate } from './fileRepository';
 
@@ -93,6 +95,7 @@ export function registerIpc(): void {
   });
   handle('git:save', ({ message, identity }) => needGit().save(message, identity));
   handle('git:log', ({ limit }) => needGit().log(limit));
+  handle('git:commitChange', ({ hash }) => needGit().commitChange(hash));
   handle('git:filesAt', ({ hash }) => needGit().filesAt(hash));
   handle('work:list', async () => {
     const g = needGit();
@@ -105,6 +108,35 @@ export function registerIpc(): void {
   handle('work:switch', async ({ name }) => {
     const r = await needGit().switchTo(name);
     return r.ok ? { ok: true } : { ok: false, message: r.message };
+  });
+  // CSV の読み書き（F-602）。ファイルの選択は OS のダイアログ。Excel の CSV は Shift_JIS のことがあるので、UTF-8 で読めなければ Shift_JIS で読む。
+  handle('csv:import', async (_input, event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options = { title: 'CSV ファイルを選ぶ', filters: [{ name: 'CSV', extensions: ['csv'] }], properties: ['openFile' as const] };
+    const r = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    const file = r.canceled ? undefined : r.filePaths[0];
+    if (!file) return { status: 'cancelled' as const };
+    try {
+      const buf = readFileSync(file);
+      if (buf.length > 50 * 1024 * 1024) return { status: 'failed' as const, message: 'ファイルが大きすぎます（50MB まで）' };
+      let text = new TextDecoder('utf-8').decode(buf);
+      if (text.includes('\uFFFD')) text = new TextDecoder('shift_jis').decode(buf);
+      return { status: 'ok' as const, fileName: basename(file), rows: parseCsv(text) };
+    } catch (e) {
+      return { status: 'failed' as const, message: e instanceof Error ? e.message : String(e) };
+    }
+  });
+  handle('csv:export', async ({ rows }, event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options = { title: 'CSV ファイルに書き出す', defaultPath: '日程.csv', filters: [{ name: 'CSV', extensions: ['csv'] }] };
+    const r = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+    if (r.canceled || !r.filePath) return { status: 'cancelled' as const };
+    try {
+      writeFileSync(r.filePath, `\uFEFF${toCsv(rows)}`, 'utf8'); // BOM つき UTF-8（Excel で文字化けしない）
+      return { status: 'ok' as const, path: r.filePath };
+    } catch (e) {
+      return { status: 'failed' as const, message: e instanceof Error ? e.message : String(e) };
+    }
   });
   handle('template:save', ({ id, text }) => {
     if (!currentRoot) throw new Error('フォルダが開かれていない');

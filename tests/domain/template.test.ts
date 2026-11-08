@@ -17,11 +17,12 @@ import {
   shiftOffset,
   snapOffset,
   splitOffset,
+  templateFromProject,
   validateTemplate,
   weekendWorkday,
   type Template,
 } from '../../src/domain/template';
-import { basic, schedule } from './fixtures';
+import { basic, dep, ev, ms, proj, schedule } from './fixtures';
 
 const std = (): Template => ({
   id: 'tpl-release-std',
@@ -254,5 +255,53 @@ describe('グラフィカル編集の計算（ui-design 6.2）', () => {
     expect(describeOffset({})).toBe('起点');
     expect(describeOffset({ months: -2, days: -14 })).toBe('起点の2ヶ月2週前');
     expect(describeOffset({ days: 38 })).toBe('起点の5週3日後');
+  });
+});
+
+describe('既存プロジェクトを標準日程として保存（F-806）', () => {
+  const src = () =>
+    schedule(
+      [
+        proj('P', {
+          name: '新製品A',
+          events: { a: ev('設計', '2026-11-01', '2026-12-15', { note: 'メモ' }), b: ev('試作', '2027-01-05', '2027-03-31') },
+          milestones: { r: ms('リリース', '2027-06-30', { type: 'release' }) },
+        }),
+      ],
+      [dep('d9', ['event', 'a'], ['event', 'b'], { lagDays: 3 })],
+    );
+
+  it('起点のマイルストーンからの相対日数に変換し、種別・メモ・依存も写す', () => {
+    const r = templateFromProject(src(), 'P', { id: 'tpl-x', name: '保存した', anchor: { kind: 'milestone', milestoneId: 'r' } });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const t = r.template;
+    expect(t.defaultAnchor).toBeDefined();
+    const ev1 = Object.values(t.events).find((e) => e.name === '設計')!;
+    expect(ev1).toMatchObject({ type: 'phase', start: { days: -241 }, end: { days: -197 }, note: 'メモ' });
+    expect(Object.values(t.milestones)[0]).toMatchObject({ name: 'リリース', date: {}, type: 'release' });
+    expect(Object.values(t.dependencies)).toEqual([expect.objectContaining({ type: 'FS', lagDays: 3 })]);
+    expect(validateTemplate(t)).toEqual([]);
+    expect(parseTemplate(serializeTemplate(t)).ok).toBe(true);
+  });
+
+  it('保存した標準日程を、同じ起点で展開すると元の日付に戻る（暦日の場合）', () => {
+    const s = src();
+    const r = templateFromProject(s, 'P', { id: 'tpl-x', name: 'x', anchor: { kind: 'date', date: '2027-06-30' } });
+    if (!r.ok) throw new Error('x');
+    const out = expandTemplate(schedule(), r.template, { anchor: { kind: 'date', date: '2027-06-30' }, target: { kind: 'newProject', name: 'コピー', parentId: null } });
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    const p = out.schedule.projects[out.projectId]!;
+    expect(Object.values(p.events).map((e) => [e.name, e.start, e.end]).sort()).toEqual([
+      ['設計', '2026-11-01', '2026-12-15'],
+      ['試作', '2027-01-05', '2027-03-31'],
+    ]);
+  });
+
+  it('存在しないプロジェクト・起点は理由を返す', () => {
+    expect(templateFromProject(src(), 'zz', { id: 'a', name: 'a', anchor: { kind: 'date', date: '2027-01-01' } }).ok).toBe(false);
+    expect(templateFromProject(src(), 'P', { id: 'a', name: 'a', anchor: { kind: 'milestone', milestoneId: 'zz' } }).ok).toBe(false);
+    expect(templateFromProject(src(), 'P', { id: 'a', name: 'a', anchor: { kind: 'date', date: 'x' } }).ok).toBe(false);
   });
 });

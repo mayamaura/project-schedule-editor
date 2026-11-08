@@ -153,3 +153,21 @@ button[aria-pressed="true"] { background: var(--acc); color: #fff; border-color:
 .modal-frame .modal { width: 100%; }
 /* 編集直後の新たな指摘の知らせ: レイアウトを動かさないよう、画面の右下に重ねて出す */
 .notice.warn { position: fixed; right: 12px; bottom: 40px; z-index: 15; max-width: 520px; margin: 0; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+
+/* 版の比較 */
+.cmp-pick, .cmp-filter { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 6px 0; font-size: 13px; }
+.cmp-chart { margin: 6px 0; border: 1px solid var(--line); border-radius: 6px; }
+.cmp-chart .cmp-head { fill: rgba(128, 128, 128, .12); }
+.cmp-chart .cmp-grid { stroke: rgba(128, 128, 128, .3); }
+.cmp-chart .cmp-tick, .cmp-chart .cmp-label { font-size: 10px; fill: currentColor; }
+.cmp-chart .cmp-old { fill: none; stroke: #868e96; stroke-dasharray: 3 2; }
+.cmp-chart .cmp-new.later { fill: #d9480f; }
+.cmp-chart .cmp-new.earlier { fill: #1c7ed6; }
+.cmp-chart .cmp-new.add { fill: #2f9e44; }
+.cmp-chart .cmp-new.edit { fill: #7950f2; }
+.cmp-chart .removed { fill: none; stroke: #c92a2a; }
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cmp-table td { border-bottom: 1px solid var(--line); padding: 3px 6px; }
+.cmp-table td.later { color: #d9480f; }
+.cmp-table td.earlier { color: #1c7ed6; }
+.cmp-table th { text-align: left; font-weight: normal; opacity: .7; padding: 3px 6px; }

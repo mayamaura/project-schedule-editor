@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { diffSchedule, newIssues, parseSchedule, defaultCalendar, parseCalendar, parseTemplates, serializeCalendar, serializeTemplate, summarizeChange, type Calendar, type Id, type Schedule, type Template } from '@domain/index';
 import { t } from './i18n';
+import { CompareDialog, type CompareTarget } from './CompareDialog';
 import { SyncWizard } from './SyncWizard';
 
 type GitState = Awaited<ReturnType<typeof window.api.invoke<'git:state'>>>;
@@ -54,6 +55,10 @@ export function VersionControls({
   const [memo, setMemo] = useState('');
   const [identity, setIdentity] = useState<{ name: string; email: string } | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
+  const [compare, setCompare] = useState<CompareTarget | null>(null);
+  const [logAuthor, setLogAuthor] = useState('');
+  const [logFrom, setLogFrom] = useState('');
+  const [logTo, setLogTo] = useState('');
   const [diag, setDiag] = useState<Diag[]>([]);
   const [newName, setNewName] = useState('');
   const [remoteUrl, setRemoteUrl] = useState('');
@@ -198,6 +203,20 @@ export function VersionControls({
         {t('ver.history')}
       </button>
       {git.head !== null ? (
+        <button
+          type="button"
+          data-testid="ver-compare"
+          onClick={() =>
+            void flush().then(async () => {
+              setLog(await window.api.invoke('git:log', { limit: 100 }));
+              setCompare({ kind: 'pair', beforeHash: null, afterHash: 'current' });
+            })
+          }
+        >
+          {t('cmp.open')}
+        </button>
+      ) : null}
+      {git.head !== null ? (
         <button type="button" data-testid="ver-sync" onClick={() => void flush().then(() => setDialog('sync'))}>
           {t(onMain ? 'sync.share' : 'sync.reflect')}
         </button>
@@ -214,6 +233,7 @@ export function VersionControls({
       >
         {t('ver.diagnose')}
       </button>
+      {compare ? <CompareDialog target={compare} log={log} current={schedule} onClose={() => setCompare(null)} /> : null}
       {dialog === 'sync' ? (
         <SyncWizard
           mode={onMain ? 'main' : 'work'}
@@ -280,8 +300,25 @@ export function VersionControls({
               <>
                 <h2>{t('ver.historyTitle')}</h2>
                 {log.length === 0 ? <p>{t('ver.historyEmpty')}</p> : null}
+                <div className="cmp-filter" data-testid="history-filter">
+                  <label>
+                    {t('ver.author')}{' '}
+                    <select data-testid="history-author" value={logAuthor} onChange={(e) => setLogAuthor(e.target.value)}>
+                      <option value="">{t('cmp.all')}</option>
+                      {[...new Set(log.map((e) => e.author))].map((a) => (
+                        <option key={a}>{a}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    {t('cmp.period')} <input type="date" aria-label={t('cmp.from')} data-testid="history-from" value={logFrom} onChange={(e) => setLogFrom(e.target.value)} /> ～{' '}
+                    <input type="date" aria-label={t('cmp.to')} data-testid="history-to" value={logTo} onChange={(e) => setLogTo(e.target.value)} />
+                  </label>
+                </div>
                 <ul className="history">
-                  {log.map((e) => (
+                  {log
+                    .filter((e) => (logAuthor === '' || e.author === logAuthor) && (logFrom === '' || e.date.slice(0, 10) >= logFrom) && (logTo === '' || e.date.slice(0, 10) <= logTo))
+                    .map((e) => (
                     <li key={e.hash} data-testid="history-item">
                       <div>
                         <strong>{e.message}</strong>
@@ -289,6 +326,12 @@ export function VersionControls({
                       <div className="mut">
                         {new Date(e.date).toLocaleString('ja-JP')}　{e.author}
                       </div>
+                      <button type="button" data-testid="history-changes" onClick={() => {
+                          setDialog(null);
+                          setCompare({ kind: 'commit', hash: e.hash });
+                        }}>
+                        {t('ver.viewChanges')}
+                      </button>{' '}
                       <button type="button" onClick={() => void restore(e.hash)}>
                         {t('ver.restore')}
                       </button>

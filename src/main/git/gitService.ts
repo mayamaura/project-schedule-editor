@@ -252,6 +252,13 @@ export class GitService {
     return files;
   }
 
+  /** ある版と、その 1 つ前の版（最初の版なら null）の日程データ。履歴の変更要約・版の比較に使う（F-510, F-505）。 */
+  async commitChange(hash: string): Promise<{ before: Files | null; after: Files }> {
+    if (!/^[0-9a-f]{7,40}$/.test(hash)) throw new Error(`不正な指定: ${hash}`);
+    const parent = await this.rev(`${hash}^`); // 親が無い（最初の版）なら null。マージは最初の親
+    return { before: parent ? await this.filesAt(parent) : null, after: await this.filesAt(hash) };
+  }
+
   async log(limit: number): Promise<LogEntry[]> {
     if (!(await this.hasCommits())) return [];
     const r = await this.run(['log', `-n${Math.max(1, Math.floor(limit))}`, '--format=%H%x1f%aI%x1f%an%x1f%s%x1e']);

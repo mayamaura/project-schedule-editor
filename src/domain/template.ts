@@ -2,10 +2,10 @@
 // 標準日程（テンプレート）。起点（0）からの相対オフセットで項目を持ち、起点の日付を与えて実日付に展開する。
 // 純 TypeScript（ドメイン層）。docs/data-model.html 8。展開後のプロジェクトは標準日程から独立する（F-807）。
 import { z } from 'zod';
-import { addDays, addMonths, fromDays, isDateStr, toDays, weekday, type DateStr } from './date';
+import { addDays, addMonths, daysBetween, fromDays, isDateStr, toDays, weekday, type DateStr } from './date';
 import { applyCommand, type Command } from './commands';
 import { addProjectCommand, newId } from './edit';
-import { endpointSchema, eventStyleSchema, idSchema, milestoneStyleSchema, type Id, type Schedule } from './model';
+import { endpointSchema, eventStyleSchema, idSchema, milestoneStyleSchema, type Id, type Project, type Schedule } from './model';
 import { stableStringify, type Files } from './serialize';
 
 const nonNeg = (n: number | undefined): number => n ?? 0;
@@ -364,4 +364,58 @@ export function describeOffset(o: Offset): string {
   const sp = splitOffset(o);
   const parts = [sp.months > 0 ? `${sp.months}ヶ月` : '', sp.weeks > 0 ? `${sp.weeks}週` : '', sp.days > 0 ? `${sp.days}日` : ''].join('');
   return parts === '' ? '起点' : `起点の${parts}${sp.dir === 'before' ? '前' : '後'}`;
+}
+
+// ---- 既存プロジェクトを標準日程として保存（F-806） ----
+
+export interface SaveAsTemplateOptions {
+  readonly id: Id;
+  readonly name: string;
+  /** 起点（0）: プロジェクト内のマイルストーンを選ぶか、日付を直接指定する。 */
+  readonly anchor: { readonly kind: 'milestone'; readonly milestoneId: Id } | { readonly kind: 'date'; readonly date: DateStr };
+}
+
+/**
+ * プロジェクトの日程を、起点からの相対日数（日。符号は前=負・後=正）の標準日程にする。種別・色・メモは引き継ぐ。
+ * プロジェクト内の項目どうしの依存も写す。起点がマイルストーンなら、そのマイルストーンが既定の起点になる。
+ */
+export function templateFromProject(s: Schedule, projectId: Id, o: SaveAsTemplateOptions): { readonly ok: true; readonly template: Template } | { readonly ok: false; readonly message: string } {
+  const p: Project | undefined = s.projects[projectId];
+  if (!p) return { ok: false, message: 'プロジェクトがありません' };
+  let anchor: DateStr;
+  if (o.anchor.kind === 'milestone') {
+    const m = p.milestones[o.anchor.milestoneId];
+    if (!m) return { ok: false, message: '起点のマイルストーンがプロジェクトにありません' };
+    anchor = m.date;
+  } else if (isDateStr(o.anchor.date)) anchor = o.anchor.date;
+  else return { ok: false, message: '起点の日付が正しくありません' };
+
+  const off = (d: DateStr): Offset => {
+    const n = daysBetween(anchor, d);
+    return n === 0 ? {} : { days: n };
+  };
+  const events: Template['events'] = {};
+  const milestones: Template['milestones'] = {};
+  const idMap = new Map<string, string>(); // 'event:e1' → 標準日程内の ID
+  let n = 0;
+  for (const [id, e] of Object.entries(p.events).sort(([, a], [, b]) => toDays(a.start) - toDays(b.start))) {
+    const tid = `e${++n}`;
+    idMap.set(`event:${id}`, tid);
+    events[tid] = { name: e.name, type: e.type, start: off(e.start), end: off(e.end), ...defined({ color: e.color, style: e.style, note: e.note }) };
+  }
+  n = 0;
+  for (const [id, m] of Object.entries(p.milestones).sort(([, a], [, b]) => toDays(a.date) - toDays(b.date))) {
+    const tid = `m${++n}`;
+    idMap.set(`milestone:${id}`, tid);
+    milestones[tid] = { name: m.name, type: m.type, date: off(m.date), ...defined({ style: m.style, note: m.note }) };
+  }
+  const dependencies: Template['dependencies'] = {};
+  n = 0;
+  for (const d of Object.values(s.dependencies)) {
+    const from = idMap.get(`${d.from.kind}:${d.from.id}`);
+    const to = idMap.get(`${d.to.kind}:${d.to.id}`);
+    if (from && to) dependencies[`d${++n}`] = { from: { kind: d.from.kind, id: from }, to: { kind: d.to.kind, id: to }, type: d.type, lagDays: d.lagDays };
+  }
+  const defaultAnchor = o.anchor.kind === 'milestone' ? idMap.get(`milestone:${o.anchor.milestoneId}`) : undefined;
+  return { ok: true, template: { id: o.id, name: o.name, ...(defaultAnchor ? { defaultAnchor } : {}), dayMode: 'calendar', adjust: 'none', events, milestones, dependencies } };
 }
