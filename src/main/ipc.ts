@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, type IpcMainInvokeEvent } from 'electron';
 import { ipcSchemas, type IpcChannel, type IpcInput, type IpcOutput } from '@shared/ipc';
 import { GitService, resolveGit } from './git/gitService';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -57,6 +57,10 @@ export function handle<C extends IpcChannel>(
 
 export function registerIpc(): void {
   handle('app:getVersion', () => app.getVersion());
+  handle('app:setTheme', (mode) => {
+    nativeTheme.themeSource = mode;
+    return undefined;
+  });
   /** フォルダを開いた状態にする（異常終了の検出・Git の解決を含む）。 */
   function activate(root: string): { path: string; files: Record<string, string>; crashed: boolean; base: Record<string, string> | null } {
     if (currentRoot) endSession(currentRoot);

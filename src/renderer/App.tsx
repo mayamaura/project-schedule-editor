@@ -40,6 +40,22 @@ const AUTOSAVE_DELAY_MS = 300;
 
 export function App() {
   const [version, setVersion] = useState('');
+  const [theme, setTheme] = useState<'system' | 'light' | 'dark'>(() => {
+    try {
+      const v = localStorage.getItem('theme');
+      return v === 'light' || v === 'dark' ? v : 'system';
+    } catch {
+      return 'system';
+    }
+  });
+  useEffect(() => {
+    void window.api.invoke('app:setTheme', theme);
+    try {
+      localStorage.setItem('theme', theme);
+    } catch {
+      /* 保存できなくても動作する */
+    }
+  }, [theme]);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [problems, setProblems] = useState<readonly ParseIssue[]>([]);
   const [message, setMessage] = useState('');
@@ -376,6 +392,11 @@ export function App() {
           {t('app.version', { version })}
         </span>
         <span className="spacer" />
+        <select aria-label={t('app.theme')} data-testid="theme" value={theme} onChange={(e) => setTheme(e.target.value as typeof theme)}>
+          <option value="system">{t('app.themeSystem')}</option>
+          <option value="light">{t('app.themeLight')}</option>
+          <option value="dark">{t('app.themeDark')}</option>
+        </select>
         <button type="button" data-testid="create" onClick={() => void createFolder()}>
           {t('app.create')}
         </button>

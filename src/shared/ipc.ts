@@ -69,6 +69,8 @@ const exportResultSchema = z.discriminatedUnion('status', [
 // 新しいチャネルは必ずここに追加し、Main 側は handle() で実装する（architecture 2）。
 export const ipcSchemas = {
   'app:getVersion': { input: z.undefined(), output: z.string() },
+  /** 画面の配色（システムに合わせる/ライト/ダーク）。Main の nativeTheme を切り替える。 */
+  'app:setTheme': { input: z.enum(['system', 'light', 'dark']), output: z.undefined() },
   /** フォルダ選択ダイアログ → 日程データを読み込む。キャンセルなら null（F-501 の「開く」）。 */
   'repo:open': {
     input: z.undefined(),
