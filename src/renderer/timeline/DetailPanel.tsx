@@ -3,7 +3,7 @@
 // 拒否された場合（終了＜開始・循環など）は理由が画面上部に出るので、入力欄は元の値に戻す。
 import { useEffect, useState } from 'react';
 import type { Command, Dependency, Id, Schedule } from '@domain/index';
-import { t } from '../i18n';
+import { DEP_LABEL, t } from '../i18n';
 
 export type Sel = { readonly kind: 'event' | 'milestone' | 'project'; readonly id: Id };
 type Commit = (c: Command) => string | null;
@@ -36,9 +36,9 @@ function DepRow({ d, otherName, outgoing, commit }: { d: Dependency; otherName: 
   return (
     <div className="dep" data-testid="dep-row">
       <div>{t(outgoing ? 'panel.depTo' : 'panel.depFrom', { name: otherName })}</div>
-      <select aria-label={t('panel.depType')} value={d.type} onChange={(e) => commit({ type: 'updateDependency', id: d.id, patch: { type: e.target.value as Dependency['type'] } })}>
+      <select aria-label={t('panel.depType')} title={t('dep.help')} value={d.type} onChange={(e) => commit({ type: 'updateDependency', id: d.id, patch: { type: e.target.value as Dependency['type'] } })}>
         {(['FS', 'SS', 'FF', 'SF'] as const).map((x) => (
-          <option key={x}>{x}</option>
+          <option key={x} value={x}>{t(DEP_LABEL[x])}</option>
         ))}
       </select>
       <Field label={t('panel.depLag')} type="number" value={String(d.lagDays)} onCommit={(v) => commit({ type: 'updateDependency', id: d.id, patch: { lagDays: Number(v) } })} />

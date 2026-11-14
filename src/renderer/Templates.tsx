@@ -17,7 +17,7 @@ import {
   type Schedule,
   type Template,
 } from '@domain/index';
-import { t } from './i18n';
+import { DEP_LABEL, t } from './i18n';
 import { MiniTimeline } from './MiniTimeline';
 import { ResizableModal } from './ResizableModal';
 import { TemplateTimeline, type TplSel } from './TemplateTimeline';
@@ -166,9 +166,9 @@ function TemplateEditor({ draft, onChange, onSave, onCancel, typeNames, error }:
         return (
           <div className="tpl-row" key={id} data-testid="tpl-dep-row">
             {sel('from', t('tpl.depFrom'))} → {sel('to', t('tpl.depTo'))}
-            <select aria-label={t('tpl.depType')} value={d.type} onChange={(e) => onChange({ ...draft, dependencies: { ...draft.dependencies, [id]: { ...d, type: e.target.value as typeof d.type } } })}>
-              {['FS', 'SS', 'FF', 'SF'].map((x) => (
-                <option key={x}>{x}</option>
+            <select aria-label={t('tpl.depType')} title={t('dep.help')} value={d.type} onChange={(e) => onChange({ ...draft, dependencies: { ...draft.dependencies, [id]: { ...d, type: e.target.value as typeof d.type } } })}>
+              {(['FS', 'SS', 'FF', 'SF'] as const).map((x) => (
+                <option key={x} value={x}>{t(DEP_LABEL[x])}</option>
               ))}
             </select>
             <label className="off-num">

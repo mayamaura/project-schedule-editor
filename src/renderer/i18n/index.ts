@@ -6,3 +6,6 @@ export type MessageKey = keyof typeof ja;
 export function t(key: MessageKey, params: Record<string, string> = {}): string {
   return ja[key].replace(/\{(\w+)\}/g, (match, name: string) => params[name] ?? match);
 }
+
+/** 依存の種類 → 画面の表示名（FS/SS/FF/SF は略号なので、そのまま見せない）。 */
+export const DEP_LABEL = { FS: 'dep.FS', SS: 'dep.SS', FF: 'dep.FF', SF: 'dep.SF' } as const satisfies Record<string, MessageKey>;
