@@ -181,9 +181,18 @@ export function App() {
     }
   };
 
+  const [recent, setRecent] = useState<string[]>([]);
+  useEffect(() => {
+    void window.api.invoke('repo:recent').then(setRecent);
+  }, [loaded?.path]);
   const openFolder = async (): Promise<void> => {
     const r = await window.api.invoke('repo:open');
     if (r) applyOpened(r);
+  };
+  const openRecent = async (path: string): Promise<void> => {
+    const r = await window.api.invoke('repo:openRecent', { path });
+    if (r) applyOpened(r);
+    else setMessage(t('app.recentMissing'));
   };
 
   // 新規作成（F-501）: 空のフォルダに空の日程データを作って開く
@@ -409,6 +418,16 @@ export function App() {
         <button type="button" data-testid="open" onClick={() => void openFolder()}>
           {t('app.open')}
         </button>
+        {recent.length > 0 ? (
+          <select aria-label={t('app.recent')} data-testid="recent" value="" onChange={(e) => e.target.value && void openRecent(e.target.value)}>
+            <option value="">{t('app.recent')}</option>
+            {recent.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <button type="button" data-testid="sample" onClick={showSample}>
           {t('app.sample')}
         </button>

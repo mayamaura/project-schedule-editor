@@ -85,6 +85,15 @@ export const ipcSchemas = {
       })
       .nullable(),
   },
+  /** 最近開いたフォルダ（新しい順。存在するものだけ）。 */
+  'repo:recent': { input: z.undefined(), output: z.array(z.string()) },
+  /** 最近開いたフォルダの一覧にあるパスだけを、ダイアログなしで開く。一覧に無い・存在しなければ null。 */
+  'repo:openRecent': {
+    input: z.object({ path: z.string().max(1000) }),
+    output: z
+      .object({ path: z.string(), files: z.record(z.string(), z.string()), crashed: z.boolean(), base: z.record(z.string(), z.string()).nullable() })
+      .nullable(),
+  },
   /** フォルダを選んで新規作成する（F-501）。空のフォルダに空の日程データと保存の履歴を用意して開く。 */
   'repo:create': {
     input: z.undefined(),

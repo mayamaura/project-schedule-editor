@@ -6,6 +6,7 @@
 <h1>仕様変更履歴</h1>
 <p>仕様文書（requirements / data-model / architecture / ui-design / git-ux / open-questions）を変更したら、この表の<strong>先頭</strong>に追記する（pre-commit が検査）。</p>
 <table><tr><th>日付</th><th>変更内容</th><th>影響文書</th><th>要件ID</th></tr>
+<tr><td>2026-11-14</td><td>「最近開いたフォルダ」を追加: ヘッダーの一覧から、フォルダ選択のダイアログなしで開ける（新しい順に最大 10 件、存在するものだけ表示。履歴は Main が <code>userData/recent.json</code> に保持し、Renderer が指定したパスは一覧にあるものだけ受け付ける: NF-007）。IPC <code>repo:recent</code> / <code>repo:openRecent</code>。</td><td>requirements, architecture</td><td>F-501</td></tr>
 <tr><td>2026-11-14</td><td>画面の配色をアプリ内で切り替えられるようにした（システムに合わせる/ライト/ダーク。既定はシステム）。ヘッダーの「配色」で選び、選択は localStorage に記憶。IPC <code>app:setTheme</code> で Main の <code>nativeTheme.themeSource</code> を切り替える。</td><td>ui-design, changelog</td><td>—</td></tr>
 <tr><td>2026-11-08</td><td>アプリのアイコンを追加（R6 から前倒し）: <code>build/icon.svg</code>（原本）・<code>build/icon.png</code>。<code>electron-builder.yml</code> の <code>signAndEditExecutable</code> を true にして exe へ埋め込み（証明書が無ければ署名はスキップ）、開発中のウィンドウにも <code>icon</code> を指定。</td><td>roadmap, changelog</td><td>—</td></tr>
 <tr><td>2026-11-08</td><td>AI の指摘の表示で ID が出る問題を修正: 指摘の対象ボタンは「プロジェクト名 / 項目名」（依存は「先行 → 後続」）で表示し、基本プロンプトに「利用者に見せる文章では ID を書かず日程上の名前で示す」規則を追加（architecture 17）</td><td>changelog</td><td>F-701 F-709</td></tr>

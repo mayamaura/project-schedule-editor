@@ -372,7 +372,7 @@ Domain: validateSchedule / diffSchedule / ChangeSet の適用（コマンド）<
 <tr><td>性能</td><td>25,000 イベントで <code>buildDrawList</code> を、全体表示（最悪）と通常表示で計測（閾値つきで CI に記録）。実際の Canvas での描画時間は E2E で計測</td></tr>
 <tr><td>E2E</td><td>実際の Electron で「サンプルを表示」し、Canvas に描画されること（ピクセルの確認）、ズーム・ヘッダ切替・スクロールの操作</td></tr></table>
 <h3 id="phase2-result">12.8 実装状況と実測（Phase 2、2026-11-07）</h3>
-<p><strong>実装済み</strong>: <code>axis</code> / <code>layout</code> / <code>drawlist</code> / <code>draw</code> / <code>hittest</code>（<code>src/domain/timeline/</code>）、Renderer（<code>TimelineView</code>: 左ペイン＋Canvas、ズーム・パン・ホイール、ヘッダ切替、依存線の表示切替、クリック選択・ホバー、折りたたみ）、「フォルダを開く」（IPC <code>repo:open</code>）、「サンプルを表示」（25,000イベント）。<strong>読み取り専用</strong>。</p>
+<p><strong>実装済み</strong>: <code>axis</code> / <code>layout</code> / <code>drawlist</code> / <code>draw</code> / <code>hittest</code>（<code>src/domain/timeline/</code>）、Renderer（<code>TimelineView</code>: 左ペイン＋Canvas、ズーム・パン・ホイール、ヘッダ切替、依存線の表示切替、クリック選択・ホバー、折りたたみ）、「フォルダを開く」（IPC <code>repo:open</code>）、最近開いたフォルダ（<code>repo:recent</code> / <code>repo:openRecent</code>。一覧にあるパスだけ開く）、「サンプルを表示」（25,000イベント）。<strong>読み取り専用</strong>。</p>
 <table><tr><th>計測（25,000イベント、<code>tests/domain/timeline/perf.test.ts</code>）</th><th>時間</th></tr>
 <tr><td><code>buildLayout</code>（初回: 500行・25,000項目のレーン割り当て込み / キャッシュ済み）</td><td>約 30 ms / 約 1.5 ms</td></tr>
 <tr><td><code>buildDrawList</code>: <strong>最悪ケース</strong>（8年を 0.5px/日で縮小し、全500行・27,500項目・2,000依存が同時に見える）</td><td>約 12.5 ms（最適化前は約 23 ms）</td></tr>

@@ -1,8 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, type IpcMainInvokeEvent } from 'electron';
 import { ipcSchemas, type IpcChannel, type IpcInput, type IpcOutput } from '@shared/ipc';
 import { GitService, resolveGit } from './git/gitService';
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { emptySchedule, type Schedule } from '../domain/model';
 import { serializeSchedule } from '../domain/serialize';
 import { parseCalendar, type Calendar } from '../domain/calendar';
@@ -61,9 +61,27 @@ export function registerIpc(): void {
     nativeTheme.themeSource = mode;
     return undefined;
   });
+  // 最近開いたフォルダ（新しい順、最大 10 件）。パスは Main だけが持つ（NF-007）。
+  const recentFile = join(app.getPath('userData'), 'recent.json');
+  const readRecent = (): string[] => {
+    try {
+      const v: unknown = JSON.parse(readFileSync(recentFile, 'utf8'));
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+  const writeRecent = (list: string[]): void => {
+    try {
+      writeFileSync(recentFile, JSON.stringify(list), 'utf8');
+    } catch {
+      /* 履歴が書けなくても開く操作は続ける */
+    }
+  };
   /** フォルダを開いた状態にする（異常終了の検出・Git の解決を含む）。 */
   function activate(root: string): { path: string; files: Record<string, string>; crashed: boolean; base: Record<string, string> | null } {
     if (currentRoot) endSession(currentRoot);
+    writeRecent([root, ...readRecent().filter((p) => p !== root)].slice(0, 10));
     recover(root); // 更新の途中で終わっていたら完了させる（F-211 の基礎）
     const session = beginSession(root);
     currentRoot = root;
@@ -80,6 +98,8 @@ export function registerIpc(): void {
     const root = await pickFolder(event, '日程データのフォルダを開く', false);
     return root ? activate(root) : null;
   });
+  handle('repo:recent', () => readRecent().filter((p) => existsSync(p)));
+  handle('repo:openRecent', ({ path }) => (readRecent().includes(path) && existsSync(path) ? activate(path) : null));
   handle('repo:create', async (_input, event) => {
     const root = await pickFolder(event, '新しい日程データを作るフォルダを選ぶ（空のフォルダ）', true);
     if (!root) return { status: 'cancelled' as const };

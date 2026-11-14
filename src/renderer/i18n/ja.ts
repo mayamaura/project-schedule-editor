@@ -5,6 +5,8 @@ export const ja = {
   'app.create': '新規作成',
   'app.createNotEmpty': 'このフォルダは空ではないため、新規作成できません。空のフォルダを選ぶか、既にあるデータは「フォルダを開く」から開いてください。',
   'app.open': 'フォルダを開く',
+  'app.recent': '最近開いたフォルダ',
+  'app.recentMissing': 'このフォルダは見つかりません。',
   'app.sample': 'サンプルを表示',
   'app.theme': '配色',
   'app.themeSystem': 'システムに合わせる',
