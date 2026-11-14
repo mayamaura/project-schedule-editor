@@ -452,11 +452,10 @@ export function App() {
           {t('app.version', { version })}
         </span>
         <span className="spacer" />
-        <MenuButton id="file" label={t('menu.file')} entries={[...dataCmds.slice(0, 4), ...(recent.length > 0 ? [t('menu.recentHead'), ...recentCmds] : []), t('menu.projectHead'), dataCmds[4]!]} />
-        <MenuButton id="share" className="wide-only" label={t('menu.share')} entries={shareCmds} />
-        <MenuButton id="settings" className="wide-only" label={t('menu.settings')} entries={[...settingsCmds, t('menu.themeHead'), ...themeCmds]} />
+        <MenuButton id="file" align="right" label={t('menu.file')} entries={[...dataCmds.slice(0, 4), ...(recent.length > 0 ? [t('menu.recentHead'), ...recentCmds] : []), t('menu.projectHead'), dataCmds[4]!]} />
+        <MenuButton id="share" align="right" className="wide-only" label={t('menu.share')} entries={shareCmds} />
+        <MenuButton id="settings" align="right" className="wide-only" label={t('menu.settings')} entries={[...settingsCmds, t('menu.themeHead'), ...themeCmds]} />
         <MenuButton id="more" className="narrow-only" label="…" ariaLabel={t('menu.more')} align="right" entries={[t('menu.share'), ...shareCmds, t('menu.settings'), ...settingsCmds, t('menu.themeHead'), ...themeCmds]} />
-        <span className="spacer" />
         <button type="button" className="palette-btn" data-testid="palette-open" onClick={() => setPaletteOpen(true)}>
           {t('menu.search')} <kbd>Ctrl+K</kbd>
         </button>
