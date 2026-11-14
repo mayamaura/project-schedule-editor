@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { serializeSchedule } from '../../src/domain/serialize';
 import { basic } from '../domain/fixtures';
-import { launch } from './launch';
+import { launch, clickMenu } from './launch';
 
 let dir: string;
 let app: ElectronApplication;
@@ -23,7 +23,7 @@ async function openDir(a: ElectronApplication, p: Page, d: string): Promise<void
   await a.evaluate(({ dialog }, x) => {
     dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [x] })) as never;
   }, d);
-  await p.getByTestId('open').click();
+  await clickMenu(p, 'open');
   await expect(p.getByTestId('timeline-canvas')).toBeVisible();
 }
 

@@ -9,7 +9,7 @@ import { expect, test, type ElectronApplication, type Locator, type Page } from 
 import { applyCommand, type Command } from '../../src/domain/commands';
 import { parseSchedule, serializeSchedule, type Files } from '../../src/domain/serialize';
 import { basic } from '../domain/fixtures';
-import { launch } from './launch';
+import { launch, clickMenu } from './launch';
 
 let top: string;
 let remote: string;
@@ -86,7 +86,7 @@ test.beforeAll(async () => {
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [d] })) as never;
   }, a);
-  await page.getByTestId('open').click();
+  await clickMenu(page, 'open');
   await expect(canvas).toBeVisible();
 });
 test.afterAll(async () => {
@@ -112,7 +112,7 @@ test('作業版で編集して履歴に残し、他の人の更新を取り込�
   await recordHistory();
   otherPushes({ type: 'updateEvent', id: 'e1', patch: { end: '2026-12-20' } }); // 同じイベントの別フィールド
 
-  await page.getByTestId('ver-sync').click();
+  await clickMenu(page, 'ver-sync');
   await expect(page.getByTestId('incoming-list')).toContainText('2026-12-20');
   await expect(page.getByTestId('diff-list')).toBeVisible();
   await page.getByTestId('sync-go').click();
@@ -134,7 +134,7 @@ test('同じ項目がぶつかったら、項目ごとに選んで解決して�
   await recordHistory();
   otherPushes({ type: 'updateEvent', id: 'e1', patch: { end: '2026-12-30' } });
 
-  await page.getByTestId('ver-sync').click();
+  await clickMenu(page, 'ver-sync');
   await expect(page.getByTestId('conflict-list')).toBeVisible();
   await expect(page.getByTestId('conflict')).toHaveCount(1);
   await expect(page.getByTestId('conflict')).toContainText('終了日');
@@ -160,7 +160,7 @@ test('作業版を共有先へバックアップでき、整理して一覧か�
   // 反映したあと「整理する」を選ぶと、正式版に戻り、作業版は一覧から隠れる
   await rename('設計（整理前）');
   await recordHistory();
-  await page.getByTestId('ver-sync').click();
+  await clickMenu(page, 'ver-sync');
   await page.getByTestId('sync-go').click();
   await expect(page.getByTestId('sync-done')).toBeVisible();
   await page.getByTestId('sync-archive').click();
@@ -181,7 +181,7 @@ test('反映の途中で終了していたら、開き直したときに、続�
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [d] })) as never;
   }, a);
-  await page.getByTestId('open').click();
+  await clickMenu(page, 'open');
   await expect(page.getByTestId('resume-body')).toContainText('途中');
   await page.getByTestId('resume-restart').click();
   await expect(page.getByTestId('resume-body')).toBeHidden();
@@ -194,7 +194,7 @@ test('共有先のアドレスを入れ、空のフォルダを選ぶと、共�
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [d] })) as never;
   }, dest);
-  await page.getByTestId('clone').click();
+  await clickMenu(page, 'clone');
   await page.getByTestId('clone-url').fill(remote);
   await page.getByTestId('clone-go').click();
   await expect(page.getByTestId('dialog-clone')).toBeHidden();
@@ -210,7 +210,7 @@ test('作ったばかりの空の共有先を指定すると、新規作成と�
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [d] })) as never;
   }, dest);
-  await page.getByTestId('clone').click();
+  await clickMenu(page, 'clone');
   await page.getByTestId('clone-url').fill(emptyRemote);
   await page.getByTestId('clone-go').click();
   await expect(page.getByTestId('dialog-clone')).toBeHidden();
@@ -230,7 +230,7 @@ test('作ったばかりの空の共有先を指定すると、新規作成と�
   }
   await expect(page.getByTestId('dialog-save')).toBeHidden();
 
-  await page.getByTestId('ver-sync').click();
+  await clickMenu(page, 'ver-sync');
   await page.getByTestId('sync-go').click();
   await expect(page.getByTestId('sync-done')).toBeVisible();
   await page.getByTestId('sync-close').click();
@@ -243,7 +243,7 @@ test('取得に失敗したときは、理由が取得の画面の中に出る�
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [d] })) as never;
   }, empty);
-  await page.getByTestId('clone').click();
+  await clickMenu(page, 'clone');
   await page.getByTestId('clone-url').fill(join(top, 'no-such-remote.git'));
   await page.getByTestId('clone-go').click();
   await expect(page.getByTestId('clone-error')).toContainText('取得できませんでした');

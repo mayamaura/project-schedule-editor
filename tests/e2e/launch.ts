@@ -19,3 +19,19 @@ export async function launch(extraEnv: Record<string, string> = {}): Promise<{ a
   await page.waitForSelector('[data-testid="title"]');
   return { app, page };
 }
+
+/** メニューの中の項目の、親メニュー（ボタンを押すと開くメニュー）。 */
+const MENU_OF: Record<string, string> = {
+  open: 'file', create: 'file', clone: 'file', sample: 'file', 'tpl-add-project': 'file',
+  'export-open': 'share', 'csv-import': 'share', 'csv-export': 'share',
+  'tpl-open': 'settings', 'cal-open': 'settings',
+  'ver-history': 'ver', 'ver-compare': 'ver', 'ver-sync': 'ver', 'ver-works': 'ver',
+};
+
+/** メニューを開いて、項目を押す。 */
+export async function clickMenu(page: Page, id: string): Promise<void> {
+  const menu = MENU_OF[id];
+  if (!menu) throw new Error(`メニューに無い項目: ${id}`);
+  await page.getByTestId(`menu-${menu}`).click();
+  await page.getByTestId(id).click();
+}

@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import { serializeSchedule } from '../../src/domain/serialize';
 import { basic } from '../domain/fixtures';
-import { launch } from './launch';
+import { launch, clickMenu } from './launch';
 
 let dir: string;
 let app: ElectronApplication;
@@ -22,7 +22,7 @@ async function openDir(): Promise<void> {
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [d] })) as never;
   }, dir);
-  await page.getByTestId('open').click();
+  await clickMenu(page, 'open');
   await expect(canvas).toBeVisible();
 }
 

@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { launch } from './launch';
+import { launch, clickMenu } from './launch';
 
 let app: ElectronApplication;
 let page: Page;
@@ -22,7 +22,7 @@ test.beforeAll(async () => {
   work = mkdtempSync(join(tmpdir(), 'csv-files-'));
   ({ app, page } = await launch());
   await pickOpen(dir);
-  await page.getByTestId('create').click();
+  await clickMenu(page, 'create');
   await expect(page.getByTestId('timeline-canvas')).toBeVisible();
 });
 test.afterAll(async () => {
@@ -47,7 +47,7 @@ test('CSV を取り込むと、プレビューに件数と飛ばす行の理由�
     'utf8',
   );
   await pickOpen(file);
-  await page.getByTestId('csv-import').click();
+  await clickMenu(page, 'csv-import');
   await expect(page.getByTestId('dialog-csv')).toBeVisible();
   await expect(page.getByTestId('csv-summary')).toContainText('プロジェクト 2 件');
   await expect(page.getByTestId('csv-summary')).toContainText('イベント 1 件');
@@ -71,7 +71,7 @@ test('CSV に書き出せる（BOM つき UTF-8）。書き出した表はその
   await app.evaluate(({ dialog }, f) => {
     dialog.showSaveDialog = (() => Promise.resolve({ canceled: false, filePath: f })) as never;
   }, out);
-  await page.getByTestId('csv-export').click();
+  await clickMenu(page, 'csv-export');
   await expect(page.getByTestId('notice')).toContainText('書き出しました');
   expect(existsSync(out)).toBe(true);
   const text = readFileSync(out, 'utf8');
@@ -90,7 +90,7 @@ test('既存プロジェクトを標準日程として保存でき、展開前�
   await expect(page.getByTestId('dialog-save-template')).toBeHidden();
   expect(readdirSync(join(dir, 'templates'))).toHaveLength(1);
 
-  await page.getByTestId('tpl-add-project').click();
+  await clickMenu(page, 'tpl-add-project');
   await page.getByTestId('expand-name').fill('コピー');
   await expect(page.getByTestId('expand-timeline')).toBeVisible();
   await expect(page.getByTestId('expand-preview')).toContainText('試作完了');

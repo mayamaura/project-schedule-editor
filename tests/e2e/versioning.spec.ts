@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { serializeSchedule } from '../../src/domain/serialize';
 import { basic } from '../domain/fixtures';
-import { launch } from './launch';
+import { launch, clickMenu } from './launch';
 
 let dir: string;
 let app: ElectronApplication;
@@ -31,7 +31,7 @@ test.beforeAll(async () => {
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [d] })) as never;
   }, dir);
-  await page.getByTestId('open').click();
+  await clickMenu(page, 'open');
   await expect(page.getByTestId('timeline-canvas')).toBeVisible();
 });
 test.afterAll(async () => {
@@ -63,7 +63,7 @@ test('編集すると「未保存の変更」が日本語で数えられ、保�
 });
 
 test('履歴に保存が並び、前の版に戻すと未保存の変更になる（F-504）', async () => {
-  await page.getByTestId('ver-history').click();
+  await clickMenu(page, 'ver-history');
   await expect(page.getByTestId('history-item')).toHaveCount(2);
   await expect(page.getByTestId('history-item').first()).toContainText('設計（改）');
   page.once('dialog', (d) => void d.accept());
@@ -74,7 +74,7 @@ test('履歴に保存が並び、前の版に戻すと未保存の変更にな�
 });
 
 test('履歴の絞り込みと、各版の変更要約・版の比較（F-510, F-505）', async () => {
-  await page.getByTestId('ver-history').click();
+  await clickMenu(page, 'ver-history');
   await page.getByTestId('history-author').selectOption('テスト');
   await expect(page.getByTestId('history-item')).toHaveCount(2);
   await page.getByTestId('history-to').fill('2000-01-01'); // 期間で絞る
@@ -87,7 +87,7 @@ test('履歴の絞り込みと、各版の変更要約・版の比較（F-510, F
   await page.getByTestId('cmp-close').click();
 
   // 最後に履歴に残した版と、今の作業（前の版に戻した状態）を比べる
-  await page.getByTestId('ver-compare').click();
+  await clickMenu(page, 'ver-compare');
   await expect(page.getByTestId('cmp-item')).toHaveCount(1);
   await expect(page.getByTestId('cmp-item')).toContainText('設計');
   await expect(page.getByTestId('cmp-chart')).toBeVisible();

@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { launch } from './launch';
+import { launch, clickMenu } from './launch';
 
 let app: ElectronApplication;
 let page: Page;
@@ -17,7 +17,7 @@ test.beforeAll(async () => {
   await app.evaluate(({ dialog }, p) => {
     dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [p] })) as never;
   }, dir);
-  await page.getByTestId('create').click();
+  await clickMenu(page, 'create');
   await expect(page.getByTestId('timeline-canvas')).toBeVisible();
 });
 test.afterAll(async () => {
@@ -33,7 +33,7 @@ test.afterAll(async () => {
 });
 
 test('日本の祝日が確認でき、会社の休日を足して「この内容にする」と calendar.json に残る', async () => {
-  await page.getByTestId('cal-open').click();
+  await clickMenu(page, 'cal-open');
   await page.locator('summary').click();
   await expect(page.getByTestId('cal-preview')).toContainText('元日');
   await expect(page.getByTestId('cal-preview')).toContainText('春分の日');
@@ -55,7 +55,7 @@ test('日本の祝日が確認でき、会社の休日を足して「この内�
   expect(Object.keys(c.workdays)).toEqual(['2027-01-02']);
 
   // 開き直すと保存した内容が出る
-  await page.getByTestId('cal-open').click();
+  await clickMenu(page, 'cal-open');
   await expect(page.getByTestId('cal-holidays-item')).toHaveCount(1);
   await expect(page.getByTestId('cal-weekend-6')).not.toBeChecked();
   await page.getByTestId('cal-cancel').click();

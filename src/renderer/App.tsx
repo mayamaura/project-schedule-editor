@@ -1,4 +1,4 @@
-// @req F-501, F-101, F-206, F-208, F-210, F-211
+// @req F-212, F-501, F-101, F-206, F-208, F-210, F-211
 import { useEffect, useRef, useState } from 'react';
 import { History, defaultCalendar, diffSchedule, exportRows, newIssues, parseAiPrompts, parseViews, serializeView, generateSample, parseCalendar, parseSchedule, parseTemplates, serializeCalendar, serializeSchedule, serializeTemplate, summarizeChange, type Calendar, type Command, type PromptTemplate, type SavedView, type Id, type Schedule, type ParseIssue, type Template } from '@domain/index';
 import { t } from './i18n';
@@ -8,7 +8,10 @@ import { CsvImportDialog } from './CsvDialog';
 import { ExportDialog, type TimelineApi } from './ExportDialog';
 import { ExpandDialog, SaveAsTemplateDialog, TemplateManager, type ExpandPreset } from './Templates';
 import { TimelineView } from './timeline/TimelineView';
-import { VersionControls, type VersionInfo } from './VersionControls';
+import { VersionControls, type VersionApi, type VersionInfo } from './VersionControls';
+import { MenuButton } from './Menu';
+import { CommandPalette } from './CommandPalette';
+import { findByKey, type Cmd } from './shortcuts';
 
 interface Loaded {
   readonly history: History;
@@ -70,7 +73,7 @@ export function App() {
   const [recovery, setRecovery] = useState<Recovery | null>(null);
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [edits, bump] = useState(0);
-  const [ver, setVer] = useState<VersionInfo>({ branch: null, hasHistory: false });
+  const [ver, setVer] = useState<VersionInfo>({ branch: null, hasHistory: false, isRepo: false });
   const [mainOk, setMainOk] = useState(false);
   const [directPending, setDirectPending] = useState<Command | null>(null);
   const [worksSignal, setWorksSignal] = useState(0);
@@ -129,6 +132,8 @@ export function App() {
     void window.api.invoke('view:delete', { id: v.id }).then(() => setSharedViews((l) => l.filter((x) => x.id !== v.id)));
   };
   const timelineApi = useRef<TimelineApi | null>(null);
+  const verApi = useRef<VersionApi | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [csv, setCsv] = useState<{ fileName: string; rows: string[][] } | null>(null);
   const [expand, setExpand] = useState<ExpandPreset | null>(null);
 
@@ -334,14 +339,60 @@ export function App() {
       bump((n) => n + 1);
     }
   };
+  // 操作の一覧（メニュー・コマンドパレット・ショートカットはすべてここから作る。NF-009）
+  const hasData = !!loaded?.path;
+  const g = { data: t('menu.file'), share: t('menu.share'), settings: t('menu.settings'), ver: t('menu.ver'), view: t('menu.grpView'), edit: t('menu.grpEdit'), ai: t('menu.grpAi'), diag: t('menu.grpDiag') };
+  const repo = hasData && ver.isRepo;
+  const cmd = (c: Cmd): Cmd => c;
+  const recentCmds = recent.map((p) => cmd({ id: `recent:${p}`, label: t('cmd.recent', { path: p }), group: g.data, testid: 'recent-item', run: () => void openRecent(p) }));
+  const dataCmds: Cmd[] = [
+    cmd({ id: 'open', label: t('app.open'), group: g.data, shortcut: 'Ctrl+O', inputOk: true, testid: 'open', run: () => void openFolder() }),
+    cmd({ id: 'create', label: t('app.create'), group: g.data, shortcut: 'Ctrl+N', inputOk: true, testid: 'create', run: () => void createFolder() }),
+    cmd({ id: 'clone', label: t('app.clone'), group: g.data, testid: 'clone', run: () => { setCloneError(''); setCloneOpen(true); } }),
+    cmd({ id: 'sample', label: t('app.sample'), group: g.data, testid: 'sample', run: showSample }),
+    cmd({ id: 'tpl-add', label: t('tpl.addProject'), group: g.data, enabled: hasData, testid: 'tpl-add-project', run: () => setExpand({}) }),
+  ];
+  const shareCmds: Cmd[] = [
+    cmd({ id: 'export', label: t('exp.open'), group: g.share, enabled: hasData, testid: 'export-open', run: () => setExportOpen(true) }),
+    cmd({ id: 'csv-in', label: t('csv.import'), group: g.share, enabled: hasData, testid: 'csv-import', run: () => void importCsv() }),
+    cmd({ id: 'csv-out', label: t('csv.export'), group: g.share, enabled: hasData, testid: 'csv-export', run: () => void exportCsv() }),
+  ];
+  const themes = [['system', 'app.themeSystem'], ['light', 'app.themeLight'], ['dark', 'app.themeDark']] as const;
+  const themeCmds: Cmd[] = themes.map(([v, key]) => cmd({ id: `theme-${v}`, label: `${theme === v ? '✓ ' : ''}${t('app.theme')}: ${t(key)}`, group: g.settings, testid: `theme-${v}`, run: () => setTheme(v) }));
+  const settingsCmds: Cmd[] = [
+    cmd({ id: 'tpl', label: t('tpl.open'), group: g.settings, enabled: hasData, testid: 'tpl-open', run: () => setTplOpen(true) }),
+    cmd({ id: 'cal', label: t('cal.open'), group: g.settings, enabled: hasData, testid: 'cal-open', run: () => setCalOpen(true) }),
+  ];
+  const verCmds: Cmd[] = [
+    cmd({ id: 'v-save', label: t('ver.save'), group: g.ver, shortcut: 'Ctrl+S', inputOk: true, enabled: repo, run: () => verApi.current?.openSave() }),
+    cmd({ id: 'v-history', label: t('ver.history'), group: g.ver, enabled: repo, run: () => verApi.current?.openHistory() }),
+    cmd({ id: 'v-works', label: t('menu.works'), group: g.ver, enabled: repo, run: () => verApi.current?.openWorks() }),
+    cmd({ id: 'v-compare', label: t('cmp.open'), group: g.ver, enabled: repo && ver.hasHistory, run: () => verApi.current?.openCompare() }),
+    cmd({ id: 'v-sync', label: t(ver.branch === 'main' ? 'sync.share' : 'sync.reflect'), group: g.ver, enabled: repo && ver.hasHistory, run: () => verApi.current?.openSync() }),
+    cmd({ id: 'v-diag', label: t('ver.diagnose'), group: g.diag, enabled: repo, run: () => verApi.current?.openDiagnose() }),
+  ];
+  const viewCmds: Cmd[] = [
+    cmd({ id: 'today', label: t('cmd.today'), group: g.view, shortcut: 'T', enabled: !!loaded, run: () => timelineApi.current?.goToday() }),
+    cmd({ id: 'zoom-in', label: t('cmd.zoomIn'), group: g.view, shortcut: '+', enabled: !!loaded, run: () => timelineApi.current?.zoomBy(1.5) }),
+    cmd({ id: 'zoom-out', label: t('cmd.zoomOut'), group: g.view, shortcut: '-', enabled: !!loaded, run: () => timelineApi.current?.zoomBy(1 / 1.5) }),
+    cmd({ id: 'filter', label: t('cmd.filter'), group: g.view, shortcut: 'Ctrl+F', inputOk: true, enabled: !!loaded, run: () => timelineApi.current?.toggleFilter() }),
+    cmd({ id: 'palette', label: t('cmd.palette'), group: g.view, shortcut: 'Ctrl+K', inputOk: true, run: () => setPaletteOpen(true) }),
+    cmd({ id: 'shortcuts', label: t('cmd.shortcuts'), group: g.view, shortcut: '?', run: () => setPaletteOpen(true) }),
+  ];
+  const editCmds: Cmd[] = [
+    cmd({ id: 'undo', label: t('app.undo'), group: g.edit, shortcut: 'Ctrl+Z', enabled: !!h?.canUndo, run: undo }),
+    cmd({ id: 'redo', label: t('app.redo'), group: g.edit, shortcut: 'Ctrl+Y', also: 'Ctrl+Shift+Z', enabled: !!h?.canRedo, run: redo }),
+    cmd({ id: 'ai', label: t('cmd.ai'), group: g.ai, shortcut: 'Ctrl+J', inputOk: true, enabled: hasData, run: () => setAiOpen((v) => !v) }),
+  ];
+  const allCmds = [...dataCmds, ...recentCmds, ...shareCmds, ...settingsCmds, ...themeCmds, ...verCmds, ...viewCmds, ...editCmds];
   useEffect(() => {
     const on = (e: KeyboardEvent): void => {
-      if (!(e.ctrlKey || e.metaKey) || (e.target as HTMLElement).closest('input,textarea,select')) return;
-      const k = e.key.toLowerCase();
-      if (k === 'z' && !e.shiftKey) undo();
-      else if (k === 'y' || (k === 'z' && e.shiftKey)) redo();
-      else return;
+      if (paletteOpen || document.querySelector('.modal-back')) return; // ダイアログ・パレットが開いている間は、画面の操作を奪わない
+      const t0 = e.target as HTMLElement;
+      const c = findByKey(allCmds, e, !!t0.closest('input,textarea,select,[contenteditable="true"]'));
+      if (!c) return;
       e.preventDefault();
+      c.run();
     };
     window.addEventListener('keydown', on);
     return () => window.removeEventListener('keydown', on);
@@ -401,37 +452,26 @@ export function App() {
           {t('app.version', { version })}
         </span>
         <span className="spacer" />
-        <select aria-label={t('app.theme')} data-testid="theme" value={theme} onChange={(e) => setTheme(e.target.value as typeof theme)}>
-          <option value="system">{t('app.themeSystem')}</option>
-          <option value="light">{t('app.themeLight')}</option>
-          <option value="dark">{t('app.themeDark')}</option>
-        </select>
-        <button type="button" data-testid="create" onClick={() => void createFolder()}>
-          {t('app.create')}
+        <MenuButton id="file" label={t('menu.file')} entries={[...dataCmds.slice(0, 4), ...(recent.length > 0 ? [t('menu.recentHead'), ...recentCmds] : []), t('menu.projectHead'), dataCmds[4]!]} />
+        <MenuButton id="share" className="wide-only" label={t('menu.share')} entries={shareCmds} />
+        <MenuButton id="settings" className="wide-only" label={t('menu.settings')} entries={[...settingsCmds, t('menu.themeHead'), ...themeCmds]} />
+        <MenuButton id="more" className="narrow-only" label="…" ariaLabel={t('menu.more')} align="right" entries={[t('menu.share'), ...shareCmds, t('menu.settings'), ...settingsCmds, t('menu.themeHead'), ...themeCmds]} />
+        <span className="spacer" />
+        <button type="button" className="palette-btn" data-testid="palette-open" onClick={() => setPaletteOpen(true)}>
+          {t('menu.search')} <kbd>Ctrl+K</kbd>
         </button>
-        <button type="button" data-testid="clone" onClick={() => {
-            setCloneError('');
-            setCloneOpen(true);
-          }}>
-          {t('app.clone')}
-        </button>
-        <button type="button" data-testid="open" onClick={() => void openFolder()}>
-          {t('app.open')}
-        </button>
-        {recent.length > 0 ? (
-          <select aria-label={t('app.recent')} data-testid="recent" value="" onChange={(e) => e.target.value && void openRecent(e.target.value)}>
-            <option value="">{t('app.recent')}</option>
-            {recent.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+        {hasData ? (
+          <button type="button" className="ai-btn" data-testid="ai-open" aria-pressed={aiOpen} onClick={() => setAiOpen((v) => !v)}>
+            ✦ {t('ai.open')}
+          </button>
         ) : null}
-        <button type="button" data-testid="sample" onClick={showSample}>
-          {t('app.sample')}
-        </button>
+        {repo ? (
+          <button type="button" className="diag-btn" data-testid="ver-diagnose" onClick={() => verApi.current?.openDiagnose()}>
+            {t('ver.diagnose')}
+          </button>
+        ) : null}
       </header>
+      {paletteOpen ? <CommandPalette cmds={allCmds} onClose={() => setPaletteOpen(false)} /> : null}
       {message ? (
         <section className="notice" role="alert" data-testid="notice">
           <p>{message}</p>
@@ -543,31 +583,6 @@ export function App() {
             {loaded.errors + loaded.warnings > 0 ? <span className="issues">{t('app.issues', { errors: String(loaded.errors), warnings: String(loaded.warnings) })}</span> : null}
             <span className="spacer" />
             {loaded.path ? (
-              <>
-                <button type="button" data-testid="tpl-add-project" onClick={() => setExpand({})}>
-                  {t('tpl.addProject')}
-                </button>
-                <button type="button" data-testid="ai-open" aria-pressed={aiOpen} onClick={() => setAiOpen((v) => !v)}>
-                  {t('ai.open')}
-                </button>
-                <button type="button" data-testid="export-open" onClick={() => setExportOpen(true)}>
-                  {t('exp.open')}
-                </button>
-                <button type="button" data-testid="csv-import" onClick={() => void importCsv()}>
-                  {t('csv.import')}
-                </button>
-                <button type="button" data-testid="csv-export" onClick={() => void exportCsv()}>
-                  {t('csv.export')}
-                </button>
-                <button type="button" data-testid="cal-open" onClick={() => setCalOpen(true)}>
-                  {t('cal.open')}
-                </button>
-                <button type="button" data-testid="tpl-open" onClick={() => setTplOpen(true)}>
-                  {t('tpl.open')}
-                </button>
-              </>
-            ) : null}
-            {loaded.path ? (
               <VersionControls
                 key={opened}
                 schedule={loaded.history.present}
@@ -582,6 +597,7 @@ export function App() {
                 onReload={reloadFromDisk}
                 onInfo={setVer}
                 openWorksSignal={worksSignal}
+                apiRef={verApi}
                 onRestore={(sc) => {
                   setLoaded({ ...loaded, history: new History(sc) });
                   setEditError('');

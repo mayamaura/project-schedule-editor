@@ -26,6 +26,10 @@ export interface TimelineApi {
   headerMode(): HeaderMode;
   /** 項目（またはプロジェクト）を選択して、その位置へ移動する（AI の提案・指摘のリンク。F-706）。 */
   jumpTo(id: Id): void;
+  /** 画面の操作（コマンドパレット・ショートカットから）。 */
+  goToday(): void;
+  zoomBy(factor: number): void;
+  toggleFilter(): void;
 }
 
 type Format = 'html' | 'png' | 'svg' | 'pdf';

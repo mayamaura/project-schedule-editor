@@ -166,6 +166,9 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
         return null;
       },
       headerMode: () => headerMode,
+      goToday: () => goToday(),
+      zoomBy: (f) => zoomBy(f),
+      toggleFilter: () => setFilterOpen((v) => !v),
       jumpTo: (id) => {
         const L = latest.current;
         let found: { kind: 'event' | 'milestone' | 'project'; day: number | null } | null = null;

@@ -6,6 +6,7 @@ import { diffSchedule, newIssues, parseSchedule, defaultCalendar, parseAiPrompts
 import { t } from './i18n';
 import { CompareDialog, type CompareTarget } from './CompareDialog';
 import { SyncWizard } from './SyncWizard';
+import { MenuButton } from './Menu';
 
 type GitState = Awaited<ReturnType<typeof window.api.invoke<'git:state'>>>;
 type LogEntry = Awaited<ReturnType<typeof window.api.invoke<'git:log'>>>[number];
@@ -19,6 +20,18 @@ export interface VersionInfo {
   readonly branch: string | null;
   /** 履歴が 1 件以上ある。 */
   readonly hasHistory: boolean;
+  /** 履歴機能を使える（Git があり、履歴を始めている）。 */
+  readonly isRepo: boolean;
+}
+
+/** 画面の他の部分（コマンドパレット・ショートカット）から版の操作を呼ぶ口。 */
+export interface VersionApi {
+  openSave(): void;
+  openHistory(): void;
+  openCompare(): void;
+  openSync(): void;
+  openWorks(): void;
+  openDiagnose(): void;
 }
 
 export function VersionControls({
@@ -35,6 +48,7 @@ export function VersionControls({
   onReload,
   onInfo,
   openWorksSignal,
+  apiRef,
 }: {
   schedule: Schedule;
   /** 標準日程（履歴に残す変更の一覧と件数に含める）。 */
@@ -59,6 +73,7 @@ export function VersionControls({
   onInfo: (v: VersionInfo) => void;
   /** 増えると「版の切り替え」を開く（正式版の直接編集の確認から）。 */
   openWorksSignal: number;
+  apiRef: { current: VersionApi | null };
 }) {
   const [git, setGit] = useState<GitState | null>(null);
   const [works, setWorks] = useState<Works | null>(null);
@@ -89,7 +104,7 @@ export function VersionControls({
     })();
   }, []);
   useEffect(() => {
-    if (git) onInfo({ branch: git.branch, hasHistory: git.head !== null });
+    if (git) onInfo({ branch: git.branch, hasHistory: git.head !== null, isRepo: git.available && git.isRepo });
   }, [git]);
   // 合図が「増えたとき」だけ開く（作り直されたときに、過去の合図で勝手に開かない）
   const seenSignal = useRef(openWorksSignal);
@@ -137,6 +152,7 @@ export function VersionControls({
     return [...diffSchedule(head, schedule).map(summarizeChange), ...tplLines];
   }, [head, git, templates, calendar, sharedPrompts, sharedViews, schedule, edits]);
 
+  apiRef.current = null;
   if (!git) return null;
   if (!git.available) return <span className="issues">{t('ver.noGit')}</span>;
   if (!git.isRepo) {
@@ -192,6 +208,21 @@ export function VersionControls({
     onRestore(p.schedule);
     setDialog(null);
   };
+  const openCompare = async (): Promise<void> => {
+    await flush();
+    setLog(await window.api.invoke('git:log', { limit: 100 }));
+    setCompare({ kind: 'pair', beforeHash: null, afterHash: 'current' });
+  };
+  const openSync = async (): Promise<void> => {
+    await flush();
+    setDialog('sync');
+  };
+  const openDiagnose = (): void => {
+    setDiag([]);
+    setNote('');
+    setDialog('diagnose');
+    void window.api.invoke('git:diagnose').then(setDiag);
+  };
   const openWorks = async (): Promise<void> => {
     await flush();
     await refresh();
@@ -221,6 +252,7 @@ export function VersionControls({
     }
   };
 
+  apiRef.current = { openSave: () => void openSave(), openHistory: () => void openHistory(), openCompare: () => void openCompare(), openSync: () => void openSync(), openWorks: () => void openWorks(), openDiagnose };
   const bandText = onMain ? t('work.main') : t('work.band', { name: currentWork?.display ?? git.branch ?? '' });
 
   return (
@@ -229,43 +261,23 @@ export function VersionControls({
         {bandText} ▾
       </button>
       <span data-testid="unsaved">{unsaved === null ? t('ver.first') : unsaved > 0 ? t('ver.unsaved', { count: String(unsaved) }) : t('ver.clean')}</span>
-      <button type="button" data-testid="ver-save" onClick={() => void openSave()}>
+      <button type="button" className="primary" data-testid="ver-save" onClick={() => void openSave()}>
         {t('ver.save')}
       </button>
-      <button type="button" data-testid="ver-history" onClick={() => void openHistory()}>
-        {t('ver.history')}
-      </button>
-      {git.head !== null ? (
-        <button
-          type="button"
-          data-testid="ver-compare"
-          onClick={() =>
-            void flush().then(async () => {
-              setLog(await window.api.invoke('git:log', { limit: 100 }));
-              setCompare({ kind: 'pair', beforeHash: null, afterHash: 'current' });
-            })
-          }
-        >
-          {t('cmp.open')}
-        </button>
-      ) : null}
-      {git.head !== null ? (
-        <button type="button" data-testid="ver-sync" onClick={() => void flush().then(() => setDialog('sync'))}>
-          {t(onMain ? 'sync.share' : 'sync.reflect')}
-        </button>
-      ) : null}
-      <button
-        type="button"
-        data-testid="ver-diagnose"
-        onClick={() => {
-          setDiag([]);
-          setNote('');
-          setDialog('diagnose');
-          void window.api.invoke('git:diagnose').then(setDiag);
-        }}
-      >
-        {t('ver.diagnose')}
-      </button>
+      <MenuButton
+        id="ver"
+        label={t('menu.ver')}
+        entries={[
+          { id: 'ver-history', label: t('ver.history'), group: t('menu.ver'), testid: 'ver-history', run: () => void openHistory() },
+          { id: 'ver-works', label: t('menu.works'), group: t('menu.ver'), testid: 'ver-works', run: () => void openWorks() },
+          ...(git.head !== null
+            ? [
+                { id: 'ver-compare', label: t('cmp.open'), group: t('menu.ver'), testid: 'ver-compare', run: () => void openCompare() },
+                { id: 'ver-sync', label: t(onMain ? 'sync.share' : 'sync.reflect'), group: t('menu.ver'), testid: 'ver-sync', run: () => void openSync() },
+              ]
+            : []),
+        ]}
+      />
       {compare ? <CompareDialog target={compare} log={log} current={schedule} onClose={() => setCompare(null)} /> : null}
       {dialog === 'sync' ? (
         <SyncWizard

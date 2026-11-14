@@ -12,7 +12,7 @@ import { buildSnapshot, defaultSnapshotOptions } from '../../src/domain/export/s
 import { generateSample } from '../../src/domain/sample';
 import { serializeSchedule } from '../../src/domain/serialize';
 import { dep, ev, ms, proj, schedule } from '../domain/fixtures';
-import { launch, root } from './launch';
+import { launch, root, clickMenu } from './launch';
 
 let app: ElectronApplication;
 let page: Page;
@@ -40,7 +40,7 @@ test.beforeAll(async () => {
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [d] })) as never;
   }, dir);
-  await page.getByTestId('open').click();
+  await clickMenu(page, 'open');
   await expect(page.getByTestId('timeline-canvas')).toBeVisible();
 });
 test.afterAll(async () => {
@@ -61,7 +61,7 @@ async function exportTo(file: string, fmt: 'html' | 'pdf' | 'png' | 'svg', prep?
   await app.evaluate(({ dialog }, f) => {
     dialog.showSaveDialog = (() => Promise.resolve({ canceled: false, filePath: f })) as never;
   }, file);
-  await page.getByTestId('export-open').click();
+  await clickMenu(page, 'export-open');
   await page.getByTestId(`exp-format-${fmt}`).check();
   await prep?.();
   await page.getByTestId('exp-go').click();
@@ -69,7 +69,7 @@ async function exportTo(file: string, fmt: 'html' | 'pdf' | 'png' | 'svg', prep?
 }
 
 test('HTML 出力: 既定ではメモ・担当者を含めず、暗号化されない旨を出力前に表示する（F-608）', async () => {
-  await page.getByTestId('export-open').click();
+  await clickMenu(page, 'export-open');
   await expect(page.getByTestId('exp-warning')).toContainText('暗号化されません');
   await expect(page.getByTestId('exp-notes')).not.toBeChecked();
   await expect(page.getByTestId('exp-assignee')).not.toBeChecked();
@@ -162,7 +162,7 @@ test('PDF に出力できる（用紙・向き指定。ベクタ）（F-606）',
 });
 
 test('期間を指定して出力でき、範囲外なら理由が出る（F-601, F-608）', async () => {
-  await page.getByTestId('export-open').click();
+  await clickMenu(page, 'export-open');
   await page.getByTestId('exp-format-svg').check();
   await page.getByTestId('exp-from').fill('2030-01-01');
   await page.getByTestId('exp-to').fill('2030-12-31');

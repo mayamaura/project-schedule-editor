@@ -1,7 +1,7 @@
 // @req F-101, F-104, F-107, F-304, NF-001, NF-010
 // 実際の Electron で「サンプルを表示」し、Canvas の描画・ヘッダ切替・ズーム・パン・選択・フレーム時間を確認する。
 import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test';
-import { launch } from './launch';
+import { launch, clickMenu } from './launch';
 
 let app: ElectronApplication;
 let page: Page;
@@ -36,7 +36,7 @@ test.afterAll(async () => {
 
 test('起動直後は空の案内。サンプルを表示すると Canvas に描画される（25,000イベント）', async () => {
   await expect(page.getByTestId('empty')).toBeVisible();
-  await page.getByTestId('sample').click();
+  await clickMenu(page, 'sample');
   await expect(canvas).toBeVisible();
   await settle();
   await expect(page.getByTestId('info')).toContainText('イベント 25000');
@@ -205,7 +205,7 @@ test.describe('フォルダを開く', () => {
   test('日程データのフォルダを読み込んで、タイムラインに表示する', async () => {
     saveFiles(dir, serializeSchedule(basic()));
     await chooseFolder(dir);
-    await page.getByTestId('open').click();
+    await clickMenu(page, 'open');
     await expect(page.getByTestId('info')).toContainText('プロジェクト 2・イベント 3・マイルストーン 1');
     await expect(page.getByTestId('info')).toContainText(dir);
     await expect(page.getByTestId('notice')).toHaveCount(0);
@@ -222,7 +222,7 @@ test.describe('フォルダを開く', () => {
     writeFileSync(join(dir, 'projects/A.json.9.tmp'), newer['projects/A.json'] ?? '');
     writeFileSync(join(dir, '.autosave/pending.json'), JSON.stringify([{ tmp: join(dir, 'projects/A.json.9.tmp'), final: join(dir, 'projects/A.json') }]));
     await chooseFolder(dir);
-    await page.getByTestId('open').click();
+    await clickMenu(page, 'open');
     await expect(page.locator('.tree-row').first()).toContainText('更新後の名前');
   });
 
@@ -232,7 +232,7 @@ test.describe('フォルダを開く', () => {
     writeFileSync(join(dir, 'dependencies/d1.json'), JSON.stringify({ id: 'd1', type: 'XX' }));
     await chooseFolder(dir);
     const before = await page.getByTestId('info').textContent();
-    await page.getByTestId('open').click();
+    await clickMenu(page, 'open');
     const notice = page.getByTestId('notice');
     await expect(notice).toContainText('読み込めませんでした');
     await expect(notice).toContainText('projects/A.json');
@@ -244,7 +244,7 @@ test.describe('フォルダを開く', () => {
     saveFiles(dir, serializeSchedule(basic()));
     writeFileSync(join(dir, 'schedule.json'), '{ "schemaVersion": 99 }\n');
     await chooseFolder(dir);
-    await page.getByTestId('open').click();
+    await clickMenu(page, 'open');
     await expect(page.getByTestId('notice')).toContainText('新しいバージョン');
     await expect(page.getByTestId('notice')).toContainText('99');
   });
@@ -254,7 +254,7 @@ test.describe('フォルダを開く', () => {
       dialog.showOpenDialog = (async () => ({ canceled: true, filePaths: [] })) as unknown as typeof dialog.showOpenDialog;
     });
     const before = await page.getByTestId('info').textContent();
-    await page.getByTestId('open').click();
+    await clickMenu(page, 'open');
     await page.waitForTimeout(300);
     await expect(page.getByTestId('info')).toHaveText(before ?? '');
   });

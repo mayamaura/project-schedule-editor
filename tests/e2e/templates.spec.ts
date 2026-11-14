@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { launch } from './launch';
+import { launch, clickMenu } from './launch';
 
 let app: ElectronApplication;
 let page: Page;
@@ -17,7 +17,7 @@ test.beforeAll(async () => {
   await app.evaluate(({ dialog }, p) => {
     dialog.showOpenDialog = (() => Promise.resolve({ canceled: false, filePaths: [p] })) as never;
   }, dir);
-  await page.getByTestId('create').click();
+  await clickMenu(page, 'create');
   await expect(page.getByTestId('timeline-canvas')).toBeVisible();
 });
 test.afterAll(async () => {
@@ -33,7 +33,7 @@ test.afterAll(async () => {
 });
 
 test('編集画面は初期状態は通常の大きさで、端・角のドラッグで広げられる', async () => {
-  await page.getByTestId('tpl-open').click();
+  await clickMenu(page, 'tpl-open');
   const dlg = page.getByTestId('dialog-templates');
   const w0 = (await dlg.boundingBox())!.width;
   expect(w0).toBeLessThanOrEqual(761);
@@ -50,7 +50,7 @@ test('編集画面は初期状態は通常の大きさで、端・角のドラ�
 });
 
 test('標準日程を作る: 横軸でバーをドラッグして位置を決め、templates/ に 1 ファイルで保存される', async () => {
-  await page.getByTestId('tpl-open').click();
+  await clickMenu(page, 'tpl-open');
   await page.getByTestId('tpl-new').click();
   await page.getByTestId('tpl-name').fill('標準リリース日程');
   await page.getByTestId('tpl-add-milestone').click();
@@ -85,7 +85,7 @@ test('標準日程を作る: 横軸でバーをドラッグして位置を決め
 });
 
 test('展開前にプレビューで日付を確認し、追加すると新しいプロジェクトができて自動保存される', async () => {
-  await page.getByTestId('tpl-add-project').click();
+  await clickMenu(page, 'tpl-add-project');
   await page.getByTestId('expand-name').fill('新製品C');
   await page.getByTestId('expand-date').fill('2027-06-30');
   const prev = page.getByTestId('expand-preview');
@@ -109,7 +109,7 @@ test('展開前にプレビューで日付を確認し、追加すると新し�
 test('標準日程を削除しても、展開済みのプロジェクトには影響しない', async () => {
   await page.getByTestId('redo').click();
   await expect(page.locator('.tree-row')).toHaveCount(1);
-  await page.getByTestId('tpl-open').click();
+  await clickMenu(page, 'tpl-open');
   page.once('dialog', (d) => void d.accept());
   await page.getByTestId('tpl-delete').click();
   await expect(page.getByTestId('tpl-item')).toHaveCount(0);

@@ -1,12 +1,12 @@
 // @req F-201, F-206, NF-001
 // 25,000 イベントのサンプルで、バーのドラッグ移動のフレーム時間を測る。確定は 1 コマンド（Undo 1 回で元に戻る）。
 import { expect, test } from '@playwright/test';
-import { launch } from './launch';
+import { launch, clickMenu } from './launch';
 
 test('バーのドラッグ: フレーム時間と、Undo 1 回で元に戻ること', async () => {
   const { app, page } = await launch();
   try {
-    await page.getByTestId('sample').click();
+    await clickMenu(page, 'sample');
     const canvas = page.getByTestId('timeline-canvas');
     await expect(canvas).toBeVisible();
     await expect.poll(() => canvas.getAttribute('data-probe')).toMatch(/\d+,\d+/);

@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { launch } from './launch';
+import { launch, clickMenu } from './launch';
 
 let app: ElectronApplication;
 let page: Page;
@@ -28,7 +28,7 @@ test.afterAll(async () => {
 test('中身のあるフォルダには作らず、理由を出す', async () => {
   writeFileSync(join(dir, 'memo.txt'), 'x');
   await pick(dir);
-  await page.getByTestId('create').click();
+  await clickMenu(page, 'create');
   await expect(page.getByTestId('notice')).toContainText('空ではない');
   expect(existsSync(join(dir, 'schedule.json'))).toBe(false);
   rmSync(join(dir, 'memo.txt'));
@@ -36,7 +36,7 @@ test('中身のあるフォルダには作らず、理由を出す', async () =>
 
 test('空のフォルダを選ぶと新規作成され、プロジェクトを追加すると自動保存される', async () => {
   await pick(dir);
-  await page.getByTestId('create').click();
+  await clickMenu(page, 'create');
   await expect(page.getByTestId('timeline-canvas')).toBeVisible();
   await expect(page.getByTestId('notice')).toBeHidden();
   expect(existsSync(join(dir, 'schedule.json'))).toBe(true);
