@@ -47,7 +47,7 @@ export function TypesDialog({ schedule, commit, onClose }: { schedule: Schedule;
                 />
                 <input aria-label={t('types.name')} defaultValue={id} onBlur={(e) => rename(id, e.target.value)} />
                 <span className="mut">{t('types.used', { n: String(n) })}</span>
-                <button type="button" disabled={n > 0 || !schedule.types[id]} title={n > 0 ? t('types.inUse') : ''} onClick={() => run({ type: 'deleteType', id })}>
+                <button type="button" aria-disabled={n > 0} className={n > 0 ? 'mut' : undefined} data-testid="types-delete" onClick={() => (n > 0 ? setError(t('types.inUse', { name: id, n: String(n) })) : run({ type: 'deleteType', id }))}>
                   {t('tpl.remove')}
                 </button>
               </li>

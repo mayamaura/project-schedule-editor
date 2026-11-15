@@ -126,7 +126,7 @@ export const ja = {
   'types.name': '種別の名前',
   'types.color': '色',
   'types.used': '{n} 件で使用中',
-  'types.inUse': '使っている項目があるため削除できません',
+  'types.inUse': '「{name}」は {n} 件のイベント・マイルストーンで使用中のため削除できません。先にそれらの種別を別のものに変えてください。',
   'types.rename': '種別の名前を変更',
   'types.new': '＋ 新しい種別…',
   'types.add': '種別を追加',
