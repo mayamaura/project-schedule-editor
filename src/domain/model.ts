@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { isDateStr } from './date';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -13,6 +13,8 @@ export const idSchema = z.string().regex(ID_PATTERN, 'ID は英数字・_・- �
 export const dateSchema = z.string().refine(isDateStr, '不正な日付（YYYY-MM-DD）');
 const nameSchema = z.string().min(1, '名称が空').max(500);
 const textSchema = z.string().max(20000);
+/** 縦位置（段）の指定（F-109）。省略 = 自動配置。 */
+const laneSchema = z.number().int().min(0).max(99).optional();
 const orderSchema = z.string().regex(/^[0-9a-z]*[1-9a-z]$/, '並び順は 0-9a-z で末尾が 0 でない');
 
 export const eventStyleSchema = z.enum(['bar', 'roundBar', 'line', 'band', 'outline', 'striped', 'arrow']);
@@ -26,6 +28,7 @@ export const eventSchema = z.strictObject({
   color: z.string().max(32).optional(),
   style: eventStyleSchema.optional(),
   note: textSchema.optional(),
+  lane: laneSchema,
 });
 
 export const milestoneSchema = z.strictObject({
@@ -34,6 +37,7 @@ export const milestoneSchema = z.strictObject({
   type: z.string().max(64),
   style: milestoneStyleSchema.optional(),
   note: textSchema.optional(),
+  lane: laneSchema,
 });
 
 /** 付箋（F-108）。attachedTo があるとき date は対象の開始日と同じ（コマンドが同期を保つ）。 */
@@ -44,6 +48,7 @@ export const stickySchema = z.strictObject({
   attachedTo: idSchema.optional(),
   /** 幅（日数）。省略は既定（14 日）。 */
   span: z.number().int().min(1).max(366).optional(),
+  lane: laneSchema,
 });
 
 export const projectSchema = z.strictObject({

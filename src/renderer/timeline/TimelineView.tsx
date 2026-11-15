@@ -16,6 +16,7 @@ import {
   clampPxPerDay,
   darkTheme,
   dragCommand,
+  laneCommand,
   draw,
   effectiveHeaderMode,
   fromDays,
@@ -355,11 +356,18 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
     request();
   };
 
+  /** 縦位置を指定している項目なら、自動に戻すメニュー（F-109）。 */
+  const autoLaneMenu = (id: Id, projectId: Id): MenuItem[] => {
+    const p = schedule.projects[projectId];
+    const item = p?.events[id] ?? p?.milestones[id] ?? p?.stickies?.[id];
+    return item?.lane === undefined ? [] : [{ label: t('menu.autoLane'), run: () => { const c = laneCommand(schedule, id, undefined, 0); if (c) commit(c); } }];
+  };
   const menuFor = (h: Hit): MenuItem[] => {
     if (h.kind === 'sticky') {
       const s: Sel = { kind: 'sticky', id: h.id };
       return [
         { label: t('menu.edit'), run: () => setSelected(s) },
+        ...autoLaneMenu(h.id, h.projectId),
         { label: t('menu.delete'), run: () => deleteSel(s) },
       ];
     }
@@ -373,6 +381,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
         ...(ms && onExpand ? [{ label: t('menu.expandTemplateFromMilestone'), run: () => onExpand({ projectId: h.projectId, date: ms.date }) }] : []),
         ...(selectionIds().length > 1 ? [{ label: t('menu.shiftSelected', { n: String(selectionIds().length) }), run: () => setShiftOpen(true) }] : []),
         { label: t('menu.copy'), run: () => { clip.current = copyItems(schedule, selectionIds().length > 0 ? selectionIds() : [h.id]); } },
+        ...autoLaneMenu(h.id, h.projectId),
         { label: t('menu.delete'), run: () => deleteSel(s) },
       ];
     }
@@ -402,7 +411,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
   }, []);
 
   // ---- ポインタ: ドラッグで編集 / 空白のドラッグでパン / クリックで選択 / ホバー ----
-  const drag = useRef<{ x: number; y: number; moved: boolean; edit?: { id: Id; projectId: Id; part: 'body' | 'start' | 'end'; x0: number; cmd: Command | null } } | null>(null);
+  const drag = useRef<{ x: number; y: number; moved: boolean; edit?: { id: Id; projectId: Id; part: 'body' | 'start' | 'end'; x0: number; y0: number; cmd: Command | null } } | null>(null);
   const pointer = (e: React.PointerEvent): { x: number; y: number } => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -413,7 +422,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
     if (e.button !== 0) return;
     const p = pointer(e);
     const h = hitAt(p.x, p.y);
-    const edit = !linkFrom && h && (h.kind === 'event' || h.kind === 'milestone' || h.kind === 'sticky') ? { id: h.id, projectId: h.projectId, part: h.kind === 'milestone' ? ('body' as const) : h.part, x0: p.x, cmd: null } : undefined;
+    const edit = !linkFrom && h && (h.kind === 'event' || h.kind === 'milestone' || h.kind === 'sticky') ? { id: h.id, projectId: h.projectId, part: h.kind === 'milestone' ? ('body' as const) : h.part, x0: p.x, y0: p.y, cmd: null } : undefined;
     drag.current = { x: p.x, y: p.y, moved: false, edit };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -425,7 +434,14 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
       d.moved = true;
       if (d.edit) {
         const delta = Math.round((p.x - d.edit.x0) / view.current.pxPerDay);
-        d.edit.cmd = dragCommand(schedule, d.edit.id, d.edit.part, delta);
+        const dateCmd = dragCommand(schedule, d.edit.id, d.edit.part, delta);
+        // 縦にも動かしたら、同じ行の中で段を移す（F-109）。段の高さの半分以上動いたとき
+        const L = latest.current.layout;
+        const pos = L.itemPos.get(d.edit.id);
+        const row = pos ? L.rows[pos.row] : undefined;
+        const target = pos && row ? Math.max(0, Math.min(row.lanes - 1, pos.lane + Math.round((p.y - d.edit.y0) / L.laneHeight))) : 0;
+        const laneCmd = d.edit.part === 'body' && pos ? laneCommand(schedule, d.edit.id, target, pos.lane) : null;
+        d.edit.cmd = dateCmd && laneCmd ? { type: 'batch', commands: [dateCmd, laneCmd], label: t('edit.moveItem') } : (dateCmd ?? laneCmd);
         const r = d.edit.cmd ? applyCommand(schedule, d.edit.cmd) : null;
         preview.current = r?.ok ? r.schedule : null;
         showTip(p.x, p.y, preview.current ?? schedule, d.edit);

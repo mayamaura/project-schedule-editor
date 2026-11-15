@@ -6,6 +6,21 @@ import type { Command } from '../commands';
 import type { Id, Schedule } from '../model';
 import { STICKY_MAX_SPAN, stickySpan } from './sticky';
 
+/**
+ * 縦位置（段）の指定（F-109）。lane = 移したい段、undefined = 自動に戻す。current = 今いる段（同じなら何もしない）。
+ * 指定の保存先はイベント・マイルストーン・付箋の lane。
+ */
+export function laneCommand(s: Schedule, id: Id, lane: number | undefined, current: number): Command | null {
+  for (const p of Object.values(s.projects)) {
+    const kind = p.events[id] ? 'Event' : p.milestones[id] ? 'Milestone' : p.stickies?.[id] ? 'Sticky' : null;
+    if (!kind) continue;
+    const item = p.events[id] ?? p.milestones[id] ?? p.stickies?.[id];
+    if (lane === undefined ? item?.lane === undefined : lane === current) return null;
+    return { type: `update${kind}`, id, patch: { lane } } as Command;
+  }
+  return null;
+}
+
 export function dragCommand(s: Schedule, id: Id, part: 'body' | 'start' | 'end', deltaDays: number): Command | null {
   if (!Number.isInteger(deltaDays) || deltaDays === 0) return null;
   for (const p of Object.values(s.projects)) {

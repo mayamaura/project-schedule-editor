@@ -62,30 +62,35 @@ export function assignLanes(p: Project, stickies = true): LaneInfo {
   const cache = stickies ? laneCacheWithStickies : laneCache;
   const cached = cache.get(p);
   if (cached) return cached;
-  const items: { id: Id; start: number; end: number; h: number }[] = [];
+  const items: { id: Id; start: number; end: number; h: number; pin: number | undefined }[] = [];
   const laneOf = new Map<Id, number>();
   const laneSpan = new Map<Id, number>();
   for (const [id, d] of itemDays(p)) {
-    if (d) items.push({ id, start: d.s, end: d.e, h: 1 });
+    if (d) items.push({ id, start: d.s, end: d.e, h: 1, pin: (p.events[id] ?? p.milestones[id])?.lane });
     else laneOf.set(id, 0);
   }
   if (stickies) {
     for (const [id, n] of Object.entries(p.stickies ?? {})) {
-      if (isDateStr(n.date)) items.push({ id, start: toDays(n.date), end: toDays(n.date) + stickySpan(n) - 1, h: stickyLanes(n) });
+      if (isDateStr(n.date)) items.push({ id, start: toDays(n.date), end: toDays(n.date) + stickySpan(n) - 1, h: stickyLanes(n), pin: n.lane });
       else laneOf.set(id, 0);
     }
   }
-  items.sort((a, b) => a.start - b.start || a.end - b.end || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  const lastEnd: number[] = [];
-  for (const it of items) {
-    // it.h 本の連続したレーンが全て空いている最初の位置（h = 1 なら、空いている最初のレーン）
-    let lane = 0;
-    while (!Array.from({ length: it.h }, (_, k) => lastEnd[lane + k]).every((e) => e === undefined || e < it.start)) lane++;
-    for (let k = 0; k < it.h; k++) lastEnd[lane + k] = it.end;
+  const byId = (a: { id: Id }, b: { id: Id }): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  // 段ごとに、置いた項目の期間を持つ（指定のある項目を先に置くので、開始日順とは限らない）
+  const occ: { s: number; e: number }[][] = [];
+  const free = (lane: number, it: { start: number; end: number }): boolean => !(occ[lane] ?? []).some((o) => o.s <= it.end && it.start <= o.e);
+  // it.h 本の連続した段が全て空いている、from 以降の最初の位置（h = 1 なら、空いている最初の段）
+  const place = (it: (typeof items)[number], from: number): void => {
+    let lane = from;
+    while (!Array.from({ length: it.h }, (_, k) => free(lane + k, it)).every(Boolean)) lane++;
+    for (let k = 0; k < it.h; k++) (occ[lane + k] ??= []).push({ s: it.start, e: it.end });
     laneOf.set(it.id, lane);
     if (it.h > 1) laneSpan.set(it.id, it.h);
-  }
-  const info: LaneInfo = { laneOf, laneSpan, lanes: Math.max(1, lastEnd.length) };
+  };
+  // 利用者が縦位置を指定した項目（F-109）を先に、その段以降へ。続いて残りを日付順の貪欲法で（F-103）
+  for (const it of items.filter((x) => x.pin !== undefined).sort((a, b) => a.pin! - b.pin! || a.start - b.start || a.end - b.end || byId(a, b))) place(it, it.pin!);
+  for (const it of items.filter((x) => x.pin === undefined).sort((a, b) => a.start - b.start || a.end - b.end || byId(a, b))) place(it, 0);
+  const info: LaneInfo = { laneOf, laneSpan, lanes: Math.max(1, occ.length) };
   cache.set(p, info);
   return info;
 }

@@ -121,6 +121,6 @@ describe('マージ結果の整合性', () => {
     expect(validateSchedule(r.schedule).some((i) => i.rule === 'end-before-start')).toBe(true);
   });
   it('スキーマの版は新しい方', () => {
-    expect(mergeSchedules(base, { ...base, schemaVersion: 2 }, base).schedule.schemaVersion).toBe(2);
+    expect(mergeSchedules(base, { ...base, schemaVersion: 99 }, base).schedule.schemaVersion).toBe(99);
   });
 });

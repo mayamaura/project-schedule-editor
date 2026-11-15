@@ -33,7 +33,7 @@ describe('serializeSchedule / parseSchedule（往復）', () => {
   it('ファイル構成: 1プロジェクト1ファイル・1依存1ファイル・パスは昇順', () => {
     const files = serializeSchedule(basic());
     expect(Object.keys(files)).toEqual(['dependencies/d1.json', 'projects/A.json', 'projects/A1.json', 'schedule.json', 'types.json']);
-    expect(JSON.parse(files['schedule.json'] ?? '')).toEqual({ schemaVersion: 2 });
+    expect(JSON.parse(files['schedule.json'] ?? '')).toEqual({ schemaVersion: 3 });
   });
   it('往復して同一になる（Schedule → ファイル → Schedule → ファイル）', () => {
     const s = basic();
@@ -83,7 +83,7 @@ describe('parseSchedule（読み込めないもの・不整合）', () => {
     expect(parseSchedule({ ...good(), 'schedule.json': '{"schemaVersion":"1"}' })).toMatchObject({ status: 'error' });
   });
   it('新しい版のデータは tooNew（読み取り専用で開くため、中身は読まない）', () => {
-    expect(parseSchedule({ ...good(), 'schedule.json': '{"schemaVersion":3}', 'projects/A.json': 'ぐちゃぐちゃ' })).toEqual({ status: 'tooNew', fileVersion: 3 });
+    expect(parseSchedule({ ...good(), 'schedule.json': '{"schemaVersion":4}', 'projects/A.json': 'ぐちゃぐちゃ' })).toEqual({ status: 'tooNew', fileVersion: 4 });
   });
   it('壊れたファイルは、全ての問題をパス付きで返す（黙って捨てない）', () => {
     const f = good();

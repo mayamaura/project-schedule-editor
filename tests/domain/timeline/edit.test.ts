@@ -68,3 +68,25 @@ describe('付箋のドラッグ（F-108）', () => {
     expect(after(dragCommand(withNotes(), 'n2', 'end', 4))?.['n2']).toMatchObject({ date: '2026-01-30', span: 18 });
   });
 });
+
+describe('縦位置の指定コマンド（F-109）', () => {
+  it('イベント・マイルストーン・付箋の lane を更新する。同じ段なら何もしない', async () => {
+    const { laneCommand } = await import('../../../src/domain/timeline/edit');
+    const s = {
+      ...sched,
+      projects: { p1: { ...sched.projects['p1']!, milestones: { m1: { name: 'M', date: '2026-02-28', type: 'x' } }, stickies: { n1: { text: 'a', date: '2026-02-10' } } } },
+    } as unknown as Schedule;
+    for (const id of ['e1', 'm1', 'n1']) {
+      const cmd = laneCommand(s, id, 2, 0);
+      expect(cmd).not.toBeNull();
+      const r = applyCommand(s, cmd!);
+      expect(r.ok).toBe(true);
+    }
+    expect(laneCommand(s, 'e1', 0, 0)).toBeNull();
+    expect(laneCommand(s, 'none', 1, 0)).toBeNull();
+    const pinned = applyCommand(s, laneCommand(s, 'e1', 2, 0)!);
+    if (!pinned.ok) throw new Error('x');
+    expect(laneCommand(pinned.schedule, 'e1', undefined, 2)).toMatchObject({ type: 'updateEvent', patch: { lane: undefined } }); // 自動に戻す
+    expect(laneCommand(s, 'e1', undefined, 0)).toBeNull(); // 指定が無いので戻すものが無い
+  });
+});

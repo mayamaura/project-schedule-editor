@@ -121,6 +121,8 @@ export const ja = {
   'tpl.chartLabel': '標準日程の横軸（起点からの前後）',
   'tpl.chartHelp': 'バー・◆を選ぶと下で細かく設定できます。端をドラッグすると期間を変えられます。',
   'timeline.selectedSticky': '付箋「{text}」（{date}）を選択中',
+  'menu.autoLane': '縦位置を自動に戻す',
+  'edit.moveItem': '項目を移動',
   'sticky.new': '新しい付箋',
   'sticky.add': '付箋を追加',
   'sticky.attach': '付箋を付ける',

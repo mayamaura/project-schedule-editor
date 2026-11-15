@@ -129,3 +129,40 @@ describe('spanOf（データ全体の日付範囲。初期表示用）', () => {
     expect(spanOf(schedule([proj('A', { events: { a: ev('a', 'xx', 'yy') }, milestones: { m: ms('m', '2026-05-05') } })]))).toEqual({ minDay: toDays('2026-05-05'), maxDay: toDays('2026-05-05') });
   });
 });
+
+describe('縦位置の指定（F-109）', () => {
+  const p = (extra: Record<string, object> = {}) =>
+    proj('P', {
+      events: {
+        a: ev('a', '2026-11-01', '2026-11-30', extra['a']),
+        b: ev('b', '2026-11-10', '2026-11-20', extra['b']),
+        c: ev('c', '2026-11-12', '2026-11-18', extra['c']),
+      },
+    });
+  const lanes = (pp: ReturnType<typeof p>) => Object.fromEntries(assignLanes(pp).laneOf);
+
+  it('指定が無ければ従来どおり（日付順の自動配置）', () => {
+    expect(lanes(p())).toEqual({ a: 0, b: 1, c: 2 });
+  });
+  it('指定した項目はその段へ。他の項目は空いた段へ自動で入る（入れ替え）', () => {
+    expect(lanes(p({ a: { lane: 1 } }))).toEqual({ a: 1, b: 0, c: 2 });
+    expect(lanes(p({ c: { lane: 0 } }))).toEqual({ c: 0, a: 1, b: 2 });
+  });
+  it('指定した段が埋まっていれば、その段以降の最初の空きへ。重なることはない', () => {
+    const l = lanes(p({ a: { lane: 1 }, b: { lane: 1 } }));
+    expect(l['a']).toBe(1);
+    expect(l['b']).toBe(2); // a と重なるので 1 の次
+    expect(new Set(Object.values(l)).size).toBe(3);
+  });
+  it('期間が重ならなければ、指定が同じ段でも並べる。マイルストーン・付箋も対象', () => {
+    const pp = proj('P', {
+      events: { a: ev('a', '2026-11-01', '2026-11-05', { lane: 2 }), b: ev('b', '2026-11-10', '2026-11-12', { lane: 2 }) },
+      milestones: { m: ms('m', '2026-11-03', { lane: 0 }) },
+      stickies: { n: { text: 'x', date: '2026-11-20', lane: 1 } },
+    });
+    expect(lanes(pp)).toEqual({ a: 2, b: 2, m: 0, n: 1 });
+  });
+  it('段の数は、実際に使う段まで（指定で空の段が増える分も含む）', () => {
+    expect(assignLanes(p({ a: { lane: 3 } })).lanes).toBe(4);
+  });
+});

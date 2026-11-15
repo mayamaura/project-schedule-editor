@@ -131,6 +131,13 @@ A社の回答次第", "date": "2027-02-01", "color": "#ffe066", "attachedTo": "e
 <li>3 版マージ・出力用スナップショット（10）は、項目と同じ ID キーの扱い。<strong>版の比較・履歴の変更要約（<code>diffSchedule</code>）は付箋を扱わない</strong>（未対応）。</li>
 </ul>
 
+<h2 id="lane">7.6 縦位置の指定（<code>lane</code>。F-109）</h2>
+<p>イベント・マイルストーン・付箋の任意フィールド <code>lane</code>（0 以上の整数。省略 = 自動）。<strong>schemaVersion を 3 に上げる</strong>（マイグレーションは何もしない）。</p>
+<ul>
+<li>配置の規則: まず <code>lane</code> を持つ項目を、その段以降で<strong>期間が重ならない最初の段</strong>に置く（指定の段が他の項目で埋まっていれば下へずれる）。続いて <code>lane</code> を持たない項目を、従来どおり日付順の貪欲法で空いている最初の段に置く（F-103）。常に重ならない配置になる。</li>
+<li>コマンド: 項目の更新（<code>updateEvent</code> / <code>updateMilestone</code> / <code>updateSticky</code>）の <code>patch.lane</code>。<code>undefined</code> で自動に戻す。</li>
+</ul>
+
 <h2>5. スキーマ進化</h2>
 <ul><li><code>schemaVersion</code> を保持。起動時に古ければマイグレーションし、「データ形式を更新しました」を1コミットとして記録。</li>
 <li>新しいバージョンのデータを古いアプリが開いた場合は読み取り専用で警告。</li></ul>
