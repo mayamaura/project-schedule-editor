@@ -119,6 +119,17 @@ function poly(c: Canvas2D, i: Item<'poly'>): void {
   c.fill();
 }
 
+function polygon(c: Canvas2D, i: Item<'polygon'>): void {
+  const p = i.points;
+  if (p.length < 6) return;
+  c.beginPath();
+  c.moveTo(p[0]!, p[1]!);
+  for (let k = 2; k < p.length; k += 2) c.lineTo(p[k]!, p[k + 1]!);
+  c.closePath();
+  c.fillStyle = i.fill;
+  c.fill();
+}
+
 function marker(c: Canvas2D, i: Item<'marker'>): void {
   const r = i.size / 2;
   const { cx, cy } = i;
@@ -138,6 +149,12 @@ function marker(c: Canvas2D, i: Item<'marker'>): void {
       c.moveTo(cx, cy - r);
       c.lineTo(cx + r, cy + r);
       c.lineTo(cx - r, cy + r);
+      c.closePath();
+      break;
+    case 'triangleDown':
+      c.moveTo(cx, cy + r);
+      c.lineTo(cx + r, cy - r);
+      c.lineTo(cx - r, cy - r);
       c.closePath();
       break;
     case 'square':
@@ -198,6 +215,9 @@ function drawItems(c: Canvas2D, items: readonly DrawItem[]): void {
         break;
       case 'poly':
         poly(c, i);
+        break;
+      case 'polygon':
+        polygon(c, i);
         break;
       case 'marker':
         marker(c, i);

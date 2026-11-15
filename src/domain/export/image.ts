@@ -38,6 +38,8 @@ function shift(i: DrawItem, dx: number): DrawItem {
       return { ...i, x1: i.x1 + dx, x2: i.x2 + dx };
     case 'poly':
       return { ...i, points: i.points.map((v, k) => (k % 2 === 0 ? v + dx : v)) };
+    case 'polygon':
+      return { ...i, points: i.points.map((v, k) => (k % 2 === 0 ? v + dx : v)) };
     case 'marker':
       return { ...i, cx: i.cx + dx };
     case 'text':

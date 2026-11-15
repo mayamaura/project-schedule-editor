@@ -151,8 +151,8 @@
 <h2>7. 表示スタイル</h2>
 <p>イベント・マイルストーンの表示方法（F-102）。種別マスタ（<code>types.json</code>）に既定を持ち、項目の <code>style</code> で上書きする。値は列挙（未知の値は既定にフォールバックして警告）。</p>
 <table><tr><th>対象</th><th>値</th><th>既定</th></tr>
-<tr><td>イベント</td><td><code>bar</code> / <code>roundBar</code> / <code>line</code>（細線＋端点）/ <code>band</code>（背景帯）/ <code>outline</code> / <code>striped</code></td><td><code>bar</code></td></tr>
-<tr><td>マイルストーン</td><td><code>diamond</code> / <code>circle</code> / <code>triangle</code> / <code>square</code> / <code>star</code> / <code>flag</code> / <code>labelOnly</code></td><td><code>diamond</code></td></tr></table>
+<tr><td>イベント</td><td><code>bar</code> / <code>roundBar</code> / <code>line</code>（細線＋端点）/ <code>band</code>（背景帯）/ <code>outline</code> / <code>striped</code> / <code>arrow</code>（矢羽根。先端が終了日）</td><td><code>bar</code></td></tr>
+<tr><td>マイルストーン</td><td><code>diamond</code> / <code>circle</code> / <code>triangle</code> / <code>square</code> / <code>star</code> / <code>flag</code> / <code>triangleDown</code>（下向き三角）/ <code>tag</code>（ラベル枠。左下の角が日付）/ <code>labelOnly</code></td><td><code>diamond</code></td></tr></table>
 <pre>// types.json（抜粋）
 { "phase":   { "name": "フェーズ", "color": "#2364aa", "eventStyle": "bar" },
   "release": { "name": "リリース", "color": "#c0392b", "milestoneStyle": "flag" } }

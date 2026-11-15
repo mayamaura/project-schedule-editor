@@ -8,12 +8,13 @@ import { shortfallDays } from '../validate';
 import { HEADER_FONT_SIZE, buildHeader, dayToX, estimateTextWidth, xToDay, type HeaderMode, type Viewport } from './axis';
 import { assignLanes, itemDays, visibleRowRange, type Layout } from './layout';
 
-export type Shape = 'diamond' | 'circle' | 'triangle' | 'square' | 'star' | 'flag';
+export type Shape = 'diamond' | 'circle' | 'triangle' | 'triangleDown' | 'square' | 'star' | 'flag';
 
 export type DrawItem =
   | { readonly t: 'rect'; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly fill?: string; readonly stroke?: string; readonly lineWidth?: number; readonly radius?: number; readonly alpha?: number; readonly pattern?: 'striped' }
   | { readonly t: 'line'; readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number; readonly color: string; readonly width: number; readonly dash?: number }
   | { readonly t: 'poly'; readonly points: readonly number[]; readonly color: string; readonly width: number; readonly arrow?: boolean }
+  | { readonly t: 'polygon'; readonly points: readonly number[]; readonly fill: string }
   | { readonly t: 'marker'; readonly shape: Shape; readonly cx: number; readonly cy: number; readonly size: number; readonly fill: string; readonly stroke?: string }
   | { readonly t: 'text'; readonly x: number; readonly y: number; readonly text: string; readonly color: string; readonly size: number; readonly align: 'left' | 'center' | 'right'; readonly clipW?: number };
 
@@ -258,6 +259,12 @@ export function buildDrawList(s: Schedule, layout: Layout, o: DrawOptions): Draw
           items.push({ t: 'rect', x: x0, y: barY, w, h: barH, stroke: color, lineWidth: 1.5 });
           labelColor = theme.text;
           break;
+        case 'arrow': {
+          // 矢羽根: 左端は開始日、先端（とがった側）が終了日の右端
+          const hd = Math.min(barH / 2, w);
+          items.push({ t: 'polygon', points: [x0, barY, x0 + w - hd, barY, x0 + w, barY + barH / 2, x0 + w - hd, barY + barH, x0, barY + barH], fill: color });
+          break;
+        }
         case 'band':
           items.push({ t: 'rect', x: x0, y: laneTop + 1, w, h: laneH - 2, fill: color, alpha: 0.35 });
           labelColor = theme.text;
@@ -281,11 +288,24 @@ export function buildDrawList(s: Schedule, layout: Layout, o: DrawOptions): Draw
       if (!d) continue;
       const cx = dayToX(d.s + 0.5, vp);
       const size = laneH - 8;
-      if (cx + size / 2 < 0 || cx - size / 2 > width) continue;
+      const style = m.style ?? types[m.type]?.milestoneStyle ?? 'diamond';
+      // ラベル枠（斜め）: 左下の角が日付の位置。ラベルは枠の中に入れる
+      const tagH = laneH - 4;
+      const tagSlant = tagH / 2;
+      const tagW = tagSlant + estimateTextWidth(m.name, LABEL_SIZE) + 10;
+      if (style === 'tag' ? cx + tagW < 0 || cx > width : cx + size / 2 < 0 || cx - size / 2 > width) continue;
       const cy = rowTop + pad + (laneOf.get(id) ?? 0) * laneH + laneH / 2;
       const color = colorForType(m.type, types, theme);
-      const style = m.style ?? types[m.type]?.milestoneStyle ?? 'diamond';
       itemCount++;
+      if (style === 'tag') {
+        const top = cy - tagH / 2;
+        const bottom = cy + tagH / 2;
+        hitBoxes.push({ x: cx, y: top, w: tagW, h: tagH, kind: 'milestone', id, projectId: p.id });
+        items.push({ t: 'polygon', points: [cx, bottom, cx + tagSlant, top, cx + tagW, top, cx + tagW, bottom], fill: color });
+        items.push({ t: 'poly', points: [cx + tagW, bottom, cx, bottom, cx + tagSlant, top, cx + tagW, top], color: theme.text, width: 1 });
+        items.push({ t: 'text', x: cx + tagSlant + 4, y: cy, text: m.name, color: theme.onColor, size: LABEL_SIZE, align: 'left' });
+        continue;
+      }
       if (style === 'labelOnly') {
         hitBoxes.push({ x: cx - size / 2, y: cy - size / 2, w: size + estimateTextWidth(m.name, LABEL_SIZE) + 3, h: size, kind: 'milestone', id, projectId: p.id });
         items.push({ t: 'text', x: cx - size / 2, y: cy, text: m.name, color, size: LABEL_SIZE, align: 'left' });

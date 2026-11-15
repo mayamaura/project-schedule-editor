@@ -129,7 +129,7 @@ describe('draw（描画命令を Canvas の呼び出しにする）', () => {
     expect(wings.every((x) => x < 40)).toBe(true);
   });
   it('マーカー: 6つの形がそれぞれ描ける', () => {
-    for (const shape of ['diamond', 'circle', 'triangle', 'square', 'star', 'flag'] as const) {
+    for (const shape of ['diamond', 'circle', 'triangle', 'triangleDown', 'square', 'star', 'flag'] as const) {
       const { ctx, calls } = recorder();
       draw(ctx, listWith({ t: 'marker', shape, cx: 50, cy: 50, size: 14, fill: '#f00', stroke: '#000' }));
       expect(calls.filter((c) => c === 'fill()'), shape).toHaveLength(1);
@@ -138,6 +138,16 @@ describe('draw（描画命令を Canvas の呼び出しにする）', () => {
     const star = recorder();
     draw(star.ctx, listWith({ t: 'marker', shape: 'star', cx: 50, cy: 50, size: 14, fill: '#f00' }));
     expect(star.calls.filter((c) => c.startsWith('lineTo')).length).toBe(9); // 10 頂点
+  });
+  it('多角形: 点を結んで塗る', () => {
+    const { ctx, calls } = recorder();
+    draw(ctx, listWith({ t: 'polygon', points: [0, 0, 20, 0, 30, 5, 20, 10, 0, 10], fill: '#0a0' }));
+    expect(calls.filter((c) => c.startsWith('lineTo'))).toHaveLength(4);
+    expect(calls).toContain('closePath()');
+    expect(calls.filter((c) => c === 'fill()')).toHaveLength(1);
+    const none = recorder();
+    draw(none.ctx, listWith({ t: 'polygon', points: [0, 0, 1, 1], fill: '#0a0' })); // 点が足りなければ何も描かない
+    expect(none.calls.filter((c) => c === 'fill()')).toHaveLength(0);
   });
   it('文字: フォント・位置揃え・クリップ幅', () => {
     const { ctx, calls } = recorder();

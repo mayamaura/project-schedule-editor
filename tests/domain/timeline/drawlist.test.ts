@@ -78,6 +78,16 @@ describe('表示スタイル（F-102）と色（F-106, NF-010）', () => {
     expect(band.alpha).toBeLessThan(1);
     expect(rectOf(draw(withEvent({ style: 'striped' }))).pattern).toBe('striped');
   });
+  it('矢羽根: 左端が開始日、先端が終了日の右端（肩は高さの半分だけ手前）', () => {
+    const dl = draw(withEvent({ style: 'arrow' }));
+    const pg = body(dl, 'polygon')[0] as Extract<DrawItem, { t: 'polygon' }>;
+    const xs = pg.points.filter((_, k) => k % 2 === 0);
+    expect(Math.min(...xs)).toBe(70);
+    expect(Math.max(...xs)).toBe(520);
+    expect(xs).toContain(511); // 肩（高さ 18 の半分 = 9）
+    expect(body(dl, 'rect').some((r) => r.t === 'rect' && r.w === 450)).toBe(false); // バーの矩形は出さない
+    expect(hit(dl, 'e1')).toMatchObject({ x: 70, w: 450 });
+  });
   it('細線＋端点: 線と両端の小さな矩形', () => {
     const dl = draw(withEvent({ style: 'line' }));
     expect(body(dl, 'line').some((l) => l.t === 'line' && l.x1 === 70 && l.x2 === 520 && l.width >= 2)).toBe(true);
@@ -95,7 +105,18 @@ describe('表示スタイル（F-102）と色（F-106, NF-010）', () => {
       return draw(s, base({}));
     };
     expect(body(at(), 'marker')[0]).toMatchObject({ t: 'marker', shape: 'diamond', cx: (toDays('2026-11-10') - toDays('2026-10-25') + 0.5) * 10 });
-    for (const shape of ['circle', 'triangle', 'square', 'star', 'flag']) expect(body(at(shape), 'marker')[0]).toMatchObject({ shape });
+    for (const shape of ['circle', 'triangle', 'triangleDown', 'square', 'star', 'flag']) expect(body(at(shape), 'marker')[0]).toMatchObject({ shape });
+    // ラベル枠（斜め）: 左下の角が日付の位置。ラベルは枠の中。枠は右が開いている（線は 3 辺）
+    const tag = at('tag');
+    const cx = (toDays('2026-11-10') - toDays('2026-10-25') + 0.5) * 10;
+    expect(body(tag, 'marker')).toEqual([]);
+    const pg = body(tag, 'polygon')[0] as Extract<DrawItem, { t: 'polygon' }>;
+    expect(pg.points[0]).toBe(cx); // 左下の角
+    expect(pg.points[2]).toBeGreaterThan(cx); // 左上の角は右へ斜めにずれる
+    expect((body(tag, 'poly')[0] as Extract<DrawItem, { t: 'poly' }>).points).toHaveLength(8); // 4 点 = 3 辺
+    const label = body(tag, 'text').find((t) => t.t === 'text' && t.text === '節目') as Extract<DrawItem, { t: 'text' }>;
+    expect(label.x).toBeGreaterThan(cx);
+    expect(hit(tag, 'm')).toMatchObject({ x: cx });
     const labelOnly = at('labelOnly');
     expect(body(labelOnly, 'marker')).toEqual([]);
     expect(body(labelOnly, 'text').some((t) => t.t === 'text' && t.text === '節目')).toBe(true);

@@ -15,8 +15,8 @@ const nameSchema = z.string().min(1, '名称が空').max(500);
 const textSchema = z.string().max(20000);
 const orderSchema = z.string().regex(/^[0-9a-z]*[1-9a-z]$/, '並び順は 0-9a-z で末尾が 0 でない');
 
-export const eventStyleSchema = z.enum(['bar', 'roundBar', 'line', 'band', 'outline', 'striped']);
-export const milestoneStyleSchema = z.enum(['diamond', 'circle', 'triangle', 'square', 'star', 'flag', 'labelOnly']);
+export const eventStyleSchema = z.enum(['bar', 'roundBar', 'line', 'band', 'outline', 'striped', 'arrow']);
+export const milestoneStyleSchema = z.enum(['diamond', 'circle', 'triangle', 'triangleDown', 'square', 'star', 'flag', 'tag', 'labelOnly']);
 
 export const eventSchema = z.strictObject({
   name: nameSchema,
