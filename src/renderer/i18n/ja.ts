@@ -128,6 +128,8 @@ export const ja = {
   'types.used': '{n} 件で使用中',
   'types.inUse': '使っている項目があるため削除できません',
   'types.rename': '種別の名前を変更',
+  'types.new': '＋ 新しい種別…',
+  'types.add': '種別を追加',
   'types.close': '閉じる',
   'cal.open': 'カレンダー',
   'cal.title': 'カレンダー（祝日・稼働日）',
