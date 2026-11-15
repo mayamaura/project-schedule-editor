@@ -97,6 +97,16 @@ export interface DrawOptions {
   readonly emphasis?: { readonly up: ReadonlySet<Id>; readonly down: ReadonlySet<Id> };
 }
 
+/** 塗りの上に載せる文字色。背景が明るい（白に近い）ときは黒系、暗いときは白系（F-106）。#rgb / #rrggbb 以外は既定の onColor。 */
+export function textOnFill(fill: string, theme: Theme): string {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(fill);
+  if (!m) return theme.onColor;
+  const h = m[1]!.length === 3 ? [...m[1]!].map((c) => c + c).join('') : m[1]!;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const lum = (0.299 * r! + 0.587 * g! + 0.114 * b!) / 255;
+  return lum > 0.6 ? '#1f2933' : '#ffffff';
+}
+
 /** 種別の色。種別マスタに無ければ、種別名から決めた既定のパレット色（同じ名前は常に同じ色）。 */
 export function colorForType(type: string, types: Schedule['types'], theme: Theme = lightTheme): string {
   const def = types[type]?.color;
@@ -244,7 +254,7 @@ export function buildDrawList(s: Schedule, layout: Layout, o: DrawOptions): Draw
       const style = e.style ?? types[e.type]?.eventStyle ?? 'bar';
       itemCount++;
       hitBoxes.push({ x: x0, y: barY, w, h: barH, kind: 'event', id, projectId: p.id });
-      let labelColor = theme.onColor;
+      let labelColor = textOnFill(color, theme);
       switch (style) {
         case 'bar':
           items.push({ t: 'rect', x: x0, y: barY, w, h: barH, fill: color });
@@ -303,7 +313,7 @@ export function buildDrawList(s: Schedule, layout: Layout, o: DrawOptions): Draw
         hitBoxes.push({ x: cx, y: top, w: tagW, h: tagH, kind: 'milestone', id, projectId: p.id });
         items.push({ t: 'polygon', points: [cx, bottom, cx + tagSlant, top, cx + tagW, top, cx + tagW, bottom], fill: color });
         items.push({ t: 'poly', points: [cx + tagW, bottom, cx, bottom, cx + tagSlant, top, cx + tagW, top], color: theme.text, width: 1 });
-        items.push({ t: 'text', x: cx + tagSlant + 4, y: cy, text: m.name, color: theme.onColor, size: LABEL_SIZE, align: 'left' });
+        items.push({ t: 'text', x: cx + tagSlant + 4, y: cy, text: m.name, color: textOnFill(color, theme), size: LABEL_SIZE, align: 'left' });
         continue;
       }
       if (style === 'labelOnly') {

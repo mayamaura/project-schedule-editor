@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { toDays } from '../../../src/domain/date';
 import type { Schedule } from '../../../src/domain/model';
-import { colorForType, darkTheme, lightTheme, HEADER_HEIGHT, buildDrawList, type DrawItem, type DrawOptions } from '../../../src/domain/timeline/drawlist';
+import { textOnFill, colorForType, darkTheme, lightTheme, HEADER_HEIGHT, buildDrawList, type DrawItem, type DrawOptions } from '../../../src/domain/timeline/drawlist';
 import { buildLayout } from '../../../src/domain/timeline/layout';
 import { basic, dep, ev, ms, proj, schedule } from '../fixtures';
 
@@ -272,5 +272,15 @@ describe('決定性・統計', () => {
   it('空のデータ・表示サイズ 0 でも例外にならない', () => {
     expect(draw(schedule()).hitBoxes).toEqual([]);
     expect(() => draw(basic(), base({ width: 0, height: 0 }))).not.toThrow();
+  });
+});
+
+describe('textOnFill（F-106）', () => {
+  it('明るい背景は黒系、暗い背景は白系、解釈できない色は既定', () => {
+    expect(textOnFill('#ffffff', lightTheme)).toBe('#1f2933');
+    expect(textOnFill('#fff', lightTheme)).toBe('#1f2933');
+    expect(textOnFill('#f1f3f5', lightTheme)).toBe('#1f2933');
+    expect(textOnFill('#2364aa', lightTheme)).toBe('#ffffff');
+    expect(textOnFill('red', lightTheme)).toBe(lightTheme.onColor);
   });
 });

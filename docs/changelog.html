@@ -6,6 +6,7 @@
 <h1>仕様変更履歴</h1>
 <p>仕様文書（requirements / data-model / architecture / ui-design / git-ux / open-questions）を変更したら、この表の<strong>先頭</strong>に追記する（pre-commit が検査）。</p>
 <table><tr><th>日付</th><th>変更内容</th><th>影響文書</th><th>要件ID</th></tr>
+<tr><td>2026-11-15</td><td>バー・マイルストーン（ラベル枠）の文字色を、塗りの明るさで自動切替（F-106）: 背景が明るい（白に近い）ときは黒系、暗いときは白系。種別・項目の色を白に近くしても文字が読める。<code>textOnFill</code>（<code>src/domain/timeline/drawlist.ts</code>）</td><td>ui-design</td><td>F-106</td></tr>
 <tr><td>2026-11-15</td><td>詳細パネルの種別の選択肢に「＋ 新しい種別…」を追加（F-106）: 選ぶと名前の入力欄が出て、追加すると種別マスタへの登録とその項目への設定を 1 つの操作（Undo 1 単位）で行う。設定の「種別の管理」へ行かなくても新規作成できる。データ形式は変更なし</td><td>ui-design</td><td>F-106</td></tr>
 <tr><td>2026-11-15</td><td><strong>種別の管理を追加</strong>（F-106 の「種別マスタは設定で編集可能」を実装）: 設定メニューに「種別の管理」を追加（種別の追加・名前の変更・色・削除）。詳細パネルの種別は手入力をやめ、<strong>登録済みの種別（マスタ＋項目で使用中の値）から 1 つ選ぶ</strong>選択式にした（タグと違い 1 つだけ）。名前の変更は使っている項目も同じ操作（Undo 1 単位）で変わる。使用中の種別は削除できない。コマンド <code>setType</code> / <code>deleteType</code> を追加。データ形式（<code>types.json</code>・項目の <code>type</code>）は変更なし</td><td>data-model, ui-design, requirements</td><td>F-106</td></tr>
 <tr><td>2026-11-15</td><td>表示方法を追加（F-102）: イベントに<strong>矢羽根</strong>（<code>arrow</code>。左端=開始日、先端=終了日の右端）、マイルストーンに<strong>▼ 下向き三角</strong>（<code>triangleDown</code>）と<strong>ラベル枠（斜め）</strong>（<code>tag</code>。左下の角=日付、ラベルは枠の中）。値の追加のみで schemaVersion は変更なし（古いアプリでは未知の値になる）。描画は DrawList に多角形（<code>polygon</code>）を追加。<strong>詳細パネルに「表示方法」の選択欄</strong>を追加（これまで画面から項目ごとの表示方法を選べなかった）。</td><td>requirements, data-model, ui-design</td><td>F-102</td></tr>
