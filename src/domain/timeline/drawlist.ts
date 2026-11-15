@@ -6,7 +6,8 @@ import { isDateStr, toDays, weekdayOfDay } from '../date';
 import type { Dependency, Id, Schedule } from '../model';
 import { shortfallDays } from '../validate';
 import { HEADER_FONT_SIZE, buildHeader, dayToX, estimateTextWidth, xToDay, type HeaderMode, type Viewport } from './axis';
-import { assignLanes, itemDays, STICKY_SPAN_DAYS, visibleRowRange, type Layout } from './layout';
+import { assignLanes, itemDays, visibleRowRange, type Layout } from './layout';
+import { fitLines, STICKY_FONT_SIZE, STICKY_MIN_W, STICKY_PAD_X, stickySpan, wrapText } from './sticky';
 
 export type Shape = 'diamond' | 'circle' | 'triangle' | 'triangleDown' | 'square' | 'star' | 'flag';
 
@@ -329,21 +330,26 @@ export function buildDrawList(s: Schedule, layout: Layout, o: DrawOptions): Draw
       if (pxPerDay >= 3) items.push({ t: 'text', x: cx + size / 2 + 3, y: cy, text: m.name, color: theme.text, size: LABEL_SIZE, align: 'left' });
     }
 
-    // 付箋（F-108）: 1 行（改行は空白に）。幅は日付に依存せず約 STICKY_SPAN_DAYS 日分（最小 100・最大 240px）。紐づく付箋は枠線つき
+    // 付箋（F-108）: 幅は span 日分（ズームで伸縮）。本文は幅で折り返し、確保したレーン数（縦に長くなる）に収める。紐づく付箋は枠線つき
     if (layout.stickies) {
-      const sw = Math.min(240, Math.max(100, STICKY_SPAN_DAYS * pxPerDay));
+      const info = assignLanes(p, true);
       for (const [id, n] of Object.entries(p.stickies ?? {})) {
         if (!isDateStr(n.date)) continue;
         const x0 = dayToX(toDays(n.date), vp);
+        const sw = Math.max(stickySpan(n) * pxPerDay, STICKY_MIN_W);
         if (x0 + sw < 0 || x0 > width) continue;
+        const lanes = info.laneSpan.get(id) ?? 1;
         const y0 = rowTop + pad + (laneOf.get(id) ?? 0) * laneH + 2;
-        const h0 = laneH - 4;
+        const h0 = lanes * laneH - 4;
         const fill = n.color ?? STICKY_COLOR;
+        const fg = textOnFill(fill, theme);
         itemCount++;
         hitBoxes.push({ x: x0, y: y0, w: sw, h: h0, kind: 'sticky', id, projectId: p.id });
         items.push({ t: 'rect', x: x0, y: y0, w: sw, h: h0, fill, radius: 4 });
         if (n.attachedTo !== undefined) items.push({ t: 'rect', x: x0, y: y0, w: sw, h: h0, stroke: theme.text, lineWidth: 1, radius: 4 });
-        items.push({ t: 'text', x: x0 + 5, y: y0 + h0 / 2, text: n.text.replace(/\s*\n\s*/g, ' '), color: textOnFill(fill, theme), size: LABEL_SIZE, align: 'left', clipW: sw - 10 });
+        fitLines(wrapText(n.text, sw - STICKY_PAD_X * 2, STICKY_FONT_SIZE), lanes).forEach((line, k) => {
+          items.push({ t: 'text', x: x0 + STICKY_PAD_X, y: y0 + laneH / 2 - 2 + k * laneH, text: line, color: fg, size: LABEL_SIZE, align: 'left', clipW: sw - STICKY_PAD_X * 2 });
+        });
       }
     }
   }

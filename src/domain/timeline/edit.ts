@@ -4,6 +4,7 @@
 import { addDays, daysBetween } from '../date';
 import type { Command } from '../commands';
 import type { Id, Schedule } from '../model';
+import { STICKY_MAX_SPAN, stickySpan } from './sticky';
 
 export function dragCommand(s: Schedule, id: Id, part: 'body' | 'start' | 'end', deltaDays: number): Command | null {
   if (!Number.isInteger(deltaDays) || deltaDays === 0) return null;
@@ -20,6 +21,19 @@ export function dragCommand(s: Schedule, id: Id, part: 'body' | 'start' | 'end',
     }
     const m = p.milestones[id];
     if (m) return { type: 'updateMilestone', id, patch: { date: addDays(m.date, deltaDays) } };
+    const n = p.stickies?.[id];
+    if (n) {
+      // 付箋（F-108）: 本体 = 日付、左端 = 日付と幅（右端は動かさない）、右端 = 幅。紐づく付箋は日付を動かせない（対象に追従）
+      const span = stickySpan(n);
+      if (part === 'end') {
+        const w = Math.min(STICKY_MAX_SPAN, Math.max(1, span + deltaDays));
+        return w === span ? null : { type: 'updateSticky', id, patch: { span: w } };
+      }
+      if (n.attachedTo !== undefined) return null;
+      if (part === 'body') return { type: 'updateSticky', id, patch: { date: addDays(n.date, deltaDays) } };
+      const d = Math.min(deltaDays, span - 1);
+      return d === 0 ? null : { type: 'updateSticky', id, patch: { date: addDays(n.date, d), span: span - d } };
+    }
   }
   return null;
 }

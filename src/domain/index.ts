@@ -32,6 +32,7 @@ export * from './timeline/drawlist';
 export * from './timeline/edit';
 export * from './timeline/hittest';
 export * from './timeline/layout';
+export * from './timeline/sticky';
 export * from './validate';
 export * from './view';
 export * from './itemTypes';

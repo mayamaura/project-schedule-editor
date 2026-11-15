@@ -290,20 +290,33 @@ describe('付箋（F-108）', () => {
     const s = basic();
     return { ...s, projects: { ...s.projects, A: { ...s.projects['A']!, stickies: { n1: { text: '確認待ち\n来週', date: '2026-11-01', ...extra } } } } };
   };
-  it('日付の位置に、固定幅（約14日分。最小100px）で出る。ヒットボックスは sticky', () => {
-    const dl = draw(withNote());
-    expect(hit(dl, 'n1')).toMatchObject({ kind: 'sticky', projectId: 'A', x: 70, w: 140 });
-    expect(hit(draw(withNote(), base({ pxPerDay: 2 })), 'n1')?.w).toBe(100);
-    expect(hit(draw(withNote(), base({ pxPerDay: 40 })), 'n1')?.w).toBe(240);
+  const texts = (dl: ReturnType<typeof draw>, from: string) => (body(dl, 'text') as Extract<DrawItem, { t: 'text' }>[]).filter((i) => i.x === 75 && from.includes(i.text.slice(0, 2))).map((i) => i.text);
+  it('日付の位置に、span 日分の幅（既定 14 日）で出る。ズームで伸縮し、最小幅がある。ヒットボックスは sticky', () => {
+    expect(hit(draw(withNote()), 'n1')).toMatchObject({ kind: 'sticky', projectId: 'A', x: 70, w: 140 });
+    expect(hit(draw(withNote({ span: 5 })), 'n1')?.w).toBe(50);
+    expect(hit(draw(withNote(), base({ pxPerDay: 2 })), 'n1')?.w).toBe(40);
   });
-  it('本文は 1 行にまとめて出し、紐づく付箋だけ枠線がつく。色は既定が黄、背景に応じて文字色が変わる', () => {
-    const t = body(draw(withNote({ attachedTo: 'e1' })), 'text').filter((i) => i.t === 'text' && i.text.includes('確認待ち')) as Extract<DrawItem, { t: 'text' }>[];
-    expect(t[0]?.text).toBe('確認待ち 来週');
+  it('改行と幅で折り返し、行数分のレーン（縦に長く）を占める。同じ行の他の項目は押し下げられる', () => {
+    const dl = draw(withNote());
+    expect(hit(dl, 'n1')?.h).toBe(2 * 22 - 4); // 2 行 = 2 レーン
+    expect(texts(dl, '確認待ち来週')).toEqual(['確認待ち', '来週']);
+    const long = draw(withNote({ text: 'あ'.repeat(40), span: 5 })); // 幅 50px: 1 行 4 文字（11px/字）
+    expect(hit(long, 'n1')!.h).toBeGreaterThan(2 * 22);
+    const narrowLines = (body(long, 'text') as Extract<DrawItem, { t: 'text' }>[]).filter((i) => i.text.startsWith('あ'));
+    expect(narrowLines.length).toBeGreaterThan(2);
+  });
+  it('確保した行数に収まらない分は、最後の行を「…」で終える（最大 8 行）', () => {
+    const dl = draw(withNote({ text: 'あ'.repeat(400), span: 3 }), base({ pxPerDay: 40 })); // 基準では細長い → 8 行。実際は広いので収まらない分が出る
+    const lines = (body(dl, 'text') as Extract<DrawItem, { t: 'text' }>[]).filter((i) => i.text.startsWith('あ'));
+    expect(lines.length).toBeLessThanOrEqual(8);
+    expect(lines.at(-1)?.text.endsWith('…')).toBe(true);
+  });
+  it('紐づく付箋だけ枠線がつく', () => {
     const strokes = (dl: ReturnType<typeof draw>) => body(dl, 'rect').filter((r) => r.t === 'rect' && r.stroke && r.x === 70 && r.w === 140).length;
     expect(strokes(draw(withNote({ attachedTo: 'e1' })))).toBe(1);
     expect(strokes(draw(withNote()))).toBe(0);
   });
-  it('重なる項目とは別レーンに並ぶ。非表示（layout.stickies=false）なら出さず、レーンも取らない', () => {
+  it('重なる項目とは別レーン。非表示（layout.stickies=false）なら出さず、レーンも取らない。端はつまみとして当たる', () => {
     const s = withNote();
     const shown = draw(s);
     expect(hit(shown, 'n1')!.y).not.toBe(hit(shown, 'e1')!.y);

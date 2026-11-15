@@ -31,7 +31,9 @@ import {
   impactOf,
   filterOptions,
   copyItems,
+  addDays,
   addStickyCommand,
+  stickySpan,
   deleteItemsCommand,
   neighborItem,
   pasteCommand,
@@ -411,7 +413,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
     if (e.button !== 0) return;
     const p = pointer(e);
     const h = hitAt(p.x, p.y);
-    const edit = !linkFrom && h && (h.kind === 'event' || h.kind === 'milestone') ? { id: h.id, projectId: h.projectId, part: h.kind === 'event' ? h.part : ('body' as const), x0: p.x, cmd: null } : undefined;
+    const edit = !linkFrom && h && (h.kind === 'event' || h.kind === 'milestone' || h.kind === 'sticky') ? { id: h.id, projectId: h.projectId, part: h.kind === 'milestone' ? ('body' as const) : h.part, x0: p.x, cmd: null } : undefined;
     drag.current = { x: p.x, y: p.y, moved: false, edit };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -439,9 +441,9 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
       return;
     }
     const h = hitAt(p.x, p.y);
-    const id = h && (h.kind === 'event' || h.kind === 'milestone') ? h.id : null;
+    const id = h && (h.kind === 'event' || h.kind === 'milestone' || h.kind === 'sticky') ? h.id : null;
     // 開始日・終了日を変えられる端では横向きの双方向矢印にする（F-201）
-    const edge = h?.kind === 'event' && h.part !== 'body';
+    const edge = (h?.kind === 'event' || h?.kind === 'sticky') && h.part !== 'body';
     setCursor(e.currentTarget as HTMLElement, linkFrom ? 'crosshair' : edge ? 'ew-resize' : id ? 'move' : 'grab');
     if (id !== hover.current) {
       hover.current = id;
@@ -497,8 +499,9 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
     const proj = s.projects[edit.projectId];
     const e = proj?.events[edit.id];
     const m = proj?.milestones[edit.id];
-    if (!tip || (!e && !m)) return;
-    tip.textContent = e ? (e.start === e.end ? e.start : `${e.start} 〜 ${e.end}`) : m!.date;
+    const n = proj?.stickies?.[edit.id];
+    if (!tip || (!e && !m && !n)) return;
+    tip.textContent = e ? (e.start === e.end ? e.start : `${e.start} 〜 ${e.end}`) : n ? `${n.date} 〜 ${addDays(n.date, stickySpan(n) - 1)}` : m!.date;
     tip.style.left = `${Math.min(x + 14, view.current.width - 160)}px`;
     tip.style.top = `${y + 18}px`;
     tip.hidden = false;

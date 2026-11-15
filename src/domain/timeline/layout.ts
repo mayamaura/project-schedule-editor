@@ -3,6 +3,7 @@
 // docs/architecture.html 12.4。DOM 非依存の純関数。
 import { isDateStr, toDays } from '../date';
 import type { Id, Project, Schedule } from '../model';
+import { stickyLanes, stickySpan } from './sticky';
 
 export interface LayoutOptions {
   /** 折りたたんだプロジェクト（その子孫は出さない）。未指定 = 全て展開。 */
@@ -19,11 +20,11 @@ export interface LayoutOptions {
 export const DEFAULT_LANE_HEIGHT = 22;
 export const DEFAULT_ROW_PAD = 5;
 export const DEFAULT_MIN_ROW_HEIGHT = 32;
-/** 付箋がレーン割り当てで占める日数（ズームに依存させない。F-108）。 */
-export const STICKY_SPAN_DAYS = 14;
 
 export interface LaneInfo {
   readonly laneOf: ReadonlyMap<Id, number>;
+  /** 項目が占めるレーン数（付箋は折り返しで複数。それ以外は 1）。 */
+  readonly laneSpan: ReadonlyMap<Id, number>;
   readonly lanes: number;
 }
 
@@ -61,27 +62,30 @@ export function assignLanes(p: Project, stickies = true): LaneInfo {
   const cache = stickies ? laneCacheWithStickies : laneCache;
   const cached = cache.get(p);
   if (cached) return cached;
-  const items: { id: Id; start: number; end: number }[] = [];
+  const items: { id: Id; start: number; end: number; h: number }[] = [];
   const laneOf = new Map<Id, number>();
+  const laneSpan = new Map<Id, number>();
   for (const [id, d] of itemDays(p)) {
-    if (d) items.push({ id, start: d.s, end: d.e });
+    if (d) items.push({ id, start: d.s, end: d.e, h: 1 });
     else laneOf.set(id, 0);
   }
   if (stickies) {
     for (const [id, n] of Object.entries(p.stickies ?? {})) {
-      if (isDateStr(n.date)) items.push({ id, start: toDays(n.date), end: toDays(n.date) + STICKY_SPAN_DAYS - 1 });
+      if (isDateStr(n.date)) items.push({ id, start: toDays(n.date), end: toDays(n.date) + stickySpan(n) - 1, h: stickyLanes(n) });
       else laneOf.set(id, 0);
     }
   }
   items.sort((a, b) => a.start - b.start || a.end - b.end || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const lastEnd: number[] = [];
   for (const it of items) {
-    let lane = lastEnd.findIndex((e) => e < it.start);
-    if (lane < 0) lane = lastEnd.length;
-    lastEnd[lane] = it.end;
+    // it.h 本の連続したレーンが全て空いている最初の位置（h = 1 なら、空いている最初のレーン）
+    let lane = 0;
+    while (!Array.from({ length: it.h }, (_, k) => lastEnd[lane + k]).every((e) => e === undefined || e < it.start)) lane++;
+    for (let k = 0; k < it.h; k++) lastEnd[lane + k] = it.end;
     laneOf.set(it.id, lane);
+    if (it.h > 1) laneSpan.set(it.id, it.h);
   }
-  const info: LaneInfo = { laneOf, lanes: Math.max(1, lastEnd.length) };
+  const info: LaneInfo = { laneOf, laneSpan, lanes: Math.max(1, lastEnd.length) };
   cache.set(p, info);
   return info;
 }

@@ -124,7 +124,7 @@
 <pre>"stickies": { "n1": { "text": "仕様確定待ち
 A社の回答次第", "date": "2027-02-01", "color": "#ffe066", "attachedTo": "e2" } }</pre>
 <ul>
-<li><code>text</code>: プレーンテキスト（1〜20000 文字。改行可）。<code>date</code>: 表示する日付。<code>color</code>: 任意（既定は黄系）。</li>
+<li><code>text</code>: プレーンテキスト（1〜20000 文字。改行可）。<code>date</code>: 表示する日付（左端）。<code>span</code>: 幅（日数。1〜366。省略は 14）。<code>color</code>: 任意（既定は黄系）。</li>
 <li><code>attachedTo</code>: 任意。紐づく項目（イベントまたはマイルストーン）の ID。<strong>付箋は対象と同じプロジェクトに置く</strong>。紐づくとき <code>date</code> は対象の開始日（マイルストーンは日付）と同じで、<strong>対象の日付・所属を変えるコマンドが同じ操作の中で付箋の <code>date</code> と所属も更新する</strong>（描画・レーン割り当てが他の項目を参照しなくて済むため）。外部編集でずれた場合は検証が警告する。</li>
 <li><strong>対象を削除</strong>したとき、付箋は消さず <code>attachedTo</code> を外して独立の付箋にする（本文を失わない）。プロジェクトを消せば付箋も消える。</li>
 <li>コマンド: <code>addSticky</code> / <code>updateSticky</code> / <code>deleteSticky</code>。依存の対象には使えない。</li>

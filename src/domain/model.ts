@@ -42,6 +42,8 @@ export const stickySchema = z.strictObject({
   date: dateSchema,
   color: z.string().max(32).optional(),
   attachedTo: idSchema.optional(),
+  /** 幅（日数）。省略は既定（14 日）。 */
+  span: z.number().int().min(1).max(366).optional(),
 });
 
 export const projectSchema = z.strictObject({

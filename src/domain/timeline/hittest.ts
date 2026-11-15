@@ -25,7 +25,7 @@ export function hitTest(dl: DrawList, layout: Layout, vp: TimelineViewport, x: n
     const b = dl.hitBoxes[i]!;
     if (x < b.x || x > b.x + b.w || by < b.y || by > b.y + b.h) continue;
     let part: 'body' | 'start' | 'end' = 'body';
-    if (b.kind === 'event' && b.w >= MIN_BAR_FOR_EDGES) {
+    if ((b.kind === 'event' || b.kind === 'sticky') && b.w >= MIN_BAR_FOR_EDGES) {
       if (x - b.x <= EDGE_GRAB_PX) part = 'start';
       else if (b.x + b.w - x <= EDGE_GRAB_PX) part = 'end';
     }

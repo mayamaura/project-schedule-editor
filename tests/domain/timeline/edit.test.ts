@@ -41,3 +41,30 @@ describe('dragCommand', () => {
     expect(dragCommand(sched, 'zz', 'body', 1)).toBeNull();
   });
 });
+
+describe('付箋のドラッグ（F-108）', () => {
+  const withNotes = (): Schedule => ({
+    ...sched,
+    projects: { p1: { ...sched.projects['p1']!, stickies: { n1: { text: 'a', date: '2026-02-10', span: 10 }, n2: { text: 'b', date: '2026-01-30', attachedTo: 'e1' } } } },
+  } as unknown as Schedule);
+  const after = (cmd: ReturnType<typeof dragCommand>) => {
+    if (!cmd) return null;
+    const r = applyCommand(withNotes(), cmd);
+    if (!r.ok) throw new Error(r.error.message);
+    return r.schedule.projects['p1']!.stickies;
+  };
+  it('本体: 日付が動く。左端: 日付と幅が変わり右端は動かない。右端: 幅だけ変わる', () => {
+    expect(after(dragCommand(withNotes(), 'n1', 'body', 3))?.['n1']).toMatchObject({ date: '2026-02-13', span: 10 });
+    expect(after(dragCommand(withNotes(), 'n1', 'start', 3))?.['n1']).toMatchObject({ date: '2026-02-13', span: 7 });
+    expect(after(dragCommand(withNotes(), 'n1', 'end', 5))?.['n1']).toMatchObject({ date: '2026-02-10', span: 15 });
+  });
+  it('幅は 1 日未満にならない（左端を右へ、右端を左へ行き過ぎても止まる）', () => {
+    expect(after(dragCommand(withNotes(), 'n1', 'start', 99))?.['n1']).toMatchObject({ date: '2026-02-19', span: 1 });
+    expect(after(dragCommand(withNotes(), 'n1', 'end', -99))?.['n1']).toMatchObject({ date: '2026-02-10', span: 1 });
+  });
+  it('紐づく付箋は日付を動かせない（本体・左端は無効）。右端で幅は変えられる', () => {
+    expect(dragCommand(withNotes(), 'n2', 'body', 3)).toBeNull();
+    expect(dragCommand(withNotes(), 'n2', 'start', 3)).toBeNull();
+    expect(after(dragCommand(withNotes(), 'n2', 'end', 4))?.['n2']).toMatchObject({ date: '2026-01-30', span: 18 });
+  });
+});
