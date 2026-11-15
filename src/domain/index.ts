@@ -34,3 +34,4 @@ export * from './timeline/hittest';
 export * from './timeline/layout';
 export * from './validate';
 export * from './view';
+export * from './itemTypes';

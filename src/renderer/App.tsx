@@ -4,6 +4,7 @@ import { History, defaultCalendar, diffSchedule, exportRows, newIssues, parseAiP
 import { t } from './i18n';
 import { AiPanel } from './AiPanel';
 import { CalendarDialog } from './CalendarDialog';
+import { TypesDialog } from './TypesDialog';
 import { CsvImportDialog } from './CsvDialog';
 import { ExportDialog, type TimelineApi } from './ExportDialog';
 import { ExpandDialog, SaveAsTemplateDialog, TemplateManager, type ExpandPreset } from './Templates';
@@ -86,6 +87,7 @@ export function App() {
   const [tplOpen, setTplOpen] = useState(false);
   const [calendar, setCalendar] = useState<Calendar>(defaultCalendar());
   const [calOpen, setCalOpen] = useState(false);
+  const [typesOpen, setTypesOpen] = useState(false);
   const [saveAs, setSaveAs] = useState<Id | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
@@ -361,6 +363,7 @@ export function App() {
   const themeCmds: Cmd[] = themes.map(([v, key]) => cmd({ id: `theme-${v}`, label: `${theme === v ? '✓ ' : ''}${t('app.theme')}: ${t(key)}`, group: g.settings, testid: `theme-${v}`, run: () => setTheme(v) }));
   const settingsCmds: Cmd[] = [
     cmd({ id: 'tpl', label: t('tpl.open'), group: g.settings, enabled: hasData, testid: 'tpl-open', run: () => setTplOpen(true) }),
+    cmd({ id: 'types', label: t('types.open'), group: g.settings, enabled: hasData, testid: 'types-open', run: () => setTypesOpen(true) }),
     cmd({ id: 'cal', label: t('cal.open'), group: g.settings, enabled: hasData, testid: 'cal-open', run: () => setCalOpen(true) }),
   ];
   const verCmds: Cmd[] = [
@@ -646,6 +649,7 @@ export function App() {
               onClose={() => setCsv(null)}
             />
           ) : null}
+          {typesOpen && loaded ? <TypesDialog schedule={loaded.history.present} commit={commit} onClose={() => setTypesOpen(false)} /> : null}
           {calOpen ? <CalendarDialog calendar={calendar} onSave={saveCalendar} onClose={() => setCalOpen(false)} /> : null}
           {tplOpen ? <TemplateManager templates={templates} typeNames={Object.keys(loaded.history.present.types)} onSave={saveTemplate} onDelete={deleteTemplate} onClose={() => setTplOpen(false)} /> : null}
           {expand ? (

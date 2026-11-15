@@ -2,7 +2,7 @@
 // 詳細パネル: 選択中の項目を入力欄で編集する。確定（Enter / フォーカスを外す / 日付・選択の変更）で 1 コマンドにする。
 // 拒否された場合（終了＜開始・循環など）は理由が画面上部に出るので、入力欄は元の値に戻す。
 import { useEffect, useState } from 'react';
-import { eventStyleSchema, milestoneStyleSchema, type Command, type Dependency, type Id, type Schedule } from '@domain/index';
+import { eventStyleSchema, milestoneStyleSchema, typeUsage, type Command, type Dependency, type Id, type Schedule } from '@domain/index';
 import { DEP_LABEL, STYLE_LABEL, t } from '../i18n';
 
 export type Sel = { readonly kind: 'event' | 'milestone' | 'project'; readonly id: Id };
@@ -107,7 +107,16 @@ export function DetailPanel({ schedule, sel, commit }: { schedule: Schedule; sel
           ) : (
             <Field label={t('panel.date')} type="date" value={m!.date} onCommit={(v) => upd({ date: v })} />
           )}
-          <Field label={t('panel.type')} value={data.type} onCommit={(v) => upd({ type: v })} />
+          <div className="field">
+            <span>{t('panel.type')}</span>
+            <select aria-label={t('panel.type')} data-testid="panel-type" value={data.type} onChange={(ev) => upd({ type: ev.target.value })}>
+              {[...new Set([...typeUsage(schedule).keys(), data.type])].map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="field">
             <span>{t('panel.style')}</span>
             <select aria-label={t('panel.style')} data-testid="panel-style" value={data.style ?? ''} onChange={(ev) => upd({ style: ev.target.value || undefined })}>

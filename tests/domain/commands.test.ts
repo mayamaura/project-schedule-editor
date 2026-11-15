@@ -242,3 +242,19 @@ describe('入力を書き換えない・構造共有', () => {
     expect(t.dependencies).toBe(s.dependencies);
   });
 });
+
+describe('種別マスタ（F-106）', () => {
+  it('追加・更新（setType）と削除（deleteType）', () => {
+    let s = run(base(), { type: 'setType', id: 'review', def: { name: 'レビュー', color: '#ff0000' } });
+    expect(s.types['review']).toEqual({ name: 'レビュー', color: '#ff0000' });
+    s = run(s, { type: 'setType', id: 'review', def: { name: 'レビュー会', color: '#00ff00' } });
+    expect(s.types['review']?.color).toBe('#00ff00');
+    s = run(s, { type: 'deleteType', id: 'review' });
+    expect('review' in s.types).toBe(false);
+  });
+  it('拒否: 空の ID / 不正な値 / 存在しない種別の削除', () => {
+    expect(code(base(), { type: 'setType', id: '', def: { name: 'x', color: '#000' } })).toBe('invalid-value');
+    expect(code(base(), { type: 'setType', id: 'a', def: { name: '', color: '#000' } })).toBe('invalid-value');
+    expect(code(base(), { type: 'deleteType', id: 'none' })).toBe('not-found');
+  });
+});

@@ -9,12 +9,14 @@ import {
   idSchema,
   milestoneSchema,
   projectSchema,
+  typeDefSchema,
   type Dependency,
   type EventData,
   type Id,
   type MilestoneData,
   type Project,
   type Schedule,
+  type TypeDef,
 } from './model';
 import { isValidOrder } from './order';
 
@@ -39,6 +41,9 @@ export type Command =
   | { readonly type: 'addDependency'; readonly dependency: Dependency }
   | { readonly type: 'updateDependency'; readonly id: Id; readonly patch: DependencyPatch }
   | { readonly type: 'deleteDependency'; readonly id: Id }
+  /** 種別マスタの追加・更新（F-106）。id は項目の type に入る値。 */
+  | { readonly type: 'setType'; readonly id: string; readonly def: TypeDef }
+  | { readonly type: 'deleteType'; readonly id: string }
   /** 複数のコマンドを1つの操作として適用する（Undo 1単位）。1つでも失敗したら全体を適用しない。 */
   | { readonly type: 'batch'; readonly commands: readonly Command[]; readonly label?: string };
 
@@ -322,6 +327,16 @@ function applySingle(s: Schedule, c: Exclude<Command, { type: 'batch' }>): Apply
     case 'deleteDependency': {
       if (!s.dependencies[c.id]) return fail('not-found', `依存「${c.id}」が存在しない`);
       return ok({ ...s, dependencies: withoutKey(s.dependencies, c.id) });
+    }
+    case 'setType': {
+      const parsed = typeDefSchema.safeParse(c.def);
+      if (!parsed.success) return fail('invalid-value', zodMessage(parsed.error));
+      if (c.id.trim() === '' || c.id.length > 64) return fail('invalid-value', '種別の名前は 1〜64 文字');
+      return ok({ ...s, types: { ...s.types, [c.id]: c.def } });
+    }
+    case 'deleteType': {
+      if (!s.types[c.id]) return fail('not-found', `種別「${c.id}」が存在しない`);
+      return ok({ ...s, types: withoutKey(s.types, c.id) });
     }
   }
 }
