@@ -284,3 +284,31 @@ describe('textOnFill（F-106）', () => {
     expect(textOnFill('red', lightTheme)).toBe(lightTheme.onColor);
   });
 });
+
+describe('付箋（F-108）', () => {
+  const withNote = (extra: object = {}): Schedule => {
+    const s = basic();
+    return { ...s, projects: { ...s.projects, A: { ...s.projects['A']!, stickies: { n1: { text: '確認待ち\n来週', date: '2026-11-01', ...extra } } } } };
+  };
+  it('日付の位置に、固定幅（約14日分。最小100px）で出る。ヒットボックスは sticky', () => {
+    const dl = draw(withNote());
+    expect(hit(dl, 'n1')).toMatchObject({ kind: 'sticky', projectId: 'A', x: 70, w: 140 });
+    expect(hit(draw(withNote(), base({ pxPerDay: 2 })), 'n1')?.w).toBe(100);
+    expect(hit(draw(withNote(), base({ pxPerDay: 40 })), 'n1')?.w).toBe(240);
+  });
+  it('本文は 1 行にまとめて出し、紐づく付箋だけ枠線がつく。色は既定が黄、背景に応じて文字色が変わる', () => {
+    const t = body(draw(withNote({ attachedTo: 'e1' })), 'text').filter((i) => i.t === 'text' && i.text.includes('確認待ち')) as Extract<DrawItem, { t: 'text' }>[];
+    expect(t[0]?.text).toBe('確認待ち 来週');
+    const strokes = (dl: ReturnType<typeof draw>) => body(dl, 'rect').filter((r) => r.t === 'rect' && r.stroke && r.x === 70 && r.w === 140).length;
+    expect(strokes(draw(withNote({ attachedTo: 'e1' })))).toBe(1);
+    expect(strokes(draw(withNote()))).toBe(0);
+  });
+  it('重なる項目とは別レーンに並ぶ。非表示（layout.stickies=false）なら出さず、レーンも取らない', () => {
+    const s = withNote();
+    const shown = draw(s);
+    expect(hit(shown, 'n1')!.y).not.toBe(hit(shown, 'e1')!.y);
+    const hidden = draw(s, base(), { stickies: false });
+    expect(hit(hidden, 'n1')).toBeUndefined();
+    expect(hit(hidden, 'e1')!.y).toBe(hit(draw(basic()), 'e1')!.y);
+  });
+});

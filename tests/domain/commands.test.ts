@@ -258,3 +258,58 @@ describe('種別マスタ（F-106）', () => {
     expect(code(base(), { type: 'deleteType', id: 'none' })).toBe('not-found');
   });
 });
+
+describe('付箋（F-108）', () => {
+  const sticky = (extra = {}) => ({ text: 'メモ', date: '2026-11-20', ...extra });
+  const withSticky = (): Schedule => run(base(), { type: 'addSticky', projectId: 'A', id: 'n1', sticky: sticky() });
+  const A = (s: Schedule) => s.projects['A']!;
+
+  it('独立した付箋の追加・更新・削除', () => {
+    let s = withSticky();
+    expect(A(s).stickies?.['n1']).toEqual(sticky());
+    s = run(s, { type: 'updateSticky', id: 'n1', patch: { text: '変更', date: '2026-11-21', color: '#ffe066' } });
+    expect(A(s).stickies?.['n1']).toMatchObject({ text: '変更', date: '2026-11-21', color: '#ffe066' });
+    s = run(s, { type: 'deleteSticky', id: 'n1' });
+    expect(A(s).stickies?.['n1']).toBeUndefined();
+  });
+  it('紐づく付箋の日付は、対象の開始日になる（指定しても上書き）', () => {
+    const s = run(base(), { type: 'addSticky', projectId: 'A', id: 'n1', sticky: sticky({ attachedTo: 'e1', date: '2030-01-01' }) });
+    expect(A(s).stickies?.['n1']).toMatchObject({ attachedTo: 'e1', date: '2026-11-01' });
+    // 紐づいている間は、日付を直接変えられない（対象に追従する）
+    const t = run(s, { type: 'updateSticky', id: 'n1', patch: { date: '2031-01-01' } });
+    expect(A(t).stickies?.['n1']?.date).toBe('2026-11-01');
+  });
+  it('対象の開始日が動くと、付箋も追従する（イベント・マイルストーン）', () => {
+    let s = run(base(), { type: 'addSticky', projectId: 'A', id: 'n1', sticky: sticky({ attachedTo: 'e1' }) });
+    s = run(s, { type: 'updateEvent', id: 'e1', patch: { start: '2026-11-05' } });
+    expect(A(s).stickies?.['n1']?.date).toBe('2026-11-05');
+    const m = Object.keys(A(s).milestones)[0]!;
+    s = run(s, { type: 'addSticky', projectId: 'A', id: 'n2', sticky: sticky({ attachedTo: m }) });
+    s = run(s, { type: 'updateMilestone', id: m, patch: { date: '2027-05-05' } });
+    expect(A(s).stickies?.['n2']?.date).toBe('2027-05-05');
+  });
+  it('対象を別のプロジェクトへ動かすと、付箋も一緒に動く', () => {
+    let s = run(base(), { type: 'addSticky', projectId: 'A', id: 'n1', sticky: sticky({ attachedTo: 'e1' }) });
+    s = run(s, { type: 'moveEvent', id: 'e1', projectId: 'A1' });
+    expect(A(s).stickies?.['n1']).toBeUndefined();
+    expect(s.projects['A1']?.stickies?.['n1']?.attachedTo).toBe('e1');
+  });
+  it('対象を削除すると、付箋は消えず独立の付箋になる', () => {
+    let s = run(base(), { type: 'addSticky', projectId: 'A', id: 'n1', sticky: sticky({ attachedTo: 'e1' }) });
+    s = run(s, { type: 'deleteEvent', id: 'e1' });
+    expect(A(s).stickies?.['n1']).toEqual({ text: 'メモ', date: '2026-11-01' });
+  });
+  it('拒否: 対象が無い / 他プロジェクトの項目 / 空の本文 / ID 重複 / 存在しない付箋', () => {
+    expect(code(base(), { type: 'addSticky', projectId: 'A', id: 'n1', sticky: sticky({ attachedTo: 'none' }) })).toBe('not-found');
+    expect(code(base(), { type: 'addSticky', projectId: 'A1', id: 'n1', sticky: sticky({ attachedTo: 'e1' }) })).toBe('invalid-value');
+    expect(code(base(), { type: 'addSticky', projectId: 'A', id: 'n1', sticky: sticky({ text: '' }) })).toBe('invalid-value');
+    expect(code(withSticky(), { type: 'addSticky', projectId: 'A', id: 'n1', sticky: sticky() })).toBe('duplicate-id');
+    expect(code(base(), { type: 'addSticky', projectId: 'A', id: 'e1', sticky: sticky() })).toBe('duplicate-id');
+    expect(code(base(), { type: 'updateSticky', id: 'none', patch: {} })).toBe('not-found');
+    expect(code(base(), { type: 'deleteSticky', id: 'none' })).toBe('not-found');
+  });
+  it('プロジェクトを消すと付箋も消える。付箋は ID の重複判定の対象', () => {
+    const s = run(withSticky(), { type: 'deleteProject', id: 'A' });
+    expect(Object.values(s.projects).some((p) => p.stickies?.['n1'])).toBe(false);
+  });
+});

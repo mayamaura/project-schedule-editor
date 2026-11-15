@@ -66,8 +66,11 @@ export type ParseResult =
 export type Migration = (raw: Record<string, unknown>) => Record<string, unknown>;
 export type MigrationTable = Readonly<Record<number, Migration>>;
 
-/** 現在は版 1 のみ。版を上げるときはここに追加し、マイグレーションのテストを書く。 */
-export const MIGRATIONS: MigrationTable = {};
+/** 現在は版 2。版を上げるときはここに追加し、マイグレーションのテストを書く。 */
+export const MIGRATIONS: MigrationTable = {
+  // 1 → 2: 付箋（stickies）の追加。既存データの形は変わらない（旧アプリが新形式を誤読しないための版上げ）
+  1: (raw) => raw,
+};
 
 export function runMigrations(raw: Record<string, unknown>, from: number, to: number, table: MigrationTable): Record<string, unknown> {
   let cur = raw;

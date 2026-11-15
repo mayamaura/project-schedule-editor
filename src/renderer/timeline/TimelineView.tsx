@@ -31,6 +31,7 @@ import {
   impactOf,
   filterOptions,
   copyItems,
+  addStickyCommand,
   deleteItemsCommand,
   neighborItem,
   pasteCommand,
@@ -101,6 +102,13 @@ function describeSelection(s: Schedule, sel: Sel | null): string | null {
     const p = s.projects[sel.id];
     return p ? t('timeline.selectedProject', { name: p.name }) : null;
   }
+  if (sel.kind === 'sticky') {
+    for (const p of Object.values(s.projects)) {
+      const n = p.stickies?.[sel.id];
+      if (n) return t('timeline.selectedSticky', { text: n.text.slice(0, 30), date: n.date });
+    }
+    return null;
+  }
   for (const p of Object.values(s.projects)) {
     const item = sel.kind === 'event' ? p.events[sel.id] : p.milestones[sel.id];
     if (item) {
@@ -117,6 +125,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
   const theme = dark ? darkTheme : lightTheme;
   const [headerMode, setHeaderMode] = useState<HeaderMode>('weekMonth');
   const [deps, setDeps] = useState<DepMode>('all');
+  const [showStickies, setShowStickies] = useState(true); // 付箋の表示（F-108）
   const [showImpact, setShowImpact] = useState(false); // 選択項目の上流・下流を強調する（F-306）
   const [multi, setMulti] = useState<ReadonlySet<Id>>(new Set()); // 主の選択に加えて選んだ項目（Ctrl / Shift + クリック。F-207）
   const clip = useRef<ClipItem[]>([]); // コピーした項目（F-203）
@@ -138,7 +147,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
   const [filter, setFilter] = useState<ViewFilter>({});
   const [filterOpen, setFilterOpen] = useState(false);
   const shown = useMemo(() => filterSchedule(schedule, filter), [schedule, filter]);
-  const layout = useMemo(() => buildLayout(shown, { collapsed }), [shown, collapsed]);
+  const layout = useMemo(() => buildLayout(shown, { collapsed, stickies: showStickies }), [shown, collapsed, showStickies]);
   const issues = useMemo(() => validateSchedule(schedule), [schedule]);
   const errorCount = issues.filter((i) => i.severity === 'error').length;
 
@@ -162,7 +171,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
       selectedProjectId: () => {
         if (!selected) return null;
         if (selected.kind === 'project') return selected.id;
-        for (const p of Object.values(schedule.projects)) if (p.events[selected.id] || p.milestones[selected.id]) return p.id;
+        for (const p of Object.values(schedule.projects)) if (p.events[selected.id] || p.milestones[selected.id] || p.stickies?.[selected.id]) return p.id;
         return null;
       },
       headerMode: () => headerMode,
@@ -171,13 +180,15 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
       toggleFilter: () => setFilterOpen((v) => !v),
       jumpTo: (id) => {
         const L = latest.current;
-        let found: { kind: 'event' | 'milestone' | 'project'; day: number | null } | null = null;
+        let found: { kind: 'event' | 'milestone' | 'project' | 'sticky'; day: number | null } | null = null;
         for (const p of Object.values(L.schedule.projects)) {
           if (p.id === id) found = { kind: 'project', day: null };
           const e = p.events[id];
           if (e) found = { kind: 'event', day: toDays(e.start) };
           const m = p.milestones[id];
           if (m) found = { kind: 'milestone', day: toDays(m.date) };
+          const n = p.stickies?.[id];
+          if (n) found = { kind: 'sticky', day: toDays(n.date) };
         }
         if (!found) return;
         setSelected({ kind: found.kind, id });
@@ -320,6 +331,11 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
     const cmd = kind === 'event' ? addEventCommand(schedule, a) : addMilestoneCommand(schedule, a);
     if (commit(cmd) === null) setSelected({ kind, id });
   };
+  const createSticky = (projectId: Id, day: number, attachedTo?: Id): void => {
+    setShowStickies(true);
+    const id = newId(schedule);
+    if (commit(addStickyCommand({ projectId, id, day, text: t('sticky.new'), ...(attachedTo ? { attachedTo } : {}) })) === null) setSelected({ kind: 'sticky', id });
+  };
   const createProject = (parentId: Id | null): void => {
     const id = newId(schedule);
     if (commit(addProjectCommand(schedule, { id, name: t('edit.newProject'), parentId })) === null) {
@@ -328,7 +344,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
     }
   };
   const deleteSel = (s: Sel): void => {
-    commit(s.kind === 'event' ? { type: 'deleteEvent', id: s.id } : s.kind === 'milestone' ? { type: 'deleteMilestone', id: s.id } : { type: 'deleteProject', id: s.id });
+    commit(s.kind === 'event' ? { type: 'deleteEvent', id: s.id } : s.kind === 'milestone' ? { type: 'deleteMilestone', id: s.id } : s.kind === 'sticky' ? { type: 'deleteSticky', id: s.id } : { type: 'deleteProject', id: s.id });
   };
   const toggleHeader = (): void => setHeaderMode((m) => (m === 'weekMonth' ? 'month' : 'weekMonth'));
   const goToday = (): void => {
@@ -338,12 +354,20 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
   };
 
   const menuFor = (h: Hit): MenuItem[] => {
+    if (h.kind === 'sticky') {
+      const s: Sel = { kind: 'sticky', id: h.id };
+      return [
+        { label: t('menu.edit'), run: () => setSelected(s) },
+        { label: t('menu.delete'), run: () => deleteSel(s) },
+      ];
+    }
     if (h.kind === 'event' || h.kind === 'milestone') {
       const s: Sel = { kind: h.kind, id: h.id };
       const ms = h.kind === 'milestone' ? schedule.projects[h.projectId]?.milestones[h.id] : undefined;
       return [
         { label: t('menu.edit'), run: () => setSelected(s) },
         { label: t('menu.addDependency'), run: () => { setSelected(s); setLinkFrom(h.id); } },
+        { label: t('sticky.attach'), run: () => createSticky(h.projectId, 0, h.id) },
         ...(ms && onExpand ? [{ label: t('menu.expandTemplateFromMilestone'), run: () => onExpand({ projectId: h.projectId, date: ms.date }) }] : []),
         ...(selectionIds().length > 1 ? [{ label: t('menu.shiftSelected', { n: String(selectionIds().length) }), run: () => setShiftOpen(true) }] : []),
         { label: t('menu.copy'), run: () => { clip.current = copyItems(schedule, selectionIds().length > 0 ? selectionIds() : [h.id]); } },
@@ -354,6 +378,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
       return [
         { label: t('menu.createEvent'), run: () => createAt('event', h.projectId, h.day) },
         { label: t('menu.createMilestone'), run: () => createAt('milestone', h.projectId, h.day) },
+        ...(showStickies ? [{ label: t('sticky.add'), run: () => createSticky(h.projectId, h.day) }] : []),
         ...(clip.current.length > 0 ? [{ label: t('menu.paste'), run: () => { const r = pasteCommand(schedule, clip.current, h.projectId); if (r) commit(r.command); } }] : []),
         ...(onExpand ? [{ label: t('menu.expandTemplateHere'), run: () => onExpand({ projectId: h.projectId, date: fromDays(h.day) }) }] : []),
       ];
@@ -460,7 +485,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
       return;
     }
     setMulti(new Set());
-    setSelected(isItem ? { kind: h.kind as 'event' | 'milestone', id: h.id } : null);
+    setSelected(isItem ? { kind: h.kind as 'event' | 'milestone', id: h.id } : h?.kind === 'sticky' ? { kind: 'sticky', id: h.id } : null);
   };
   // ドラッグ中の変更先の表示（ドロップ前に新しい日付が分かるように。DOM を直接更新して React の再描画を避ける）
   const tipRef = useRef<HTMLDivElement>(null);
@@ -489,7 +514,7 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const h = hitAt(e.clientX - r.left, e.clientY - r.top);
     if (!h) return;
-    if (h.kind === 'event' || h.kind === 'milestone') setSelected({ kind: h.kind, id: h.id });
+    if (h.kind === 'event' || h.kind === 'milestone' || h.kind === 'sticky') setSelected({ kind: h.kind, id: h.id });
     openMenu(e.clientX, e.clientY, menuFor(h));
   };
   /** 選択している項目（主の選択 + 追加で選んだもの。プロジェクトを選んでいればそれも）。 */
@@ -659,6 +684,9 @@ export function TimelineView({ schedule, docKey, commit, onExpand, onSaveAsTempl
         <button type="button" data-testid="impact" aria-pressed={showImpact} disabled={!selected || selected.kind === 'project'} title={t('timeline.impactHint')} onClick={() => setShowImpact((v) => !v)}>
           {t('timeline.impact')}
         </button>
+        <label>
+          <input type="checkbox" data-testid="stickies-toggle" checked={showStickies} onChange={(e) => setShowStickies(e.target.checked)} /> {t('sticky.show')}
+        </label>
         <label>
           {t('timeline.deps')}{' '}
           <select value={deps} data-testid="deps" onChange={(e) => setDeps(e.target.value as DepMode)}>

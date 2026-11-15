@@ -9,7 +9,7 @@ import { orderBetween } from './order';
 const ID_CHARS = '0123456789abcdefghijklmnopqrstuvwxyz';
 
 function inUse(s: Schedule, id: Id): boolean {
-  return Boolean(s.projects[id] || s.dependencies[id]) || buildItemIndex(s).has(id);
+  return Boolean(s.projects[id] || s.dependencies[id]) || buildItemIndex(s).has(id) || Object.values(s.projects).some((p) => p.stickies?.[id]);
 }
 
 /** 衝突しない新しい ID（8文字の小文字英数字。並行編集でも被りにくいよう乱数）。 */
@@ -31,6 +31,11 @@ export function addEventCommand(s: Schedule, a: { projectId: Id; id: Id; day: nu
 
 export function addMilestoneCommand(s: Schedule, a: { projectId: Id; id: Id; day: number; name: string }): Command {
   return { type: 'addMilestone', projectId: a.projectId, id: a.id, milestone: { name: a.name, date: fromDays(a.day), type: defaultType(s, 'milestone') } };
+}
+
+/** 付箋（F-108）。attachedTo を渡すとその項目の開始日に置く（日付はコマンド側で対象にそろえる）。 */
+export function addStickyCommand(a: { projectId: Id; id: Id; day: number; text: string; attachedTo?: Id }): Command {
+  return { type: 'addSticky', projectId: a.projectId, id: a.id, sticky: { text: a.text, date: fromDays(a.day), ...(a.attachedTo ? { attachedTo: a.attachedTo } : {}) } };
 }
 
 /** 同じ親の子プロジェクトを並び順で返す。 */

@@ -1,5 +1,5 @@
 // テスト用の小さな日程データを組み立てる補助。
-import type { Dependency, EventData, MilestoneData, Project, Schedule } from '../../src/domain/model';
+import { SCHEMA_VERSION, type Dependency, type EventData, type MilestoneData, type Project, type Schedule } from '../../src/domain/model';
 
 export const ev = (name: string, start: string, end: string, extra: Partial<EventData> = {}): EventData => ({ name, start, end, type: 'phase', ...extra });
 export const ms = (name: string, date: string, extra: Partial<MilestoneData> = {}): MilestoneData => ({ name, date, type: 'review', ...extra });
@@ -14,7 +14,7 @@ export function dep(id: string, from: [Dependency['from']['kind'], string], to: 
 
 export function schedule(projects: Project[] = [], dependencies: Dependency[] = []): Schedule {
   return {
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     projects: Object.fromEntries(projects.map((p) => [p.id, p])),
     dependencies: Object.fromEntries(dependencies.map((d) => [d.id, d])),
     types: {},

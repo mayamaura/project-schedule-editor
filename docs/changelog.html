@@ -6,6 +6,8 @@
 <h1>仕様変更履歴</h1>
 <p>仕様文書（requirements / data-model / architecture / ui-design / git-ux / open-questions）を変更したら、この表の<strong>先頭</strong>に追記する（pre-commit が検査）。</p>
 <table><tr><th>日付</th><th>変更内容</th><th>影響文書</th><th>要件ID</th></tr>
+<tr><td>2026-11-15</td><td>付箋（F-108）を実装: 表示は 1 行（紐づく付箋は枠線つき。引き出し線・ドラッグ移動は未対応）、表示切替はタイムライン上部のチェック。付箋に関する検証（対象なし・日付のずれ・日付不正）は警告。版の比較・変更要約は未対応。<code>src/domain/commands.ts</code>・<code>src/domain/timeline/layout.ts</code>（<code>STICKY_SPAN_DAYS</code>）・<code>drawlist.ts</code>・<code>src/renderer/timeline/</code></td><td>ui-design, data-model</td><td>F-108</td></tr>
+<tr><td>2026-11-15</td><td><strong>付箋（F-108）を追加</strong>: スケジュール上に表示するメモ。独立した付箋と、イベント・マイルストーンに紐づく付箋（対象の開始日に表示し追従。対象を消すと独立に変わる）。プロジェクトの <code>stickies</code> に保存し、<strong>schemaVersion を 2 に上げる</strong>（マイグレーションは変更なし）。コマンド <code>addSticky</code> / <code>updateSticky</code> / <code>deleteSticky</code>。R5 に割り当て</td><td>requirements, data-model, ui-design, roadmap</td><td>F-108</td></tr>
 <tr><td>2026-11-15</td><td>種別の管理: 使用中の種別の「削除」を無効表示にせず、押すと「○件で使用中のため削除できません。先に別の種別に変えてください」と理由を表示するようにした（F-106）</td><td>ui-design</td><td>F-106</td></tr>
 <tr><td>2026-11-15</td><td>バー・マイルストーン（ラベル枠）の文字色を、塗りの明るさで自動切替（F-106）: 背景が明るい（白に近い）ときは黒系、暗いときは白系。種別・項目の色を白に近くしても文字が読める。<code>textOnFill</code>（<code>src/domain/timeline/drawlist.ts</code>）</td><td>ui-design</td><td>F-106</td></tr>
 <tr><td>2026-11-15</td><td>詳細パネルの種別の選択肢に「＋ 新しい種別…」を追加（F-106）: 選ぶと名前の入力欄が出て、追加すると種別マスタへの登録とその項目への設定を 1 つの操作（Undo 1 単位）で行う。設定の「種別の管理」へ行かなくても新規作成できる。データ形式は変更なし</td><td>ui-design</td><td>F-106</td></tr>

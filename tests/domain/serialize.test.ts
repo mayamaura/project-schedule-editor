@@ -33,7 +33,7 @@ describe('serializeSchedule / parseSchedule（往復）', () => {
   it('ファイル構成: 1プロジェクト1ファイル・1依存1ファイル・パスは昇順', () => {
     const files = serializeSchedule(basic());
     expect(Object.keys(files)).toEqual(['dependencies/d1.json', 'projects/A.json', 'projects/A1.json', 'schedule.json', 'types.json']);
-    expect(JSON.parse(files['schedule.json'] ?? '')).toEqual({ schemaVersion: 1 });
+    expect(JSON.parse(files['schedule.json'] ?? '')).toEqual({ schemaVersion: 2 });
   });
   it('往復して同一になる（Schedule → ファイル → Schedule → ファイル）', () => {
     const s = basic();
@@ -83,7 +83,7 @@ describe('parseSchedule（読み込めないもの・不整合）', () => {
     expect(parseSchedule({ ...good(), 'schedule.json': '{"schemaVersion":"1"}' })).toMatchObject({ status: 'error' });
   });
   it('新しい版のデータは tooNew（読み取り専用で開くため、中身は読まない）', () => {
-    expect(parseSchedule({ ...good(), 'schedule.json': '{"schemaVersion":2}', 'projects/A.json': 'ぐちゃぐちゃ' })).toEqual({ status: 'tooNew', fileVersion: 2 });
+    expect(parseSchedule({ ...good(), 'schedule.json': '{"schemaVersion":3}', 'projects/A.json': 'ぐちゃぐちゃ' })).toEqual({ status: 'tooNew', fileVersion: 3 });
   });
   it('壊れたファイルは、全ての問題をパス付きで返す（黙って捨てない）', () => {
     const f = good();
@@ -170,7 +170,7 @@ describe('マイグレーション（NF-006）', () => {
       out['projects/A.json'] = { ...a, name: `${String(a['name'])}（移行済み）` };
       return out;
     };
-    const r = parseSchedule(serializeSchedule(basic()), { 1: rename }, 2);
+    const r = parseSchedule({ ...serializeSchedule(basic()), 'schedule.json': '{"schemaVersion":1}' }, { 1: rename }, 2);
     expect(r.status).toBe('ok');
     if (r.status === 'ok') {
       expect(r.schedule.projects['A']?.name).toBe('新製品A（移行済み）');
@@ -178,7 +178,7 @@ describe('マイグレーション（NF-006）', () => {
     }
   });
   it('マイグレーションが無い古い版は、読み込みエラーにする（黙って読まない）', () => {
-    expect(parseSchedule(serializeSchedule(basic()), {}, 2)).toMatchObject({ status: 'error', errors: [{ path: 'schedule.json' }] });
+    expect(parseSchedule({ ...serializeSchedule(basic()), 'schedule.json': '{"schemaVersion":1}' }, {}, 2)).toMatchObject({ status: 'error', errors: [{ path: 'schedule.json' }] });
   });
   it('目標より新しい版は tooNew', () => {
     expect(parseSchedule({ 'schedule.json': '{"schemaVersion":3}' }, {}, 2)).toEqual({ status: 'tooNew', fileVersion: 3 });

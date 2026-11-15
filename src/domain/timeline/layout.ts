@@ -12,11 +12,15 @@ export interface LayoutOptions {
   readonly laneHeight?: number;
   readonly rowPad?: number;
   readonly minRowHeight?: number;
+  /** 付箋を表示するか（F-108。既定 true）。行の高さ・レーンにも影響する。 */
+  readonly stickies?: boolean;
 }
 
 export const DEFAULT_LANE_HEIGHT = 22;
 export const DEFAULT_ROW_PAD = 5;
 export const DEFAULT_MIN_ROW_HEIGHT = 32;
+/** 付箋がレーン割り当てで占める日数（ズームに依存させない。F-108）。 */
+export const STICKY_SPAN_DAYS = 14;
 
 export interface LaneInfo {
   readonly laneOf: ReadonlyMap<Id, number>;
@@ -46,20 +50,28 @@ export function itemDays(p: Project): ReadonlyMap<Id, ItemDays | null> {
 }
 
 const laneCache = new WeakMap<Project, LaneInfo>();
+const laneCacheWithStickies = new WeakMap<Project, LaneInfo>();
 
 /**
  * サブレーンの割り当て。日付だけで決める貪欲法（開始日順に、空いている最初のレーンへ）なので、
  * ズームに依存せず、拡縮してもバーが上下に飛ばない。終了日を含むため「前の終了日 < 次の開始日」で同じレーンに置ける。
  * マイルストーンは1日分。不正な日付の項目はレーン 0（検証が別に指摘する）。結果はプロジェクトの参照でキャッシュする。
  */
-export function assignLanes(p: Project): LaneInfo {
-  const cached = laneCache.get(p);
+export function assignLanes(p: Project, stickies = true): LaneInfo {
+  const cache = stickies ? laneCacheWithStickies : laneCache;
+  const cached = cache.get(p);
   if (cached) return cached;
   const items: { id: Id; start: number; end: number }[] = [];
   const laneOf = new Map<Id, number>();
   for (const [id, d] of itemDays(p)) {
     if (d) items.push({ id, start: d.s, end: d.e });
     else laneOf.set(id, 0);
+  }
+  if (stickies) {
+    for (const [id, n] of Object.entries(p.stickies ?? {})) {
+      if (isDateStr(n.date)) items.push({ id, start: toDays(n.date), end: toDays(n.date) + STICKY_SPAN_DAYS - 1 });
+      else laneOf.set(id, 0);
+    }
   }
   items.sort((a, b) => a.start - b.start || a.end - b.end || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const lastEnd: number[] = [];
@@ -70,7 +82,7 @@ export function assignLanes(p: Project): LaneInfo {
     laneOf.set(it.id, lane);
   }
   const info: LaneInfo = { laneOf, lanes: Math.max(1, lastEnd.length) };
-  laneCache.set(p, info);
+  cache.set(p, info);
   return info;
 }
 
@@ -93,6 +105,8 @@ export interface Layout {
   readonly itemPos: ReadonlyMap<Id, { readonly row: number; readonly lane: number }>;
   readonly laneHeight: number;
   readonly rowPad: number;
+  /** 付箋を含めてレーンを割り当てたか（F-108）。 */
+  readonly stickies: boolean;
 }
 
 const byOrderThenId = (a: Project, b: Project): number => (a.order < b.order ? -1 : a.order > b.order ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -101,6 +115,7 @@ export function buildLayout(s: Schedule, o: LayoutOptions = {}): Layout {
   const laneHeight = o.laneHeight ?? DEFAULT_LANE_HEIGHT;
   const rowPad = o.rowPad ?? DEFAULT_ROW_PAD;
   const minRowHeight = o.minRowHeight ?? DEFAULT_MIN_ROW_HEIGHT;
+  const stickies = o.stickies ?? true;
   const all = Object.values(s.projects);
 
   const children = new Map<Id | null, Project[]>();
@@ -122,7 +137,7 @@ export function buildLayout(s: Schedule, o: LayoutOptions = {}): Layout {
     const kids = children.get(p.id) ?? [];
     const collapsed = o.collapsed?.has(p.id) ?? false;
     if (!o.visible || o.visible.has(p.id)) {
-      const info = assignLanes(p);
+      const info = assignLanes(p, stickies);
       const height = Math.max(minRowHeight, rowPad * 2 + info.lanes * laneHeight);
       const row = rows.length;
       rows.push({ projectId: p.id, name: p.name, depth, y, height, lanes: info.lanes, hasChildren: kids.length > 0, collapsed });
@@ -150,7 +165,7 @@ export function buildLayout(s: Schedule, o: LayoutOptions = {}): Layout {
   // 親子が循環しているなど、根から辿れないプロジェクトも消さずに根として出す
   for (const p of [...all].sort(byOrderThenId)) if (!seen.has(p.id)) walk(p, 0);
 
-  return { rows, totalHeight: y, rowOfProject, itemPos, laneHeight, rowPad };
+  return { rows, totalHeight: y, rowOfProject, itemPos, laneHeight, rowPad, stickies };
 }
 
 /** 表示範囲 [scrollY, scrollY + height) にかかる行の範囲 [first, last)。行は y 昇順なので二分探索。 */
@@ -192,6 +207,7 @@ export function spanOf(s: Schedule): { minDay: number; maxDay: number } | null {
   for (const p of Object.values(s.projects)) {
     for (const e of Object.values(p.events)) take(e.start, e.end);
     for (const m of Object.values(p.milestones)) take(m.date, m.date);
+    for (const n of Object.values(p.stickies ?? {})) take(n.date, n.date);
   }
   return min === Infinity ? null : { minDay: min, maxDay: max };
 }

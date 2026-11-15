@@ -12,7 +12,7 @@ export const EDGE_GRAB_PX = 6;
 export const MIN_BAR_FOR_EDGES = 16;
 
 export type Hit =
-  | { readonly kind: 'event' | 'milestone'; readonly id: Id; readonly projectId: Id; readonly part: 'body' | 'start' | 'end' }
+  | { readonly kind: 'event' | 'milestone' | 'sticky'; readonly id: Id; readonly projectId: Id; readonly part: 'body' | 'start' | 'end' }
   /** 項目の無い場所（作成・右クリックメニューの文脈）。day は通算日数（整数）。 */
   | { readonly kind: 'row'; readonly projectId: Id; readonly day: number }
   | { readonly kind: 'header' }

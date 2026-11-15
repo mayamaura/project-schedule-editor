@@ -11,6 +11,7 @@
 <tr><td>Project</td><td>id, name, parentId, order, status, assignee, tags[], color, note</td></tr>
 <tr><td>Event</td><td>id, projectId, name, start, end, type, color, style?, note</td></tr>
 <tr><td>Milestone</td><td>id, projectId, name, date, type, style?, note</td></tr>
+<tr><td>Sticky（付箋。F-108）</td><td>id, projectId, text, date, color?, attachedTo?</td></tr>
 <tr><td>Dependency</td><td>id, from{kind,id}, to{kind,id}, type(FS/SS/FF/SF), lagDays</td></tr>
 <tr><td>Type（種別マスタ）</td><td>id, name, color, eventStyle, milestoneStyle</td></tr>
 <tr><td>Template（標準日程）</td><td>id, name, defaultAnchor, dayMode, adjust, events, milestones, dependencies（起点（0）からの相対オフセット: ヶ月・日）</td></tr>
@@ -117,6 +118,18 @@
 <h3>フィルタ・集計</h3>
 <p>期間・プロジェクト・変更種類・作者で絞り込み、「日程が後ろ倒しになった項目」を一覧（変動日数の降順）する。</p>
 <div class="note">同じ <code>diffSchedule</code> を、保存・共有・履歴・比較・競合解決のすべてで再利用する。純TypeScript のため単体テストを必須とする。性能は変更ファイルのみ読むため、リポジトリ全体が大きくても影響しない。</div>
+
+<h2 id="sticky">7.5 付箋（Sticky。F-108）</h2>
+<p>プロジェクトの <code>stickies</code>（ID → 付箋。付箋が無ければキーごと出力しない）。<strong>schemaVersion を 1 → 2 に上げる</strong>（マイグレーションは何もしない。旧アプリが新形式を誤って読まないための版上げ）。</p>
+<pre>"stickies": { "n1": { "text": "仕様確定待ち
+A社の回答次第", "date": "2027-02-01", "color": "#ffe066", "attachedTo": "e2" } }</pre>
+<ul>
+<li><code>text</code>: プレーンテキスト（1〜20000 文字。改行可）。<code>date</code>: 表示する日付。<code>color</code>: 任意（既定は黄系）。</li>
+<li><code>attachedTo</code>: 任意。紐づく項目（イベントまたはマイルストーン）の ID。<strong>付箋は対象と同じプロジェクトに置く</strong>。紐づくとき <code>date</code> は対象の開始日（マイルストーンは日付）と同じで、<strong>対象の日付・所属を変えるコマンドが同じ操作の中で付箋の <code>date</code> と所属も更新する</strong>（描画・レーン割り当てが他の項目を参照しなくて済むため）。外部編集でずれた場合は検証が警告する。</li>
+<li><strong>対象を削除</strong>したとき、付箋は消さず <code>attachedTo</code> を外して独立の付箋にする（本文を失わない）。プロジェクトを消せば付箋も消える。</li>
+<li>コマンド: <code>addSticky</code> / <code>updateSticky</code> / <code>deleteSticky</code>。依存の対象には使えない。</li>
+<li>3 版マージ・出力用スナップショット（10）は、項目と同じ ID キーの扱い。<strong>版の比較・履歴の変更要約（<code>diffSchedule</code>）は付箋を扱わない</strong>（未対応）。</li>
+</ul>
 
 <h2>5. スキーマ進化</h2>
 <ul><li><code>schemaVersion</code> を保持。起動時に古ければマイグレーションし、「データ形式を更新しました」を1コミットとして記録。</li>

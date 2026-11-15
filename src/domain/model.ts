@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { isDateStr } from './date';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -36,6 +36,14 @@ export const milestoneSchema = z.strictObject({
   note: textSchema.optional(),
 });
 
+/** 付箋（F-108）。attachedTo があるとき date は対象の開始日と同じ（コマンドが同期を保つ）。 */
+export const stickySchema = z.strictObject({
+  text: z.string().min(1, '本文が空').max(20000),
+  date: dateSchema,
+  color: z.string().max(32).optional(),
+  attachedTo: idSchema.optional(),
+});
+
 export const projectSchema = z.strictObject({
   id: idSchema,
   name: nameSchema,
@@ -48,6 +56,7 @@ export const projectSchema = z.strictObject({
   note: textSchema.optional(),
   events: z.record(idSchema, eventSchema),
   milestones: z.record(idSchema, milestoneSchema),
+  stickies: z.record(idSchema, stickySchema).optional(),
 });
 
 export const endpointSchema = z.strictObject({ kind: z.enum(['event', 'milestone']), id: idSchema });
@@ -73,6 +82,7 @@ export const metaSchema = z.strictObject({ schemaVersion: z.number().int().min(1
 export type Id = string;
 export type EventData = z.infer<typeof eventSchema>;
 export type MilestoneData = z.infer<typeof milestoneSchema>;
+export type StickyData = z.infer<typeof stickySchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type Endpoint = z.infer<typeof endpointSchema>;
 export type Dependency = z.infer<typeof dependencySchema>;

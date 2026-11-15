@@ -146,3 +146,14 @@ describe('変更で新たに生じた指摘（F-512）', () => {
     expect(newIssues(moved, ok)).toEqual([]); // 解消されたものは新規ではない
   });
 });
+
+describe('付箋の検証（F-108）', () => {
+  const withNotes = (stickies: Record<string, object>) => schedule([proj('A', { events: { e1: ev('x', '2026-12-01', '2026-12-05') }, stickies: stickies as never })]);
+  it('正しい付箋は指摘なし', () => {
+    expect(validateSchedule(withNotes({ n1: { text: 'a', date: '2026-12-01', attachedTo: 'e1' }, n2: { text: 'b', date: '2026-12-09' } }))).toEqual([]);
+  });
+  it('対象が無い・日付がずれている・日付が不正は警告（エラーにはしない）', () => {
+    const r = validateSchedule(withNotes({ n1: { text: 'a', date: '2026-12-01', attachedTo: 'gone' }, n2: { text: 'b', date: '2026-12-02', attachedTo: 'e1' }, n3: { text: 'c', date: '2026-13-01' } }));
+    expect(r.map((i) => [i.rule, i.severity, i.target.id]).sort()).toEqual([['dangling-reference', 'warning', 'n1'], ['date-invalid', 'warning', 'n2'], ['date-invalid', 'warning', 'n3']]);
+  });
+});

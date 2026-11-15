@@ -9,6 +9,7 @@ import {
   idSchema,
   milestoneSchema,
   projectSchema,
+  stickySchema,
   typeDefSchema,
   type Dependency,
   type EventData,
@@ -16,6 +17,7 @@ import {
   type MilestoneData,
   type Project,
   type Schedule,
+  type StickyData,
   type TypeDef,
 } from './model';
 import { isValidOrder } from './order';
@@ -23,6 +25,7 @@ import { isValidOrder } from './order';
 export type ProjectPatch = Partial<Pick<Project, 'name' | 'status' | 'assignee' | 'tags' | 'color' | 'note'>>;
 export type EventPatch = Partial<EventData>;
 export type MilestonePatch = Partial<MilestoneData>;
+export type StickyPatch = Partial<StickyData>;
 export type DependencyPatch = Partial<Pick<Dependency, 'from' | 'to' | 'type' | 'lagDays'>>;
 
 export type Command =
@@ -38,6 +41,9 @@ export type Command =
   | { readonly type: 'updateMilestone'; readonly id: Id; readonly patch: MilestonePatch }
   | { readonly type: 'moveMilestone'; readonly id: Id; readonly projectId: Id }
   | { readonly type: 'deleteMilestone'; readonly id: Id }
+  | { readonly type: 'addSticky'; readonly projectId: Id; readonly id: Id; readonly sticky: StickyData }
+  | { readonly type: 'updateSticky'; readonly id: Id; readonly patch: StickyPatch }
+  | { readonly type: 'deleteSticky'; readonly id: Id }
   | { readonly type: 'addDependency'; readonly dependency: Dependency }
   | { readonly type: 'updateDependency'; readonly id: Id; readonly patch: DependencyPatch }
   | { readonly type: 'deleteDependency'; readonly id: Id }
@@ -86,7 +92,7 @@ function locate(s: Schedule, id: Id): Located | undefined {
 
 function idInUse(s: Schedule, id: Id): boolean {
   if (s.projects[id] || s.dependencies[id]) return true;
-  for (const p of Object.values(s.projects)) if (p.events[id] || p.milestones[id]) return true;
+  for (const p of Object.values(s.projects)) if (p.events[id] || p.milestones[id] || p.stickies?.[id]) return true;
   return false;
 }
 
@@ -101,6 +107,55 @@ function mergePatch<T extends object>(base: T, patch: object): T {
     else out[k] = v;
   }
   return out as T;
+}
+
+function locateSticky(s: Schedule, id: Id): { project: Project; data: StickyData } | undefined {
+  for (const p of Object.values(s.projects)) {
+    const data = p.stickies?.[id];
+    if (data) return { project: p, data };
+  }
+  return undefined;
+}
+
+/** 付箋が空ならキーごと外す（出力に空の stickies を出さない）。 */
+function withStickies(p: Project, stickies: Record<Id, StickyData>): Project {
+  const out: Project = { ...p, stickies };
+  if (Object.keys(stickies).length === 0) delete out.stickies;
+  return out;
+}
+
+/** 項目に紐づく付箋を作り替える（F-108）。 */
+function mapAttached(p: Project, itemId: Id, f: (n: StickyData) => StickyData): Project {
+  if (!p.stickies) return p;
+  let changed = false;
+  const out: Record<Id, StickyData> = {};
+  for (const [k, n] of Object.entries(p.stickies)) {
+    if (n.attachedTo === itemId) {
+      out[k] = f(n);
+      changed = true;
+    } else out[k] = n;
+  }
+  return changed ? { ...p, stickies: out } : p;
+}
+const followDate = (p: Project, itemId: Id, date: string): Project => mapAttached(p, itemId, (n) => (n.date === date ? n : { ...n, date }));
+/** 対象が消えたとき、紐づいていた付箋を独立にする。 */
+function detach(p: Project, itemId: Id): Project {
+  return mapAttached(p, itemId, (n) => {
+    const rest: StickyData = { ...n };
+    delete rest.attachedTo;
+    return rest;
+  });
+}
+/** 紐づく付箋を、別のプロジェクトへ移す。 */
+function carryAttached(from: Project, to: Project, itemId: Id): { from: Project; to: Project } {
+  const entries = Object.entries(from.stickies ?? {});
+  const moving = entries.filter(([, n]) => n.attachedTo === itemId);
+  if (moving.length === 0) return { from, to };
+  const rest = entries.filter(([, n]) => n.attachedTo !== itemId);
+  return {
+    from: withStickies(from, Object.fromEntries(rest)),
+    to: { ...to, stickies: { ...(to.stickies ?? {}), ...Object.fromEntries(moving) } },
+  };
 }
 
 const withProject = (s: Schedule, p: Project): Schedule => ({ ...s, projects: { ...s.projects, [p.id]: p } });
@@ -188,6 +243,15 @@ function checkEventDates(e: EventData): ApplyResult | null {
   return e.end < e.start ? fail('end-before-start', `終了日（${e.end}）が開始日（${e.start}）より前`) : null;
 }
 
+/** 紐づく付箋なら date を対象の開始日にそろえる（対象が無い・別のプロジェクトなら失敗）。 */
+function attachedDate(s: Schedule, p: Project, n: StickyData): { ok: true; value: StickyData } | { ok: false; error: ApplyResult } {
+  if (n.attachedTo === undefined) return { ok: true, value: n };
+  const f = locate(s, n.attachedTo);
+  if (!f) return { ok: false, error: fail('not-found', `付箋の対象「${n.attachedTo}」が存在しない`) };
+  if (f.project.id !== p.id) return { ok: false, error: fail('invalid-value', '付箋は対象と同じプロジェクトに置く') };
+  return { ok: true, value: { ...n, date: f.kind === 'event' ? f.data.start : f.data.date } };
+}
+
 function applySingle(s: Schedule, c: Exclude<Command, { type: 'batch' }>): ApplyResult {
   switch (c.type) {
     case 'addProject': {
@@ -262,7 +326,7 @@ function applySingle(s: Schedule, c: Exclude<Command, { type: 'batch' }>): Apply
       if (!parsed.success) return fail('invalid-value', zodMessage(parsed.error));
       const bad = checkEventDates(merged);
       if (bad) return bad;
-      return ok(withProject(s, { ...f.project, events: { ...f.project.events, [c.id]: merged } }));
+      return ok(withProject(s, followDate({ ...f.project, events: { ...f.project.events, [c.id]: merged } }, c.id, merged.start)));
     }
     case 'moveEvent': {
       const f = locate(s, c.id);
@@ -270,13 +334,13 @@ function applySingle(s: Schedule, c: Exclude<Command, { type: 'batch' }>): Apply
       const dest = s.projects[c.projectId];
       if (!dest) return fail('not-found', `プロジェクト「${c.projectId}」が存在しない`);
       if (dest.id === f.project.id) return ok(s);
-      const moved = withProject(s, { ...f.project, events: withoutKey(f.project.events, c.id) });
-      return ok(withProject(moved, { ...dest, events: { ...dest.events, [c.id]: f.data } }));
+      const carried = carryAttached({ ...f.project, events: withoutKey(f.project.events, c.id) }, { ...dest, events: { ...dest.events, [c.id]: f.data } }, c.id);
+      return ok(withProject(withProject(s, carried.from), carried.to));
     }
     case 'deleteEvent': {
       const f = locate(s, c.id);
       if (f?.kind !== 'event') return fail('not-found', `イベント「${c.id}」が存在しない`);
-      return ok(dropDependenciesOf(withProject(s, { ...f.project, events: withoutKey(f.project.events, c.id) }), new Set([c.id])));
+      return ok(dropDependenciesOf(withProject(s, detach({ ...f.project, events: withoutKey(f.project.events, c.id) }, c.id)), new Set([c.id])));
     }
     case 'addMilestone': {
       const p = s.projects[c.projectId];
@@ -294,7 +358,7 @@ function applySingle(s: Schedule, c: Exclude<Command, { type: 'batch' }>): Apply
       const merged = mergePatch(f.data, c.patch);
       const parsed = milestoneSchema.safeParse(merged);
       if (!parsed.success) return fail('invalid-value', zodMessage(parsed.error));
-      return ok(withProject(s, { ...f.project, milestones: { ...f.project.milestones, [c.id]: merged } }));
+      return ok(withProject(s, followDate({ ...f.project, milestones: { ...f.project.milestones, [c.id]: merged } }, c.id, merged.date)));
     }
     case 'moveMilestone': {
       const f = locate(s, c.id);
@@ -302,13 +366,41 @@ function applySingle(s: Schedule, c: Exclude<Command, { type: 'batch' }>): Apply
       const dest = s.projects[c.projectId];
       if (!dest) return fail('not-found', `プロジェクト「${c.projectId}」が存在しない`);
       if (dest.id === f.project.id) return ok(s);
-      const moved = withProject(s, { ...f.project, milestones: withoutKey(f.project.milestones, c.id) });
-      return ok(withProject(moved, { ...dest, milestones: { ...dest.milestones, [c.id]: f.data } }));
+      const carried = carryAttached({ ...f.project, milestones: withoutKey(f.project.milestones, c.id) }, { ...dest, milestones: { ...dest.milestones, [c.id]: f.data } }, c.id);
+      return ok(withProject(withProject(s, carried.from), carried.to));
     }
     case 'deleteMilestone': {
       const f = locate(s, c.id);
       if (f?.kind !== 'milestone') return fail('not-found', `マイルストーン「${c.id}」が存在しない`);
-      return ok(dropDependenciesOf(withProject(s, { ...f.project, milestones: withoutKey(f.project.milestones, c.id) }), new Set([c.id])));
+      return ok(dropDependenciesOf(withProject(s, detach({ ...f.project, milestones: withoutKey(f.project.milestones, c.id) }, c.id)), new Set([c.id])));
+    }
+    case 'addSticky': {
+      const p = s.projects[c.projectId];
+      if (!p) return fail('not-found', `プロジェクト「${c.projectId}」が存在しない`);
+      const idOk = idSchema.safeParse(c.id);
+      if (!idOk.success) return fail('invalid-value', zodMessage(idOk.error));
+      const parsed = stickySchema.safeParse(c.sticky);
+      if (!parsed.success) return fail('invalid-value', zodMessage(parsed.error));
+      if (idInUse(s, c.id)) return fail('duplicate-id', `ID「${c.id}」は既に使われている`);
+      const sticky = attachedDate(s, p, c.sticky);
+      if (sticky.ok) return ok(withProject(s, { ...p, stickies: { ...(p.stickies ?? {}), [c.id]: sticky.value } }));
+      return sticky.error;
+    }
+    case 'updateSticky': {
+      const f = locateSticky(s, c.id);
+      if (!f) return fail('not-found', `付箋「${c.id}」が存在しない`);
+      const merged = mergePatch(f.data, c.patch);
+      const parsed = stickySchema.safeParse(merged);
+      if (!parsed.success) return fail('invalid-value', zodMessage(parsed.error));
+      const sticky = attachedDate(s, f.project, merged);
+      if (sticky.ok) return ok(withProject(s, { ...f.project, stickies: { ...f.project.stickies, [c.id]: sticky.value } }));
+      return sticky.error;
+    }
+    case 'deleteSticky': {
+      const f = locateSticky(s, c.id);
+      if (!f) return fail('not-found', `付箋「${c.id}」が存在しない`);
+      const rest = withoutKey(f.project.stickies ?? {}, c.id);
+      return ok(withProject(s, withStickies(f.project, rest)));
     }
     case 'addDependency': {
       const bad = validateDependency(s, c.dependency);

@@ -6,7 +6,7 @@ import { isDateStr, toDays, weekdayOfDay } from '../date';
 import type { Dependency, Id, Schedule } from '../model';
 import { shortfallDays } from '../validate';
 import { HEADER_FONT_SIZE, buildHeader, dayToX, estimateTextWidth, xToDay, type HeaderMode, type Viewport } from './axis';
-import { assignLanes, itemDays, visibleRowRange, type Layout } from './layout';
+import { assignLanes, itemDays, STICKY_SPAN_DAYS, visibleRowRange, type Layout } from './layout';
 
 export type Shape = 'diamond' | 'circle' | 'triangle' | 'triangleDown' | 'square' | 'star' | 'flag';
 
@@ -23,7 +23,7 @@ export interface HitBox {
   readonly y: number;
   readonly w: number;
   readonly h: number;
-  readonly kind: 'event' | 'milestone';
+  readonly kind: 'event' | 'milestone' | 'sticky';
   readonly id: Id;
   readonly projectId: Id;
 }
@@ -71,6 +71,9 @@ export const darkTheme: Theme = {
   rowLine: '#30363d', selection: '#ffa94d', hover: '#4dabf7', dep: '#9aa5b1', depViolation: '#ff6b6b', impactUp: '#ff922b', impactDown: '#4dabf7',
   palette: ['#6cb2ff', '#51cf66', '#ff8787', '#b197fc', '#ffa94d', '#38d9a9', '#adb5bd', '#f783ac'],
 };
+
+/** 付箋の既定の色（F-108）。 */
+export const STICKY_COLOR = '#ffe066';
 
 export const HEADER_ROW_HEIGHT = 22;
 export const HEADER_HEIGHT = HEADER_ROW_HEIGHT * 2;
@@ -237,7 +240,7 @@ export function buildDrawList(s: Schedule, layout: Layout, o: DrawOptions): Draw
     bg.push({ t: 'line', x1: 0, y1: rowTop + row.height, x2: width, y2: rowTop + row.height, color: theme.rowLine, width: 1 });
     const p = s.projects[row.projectId];
     if (!p) continue;
-    const laneOf = assignLanes(p).laneOf;
+    const laneOf = assignLanes(p, layout.stickies).laneOf;
     const days = itemDays(p);
 
     for (const [id, e] of Object.entries(p.events)) {
@@ -324,6 +327,24 @@ export function buildDrawList(s: Schedule, layout: Layout, o: DrawOptions): Draw
       hitBoxes.push({ x: cx - size / 2, y: cy - size / 2, w: size, h: size, kind: 'milestone', id, projectId: p.id });
       items.push({ t: 'marker', shape: style, cx, cy, size, fill: color, stroke: theme.text });
       if (pxPerDay >= 3) items.push({ t: 'text', x: cx + size / 2 + 3, y: cy, text: m.name, color: theme.text, size: LABEL_SIZE, align: 'left' });
+    }
+
+    // 付箋（F-108）: 1 行（改行は空白に）。幅は日付に依存せず約 STICKY_SPAN_DAYS 日分（最小 100・最大 240px）。紐づく付箋は枠線つき
+    if (layout.stickies) {
+      const sw = Math.min(240, Math.max(100, STICKY_SPAN_DAYS * pxPerDay));
+      for (const [id, n] of Object.entries(p.stickies ?? {})) {
+        if (!isDateStr(n.date)) continue;
+        const x0 = dayToX(toDays(n.date), vp);
+        if (x0 + sw < 0 || x0 > width) continue;
+        const y0 = rowTop + pad + (laneOf.get(id) ?? 0) * laneH + 2;
+        const h0 = laneH - 4;
+        const fill = n.color ?? STICKY_COLOR;
+        itemCount++;
+        hitBoxes.push({ x: x0, y: y0, w: sw, h: h0, kind: 'sticky', id, projectId: p.id });
+        items.push({ t: 'rect', x: x0, y: y0, w: sw, h: h0, fill, radius: 4 });
+        if (n.attachedTo !== undefined) items.push({ t: 'rect', x: x0, y: y0, w: sw, h: h0, stroke: theme.text, lineWidth: 1, radius: 4 });
+        items.push({ t: 'text', x: x0 + 5, y: y0 + h0 / 2, text: n.text.replace(/\s*\n\s*/g, ' '), color: textOnFill(fill, theme), size: LABEL_SIZE, align: 'left', clipW: sw - 10 });
+      }
     }
   }
 

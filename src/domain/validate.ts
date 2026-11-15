@@ -5,7 +5,7 @@ import { isDateStr, toDays } from './date';
 import { buildItemIndex, type Dependency, type Id, type ItemRef, type Schedule } from './model';
 
 export type Severity = 'error' | 'warning';
-export type TargetKind = 'project' | 'event' | 'milestone' | 'dependency';
+export type TargetKind = 'project' | 'event' | 'milestone' | 'dependency' | 'sticky';
 
 export type Rule =
   | 'date-invalid'
@@ -175,6 +175,17 @@ export function validateSchedule(s: Schedule): ValidationIssue[] {
 
   // --- 依存 ---
   const items = buildItemIndex(s);
+
+  // --- 付箋（F-108）: 紐づく対象が無い・日付がずれている・日付が不正 ---
+  for (const p of Object.values(s.projects)) {
+    for (const [id, n] of Object.entries(p.stickies ?? {})) {
+      if (!isDateStr(n.date)) add('date-invalid', 'warning', 'sticky', id, `付箋「${n.text.slice(0, 20)}」の日付が不正`);
+      if (n.attachedTo === undefined) continue;
+      const ref = items.get(n.attachedTo);
+      if (!ref) add('dangling-reference', 'warning', 'sticky', id, `付箋「${n.text.slice(0, 20)}」の対象「${n.attachedTo}」が存在しない`);
+      else if (ref.start !== n.date) add('date-invalid', 'warning', 'sticky', id, `付箋「${n.text.slice(0, 20)}」の日付が対象の開始日とずれている`);
+    }
+  }
   const deps = Object.values(s.dependencies);
   const resolvable: Dependency[] = [];
   for (const d of deps) {
